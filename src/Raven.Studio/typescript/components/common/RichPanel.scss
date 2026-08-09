@@ -1,0 +1,191 @@
+﻿@use "sass:map";
+@use "sass:math";
+@use "Content/scss/bs5variables";
+@use "Content/scss/sizes";
+
+.rich-panel-item {
+    $status-border-radius: bs5variables.$gutter-xs;
+    $border-offset: 2px;
+    $bulge-width: bs5variables.$gutter-xxs;
+    $border-width: bs5variables.$border-width;
+    $default-panel-transitions: box-shadow 0.25s bs5variables.$global-easing;
+
+    &:before {
+        content: "";
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        z-index: -1;
+        border-radius: var(--bs-card-border-radius);
+        transition: box-shadow 0.25s bs5variables.$global-easing;
+        pointer-events: none;
+        box-shadow: 0px 0px 0px $border-offset rgba(bs5variables.$body-bg-var, 0);
+    }
+
+    &.active {
+        &:before {
+            box-shadow:
+                0px 0px 0px $border-offset rgba(bs5variables.$body-bg-var, 1),
+                0px 0px 0px ($border-offset + $border-width) bs5variables.$primary-var,
+                (($bulge-width + $border-offset) * -1) 0px 0px ($border-offset + $border-width)
+                    bs5variables.$primary-var;
+        }
+    }
+
+    &.rich-panel-hover {
+        transition:
+            $default-panel-transitions,
+            filter 0.3s ease-in-out;
+
+        &:hover {
+            transition: $default-panel-transitions;
+            filter: bs5variables.$hover-filter-var;
+            z-index: 1;
+        }
+    }
+
+    & + .rich-panel-item {
+        margin-top: bs5variables.$gutter-sm;
+    }
+
+    &.with-status,
+    &.with-status::before {
+        border-radius: $status-border-radius var(--bs-card-border-radius) var(--bs-card-border-radius)
+            $status-border-radius;
+    }
+
+    .rich-panel-status {
+        writing-mode: vertical-rl;
+        transform: scale(-1);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        border-radius: 0 $status-border-radius $status-border-radius 0 !important;
+    }
+
+    .rich-panel-header {
+        padding: bs5variables.$gutter-xs bs5variables.$gutter-sm;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+
+        .rich-panel-select {
+            width: bs5variables.$gutter;
+            height: bs5variables.$gutter;
+            margin: 0 bs5variables.$gutter-xxs 0 0;
+            min-height: auto;
+        }
+
+        .rich-panel-name {
+            margin: 0;
+            flex-grow: 1;
+            word-break: break-all;
+
+            @media (min-width: map.get(bs5variables.$grid-breakpoints, "sm")) {
+                width: 350px;
+                min-width: 350px;
+                a {
+                    white-space: nowrap;
+                    max-width: 100%;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    display: inline-block;
+                }
+            }
+        }
+
+        .rich-panel-info {
+            flex-grow: 1;
+        }
+        .rich-panel-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .rich-panel-actions {
+            margin-left: auto;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .rich-panel-actions {
+            justify-content: end;
+            gap: sizes.$gutter-xs;
+        }
+    }
+
+    .rich-panel-details {
+        padding: bs5variables.$gutter-xs math.div(bs5variables.$gutter, 2);
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+
+        .rich-panel-details-right {
+            display: flex;
+            justify-content: end;
+            flex-grow: 1;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1rem;
+            .rich-panel-detail-item {
+                margin: bs5variables.$gutter-xs 0;
+            }
+        }
+
+        .rich-panel-detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: sizes.$gutter-xxxs;
+            margin: bs5variables.$gutter-xs math.div(bs5variables.$gutter, 2);
+
+            .btn-toggle-panel {
+                width: 36px;
+                height: 36px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+        }
+
+        .rich-panel-detail-item-sm {
+            display: flex;
+            flex-direction: column;
+            gap: sizes.$gutter-xxxs;
+            margin: bs5variables.$gutter-xs math.div(bs5variables.$gutter, 2);
+            font-size: bs5variables.$font-size-sm;
+        }
+
+        .detail-item-label {
+            font-size: bs5variables.$font-size-xs;
+            color: bs5variables.$text-muted-var;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            line-height: 1.1em;
+            margin-bottom: 2px;
+        }
+        .detail-item-content {
+            display: flex;
+            align-items: center;
+            line-height: 1.4em;
+
+            & > i {
+                margin-right: bs5variables.$gutter-xxs;
+            }
+
+            a:not(:hover) {
+                color: inherit;
+            }
+        }
+
+        .value {
+            margin-left: bs5variables.$gutter-xxs;
+            font-weight: bold;
+            color: bs5variables.$text-emphasis-var;
+        }
+
+        .progress-circle .state-indicator {
+            margin-top: -3px;
+            margin-bottom: -3px;
+        }
+    }
+}

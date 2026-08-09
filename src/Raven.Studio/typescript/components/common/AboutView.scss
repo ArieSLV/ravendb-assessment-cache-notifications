@@ -1,0 +1,175 @@
+﻿@use "Content/scss/bs5variables";
+@use "Content/scss/colors";
+@use "Content/scss/sizes";
+
+@keyframes gradient {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+.hub-btn {
+    border-radius: sizes.$border-radius-md !important;
+    padding: 0.4rem 1.75rem 0.4rem 0.9rem !important;
+    //padding: sizes.$gutter-xxs sizes.$gutter-xs !important;
+    border: 1px solid colors.$border-color-light-var !important;
+    background-color: colors.$panel-bg-1-var !important;
+    text-decoration: none;
+    cursor: pointer;
+    position: relative;
+    transition: bs5variables.$transition-base !important;
+
+    &:hover {
+        background-color: colors.$panel-bg-2-var !important;
+    }
+
+    &:after {
+        content: "";
+        display: block;
+        background-image: url("../../../wwwroot/Content/img/info-hub.svg");
+        position: absolute;
+        width: 28px;
+        height: 28px;
+        right: -#{sizes.$gutter-xxs};
+        top: -#{sizes.$gutter-xxs};
+        background-repeat: no-repeat;
+        filter: none !important;
+    }
+}
+
+.about-view-title-badge {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+}
+
+.about-view-dropdown {
+    z-index: calc(var(--zindex-modal) - 1);
+
+    .popover {
+        padding: sizes.$gutter-xxs;
+        width: 540px;
+        max-width: 90vw;
+        font-size: bs5variables.$font-size-sm;
+        border: none;
+        color: bs5variables.$text-color-var;
+        border-radius: bs5variables.$border-radius-lg;
+    }
+    .popover-inner {
+        max-height: calc(100vh - 240px);
+        overflow: auto;
+    }
+    .popover-arrow {
+        &:before {
+            border: transparent;
+        }
+    }
+}
+
+.about-view-accordion {
+    .description {
+        font-size: 0.75rem;
+        color: colors.$text-muted-var;
+    }
+    .tab-icon {
+        top: 3px;
+        font-size: 1.5rem;
+    }
+
+    .license-accordion {
+        border-radius: sizes.$gutter-xs !important;
+    }
+    .accordion-button {
+        border-radius: sizes.$gutter-xs !important;
+        background-color: colors.$panel-bg-1-var;
+        display: flex;
+        align-items: baseline;
+        transition: background-color 0.4s ease;
+        &:focus {
+            outline: none;
+            box-shadow: none;
+        }
+        &:not(.collapsed) {
+            background: transparent;
+            box-shadow: none;
+        }
+        h4 {
+            color: colors.$text-emphasis-var;
+        }
+    }
+    .accordion-item {
+        background-color: colors.$panel-bg-1-var;
+        border: none;
+        &:not(:first-of-type) {
+            margin-top: sizes.$gutter-xxs;
+        }
+        $shadow-classes: (
+            info: 0 0 100px 0 inset rgba(var(--bs-info-rgb), 0.1),
+            success: 0 0 100px 0 inset rgba(var(--bs-success-rgb), 0.1),
+            warning: 0 0 100px 0 inset rgba(var(--bs-warning-rgb), 0.1),
+        );
+        @each $class, $shadow in $shadow-classes {
+            &.box-shadow-#{$class} {
+                box-shadow: $shadow;
+            }
+        }
+        .accordion-pill {
+            font-size: 0.625rem;
+            font-weight: 700;
+        }
+        .accordion-body {
+            padding: sizes.$gutter-xs sizes.$gutter-sm sizes.$gutter-sm sizes.$gutter-sm;
+        }
+    }
+    .license-name {
+        margin-bottom: sizes.$gutter-xs;
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        &.community {
+            &:before {
+                background-color: colors.$color-3-3;
+            }
+        }
+        &.professional {
+            &:before {
+                background-color: colors.$color-4-2;
+            }
+        }
+        &.enterprise {
+            &:before {
+                background-color: colors.$color-5;
+            }
+        }
+        &.enterprise-ai {
+            &:before {
+                background-color: colors.$brand-ai;
+            }
+        }
+        &:before {
+            content: "";
+            display: block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+    }
+    .licensing-cols {
+        background-color: colors.$panel-bg-2-var;
+        padding: sizes.$gutter-sm sizes.$gutter;
+        margin: sizes.$gutter;
+        border-radius: sizes.$gutter-sm;
+        .icon-cancel {
+            color: colors.$danger-var;
+        }
+        .icon-tick {
+            color: colors.$success-var;
+        }
+    }
+}

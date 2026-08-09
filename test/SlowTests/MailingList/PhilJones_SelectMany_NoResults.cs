@@ -1,0 +1,96 @@
+﻿using System.Collections.Generic;
+using System.Linq;
+using FastTests;
+using Raven.Client.Documents.Indexes;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.MailingList
+{
+    public class PhilJones_SelectMany_NoResults : RavenTestBase
+    {
+        public PhilJones_SelectMany_NoResults(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class Service
+        {
+            public class EmailAddress
+            {
+                public string Email { get; set; }
+                public string Notes { get; set; }
+            }
+
+            public string Name { get; set; }
+            public string Description { get; set; }
+
+            public List<EmailAddress> EmailAddresses { get; set; }
+        }
+
+        private class Services_QueryIndex : AbstractIndexCreationTask<Service, Services_QueryIndex.ReduceResult>
+        {
+            public class ReduceResult : Service
+            {
+                public object[] Query { get; set; }
+            }
+
+            public Services_QueryIndex()
+            {
+                Map = suppliers => from supplier in suppliers
+                                   select new
+                                   {
+                                       supplier.Name,
+                                       Query = new object[]
+                                    {
+                                        supplier.Name,
+                                        supplier.EmailAddresses.Select(x => x.Email)
+                                    }
+                                   };
+
+                Store(x => x.Query, FieldStorage.Yes);
+                Indexes.Add(x => x.Query, FieldIndexing.Search);
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Indexes | RavenTestCategory.Querying)]
+        [RavenData(SearchEngineMode = RavenSearchEngineMode.All)]
+        public void SelectManyIndexReturnsResults(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                new Services_QueryIndex().Execute(store);
+
+                using (var session = store.OpenSession())
+                {
+                    var service1 = new Service
+                    {
+                        Name = "Bob",
+                        Description = "Bob's Service",
+                        EmailAddresses = new List<Service.EmailAddress>
+                        {
+                            new Service.EmailAddress
+                            {
+                                Email = "bob@example.org",
+                                Notes = "Bobby"
+                            },
+                            new Service.EmailAddress
+                            {
+                                Email = "Bobby@example.org",
+                                Notes = "bobobo"
+                            }
+                        }
+                    };
+
+                    session.Store(service1);
+                    session.SaveChanges();
+                    var results = session.Query<Service, Services_QueryIndex>()
+                        .Customize(x => x.WaitForNonStaleResults())
+                        .ToList();
+
+                    Assert.Equal(1, results.Count);
+                }
+            }
+        }
+    }
+}

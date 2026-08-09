@@ -1,0 +1,213 @@
+using System.Collections.Generic;
+using System.Text;
+using Raven.Client.Documents.Operations.Backups;
+using Raven.Client.Documents.Operations.ConnectionStrings;
+using Sparrow.Json.Parsing;
+using static Raven.Client.Documents.Operations.Backups.BackupConfiguration;
+
+namespace Raven.Client.Documents.Operations.ETL.OLAP
+{
+    public sealed class OlapConnectionString : ConnectionString
+    {
+        public override ConnectionStringType Type => ConnectionStringType.Olap;
+
+        public LocalSettings LocalSettings { get; set; }
+
+        public S3Settings S3Settings { get; set; }
+
+        public AzureSettings AzureSettings { get; set; }
+
+        public GlacierSettings GlacierSettings { get; set; }
+
+        public GoogleCloudSettings GoogleCloudSettings { get; set; }
+
+        public FtpSettings FtpSettings { get; set; }
+
+        private const string DestinationFormat = "{0}-destination@{1}";
+
+        protected override void ValidateImpl(List<string> errors)
+        {
+            if (S3Settings != null)
+            {
+                if (S3Settings.HasSettings() == false)
+                    errors.Add(
+                        $"{nameof(S3Settings)} has no valid setting. '{nameof(S3Settings.BucketName)}' and '{nameof(GetBackupConfigurationScript)}' are both null");
+            }
+
+            if (AzureSettings != null)
+            {
+                if (AzureSettings.HasSettings() == false)
+                    errors.Add(
+                        $"{nameof(AzureSettings)} has no valid setting. '{nameof(AzureSettings.StorageContainer)}' and '{nameof(GetBackupConfigurationScript)}' are both null");
+            }
+
+            if (GlacierSettings != null)
+            {
+                if (GlacierSettings.HasSettings() == false)
+                    errors.Add(
+                        $"{nameof(GlacierSettings)} has no valid setting. '{nameof(GlacierSettings.VaultName)}' and '{nameof(GetBackupConfigurationScript)}' are both null");
+            }
+
+            if (GoogleCloudSettings != null)
+            {
+                if (GoogleCloudSettings.HasSettings() == false)
+                    errors.Add(
+                        $"{nameof(GoogleCloudSettings)} has no valid setting. '{nameof(GoogleCloudSettings.BucketName)}' and '{nameof(GetBackupConfigurationScript)}' are both null");
+            }
+
+            if (FtpSettings != null)
+            {
+                if (FtpSettings.HasSettings() == false)
+                    errors.Add($"{nameof(FtpSettings)} has no valid setting. '{nameof(FtpSettings.Url)}' is null");
+            }
+
+            if (LocalSettings != null)
+            {
+                if (LocalSettings.HasSettings() == false)
+                    errors.Add(
+                        $"{nameof(LocalSettings)} has no valid setting. '{nameof(LocalSettings.FolderPath)}' and '{nameof(GetBackupConfigurationScript)}' are both null");
+            }
+        }
+
+        internal string GetDestination()
+        {
+            StringBuilder sb = new StringBuilder();
+            string type, destination;
+
+            if (S3Settings != null)
+            {
+                type = nameof(BackupDestination.AmazonS3);
+                destination = S3Settings.BucketName;
+                if (string.IsNullOrEmpty(S3Settings.RemoteFolderName) == false)
+                    destination = $"{destination}/{S3Settings.RemoteFolderName}";
+                sb.AppendFormat(DestinationFormat, type, destination);
+            }
+
+            if (AzureSettings != null)
+            {
+                if (sb.Length > 0)
+                    sb.Append(',');
+
+                type = nameof(BackupDestination.Azure);
+                destination = AzureSettings.StorageContainer;
+                if (string.IsNullOrEmpty(AzureSettings.RemoteFolderName) == false)
+                    destination = $"{destination}/{AzureSettings.RemoteFolderName}";
+                sb.AppendFormat(DestinationFormat, type, destination);
+            }
+
+            if (GlacierSettings != null)
+            {
+                if (sb.Length > 0)
+                    sb.Append(',');
+
+                type = nameof(BackupDestination.AmazonGlacier);
+                destination = GlacierSettings.VaultName;
+                if (string.IsNullOrEmpty(GlacierSettings.RemoteFolderName) == false)
+                    destination = $"{destination}/{GlacierSettings.RemoteFolderName}";
+                sb.AppendFormat(DestinationFormat, type, destination);
+            }
+
+            if (GoogleCloudSettings != null)
+            {
+                if (sb.Length > 0)
+                    sb.Append(',');
+
+                type = nameof(BackupDestination.GoogleCloud);
+                destination = GoogleCloudSettings.BucketName;
+                if (string.IsNullOrEmpty(GoogleCloudSettings.RemoteFolderName) == false)
+                    destination = $"{destination}/{GoogleCloudSettings.RemoteFolderName}";
+                sb.AppendFormat(DestinationFormat, type, destination);
+            }
+
+            if (FtpSettings != null)
+            {
+                if (sb.Length > 0)
+                    sb.Append(',');
+
+                type = nameof(BackupDestination.FTP);
+                destination = FtpSettings.Url;
+                sb.AppendFormat(DestinationFormat, type, destination);
+            }
+
+            if (LocalSettings != null)
+            {
+                if (sb.Length > 0)
+                    sb.Append(',');
+                type = nameof(BackupDestination.Local);
+                destination = $"{LocalSettings?.FolderPath ?? "CoreDirectory"}";
+                sb.AppendFormat(DestinationFormat, type, destination);
+            }
+
+            return sb.ToString();
+        }
+
+        public override DynamicJsonValue ToJson()
+        {
+            var json = base.ToJson();
+            json[nameof(LocalSettings)] = LocalSettings?.ToJson();
+            json[nameof(S3Settings)] = S3Settings?.ToJson();
+            json[nameof(AzureSettings)] = AzureSettings?.ToJson();
+            json[nameof(GlacierSettings)] = GlacierSettings?.ToJson();
+            json[nameof(GoogleCloudSettings)] = GoogleCloudSettings?.ToJson();
+            json[nameof(FtpSettings)] = FtpSettings?.ToJson();
+            return json;
+        }
+
+        public override DynamicJsonValue ToAuditJson()
+        {
+            var json = base.ToAuditJson();
+            json[nameof(LocalSettings)] = LocalSettings?.ToAuditJson();
+            json[nameof(S3Settings)] = S3Settings?.ToAuditJson();
+            json[nameof(AzureSettings)] = AzureSettings?.ToAuditJson();
+            json[nameof(GlacierSettings)] = GlacierSettings?.ToAuditJson();
+            json[nameof(GoogleCloudSettings)] = GoogleCloudSettings?.ToAuditJson();
+            json[nameof(FtpSettings)] = FtpSettings?.ToAuditJson();
+            return json;
+        }
+
+        public override bool IsEqual(ConnectionString connectionString)
+        {
+            if (connectionString is OlapConnectionString olapConnectionString)
+            {
+                var isEqual = base.IsEqual(connectionString);
+
+                if (isEqual == false)
+                    return false;
+
+                if ((LocalSettings == null && olapConnectionString.LocalSettings != null) ||
+                    (LocalSettings != null && olapConnectionString.LocalSettings == null) ||
+                    (LocalSettings != null && olapConnectionString.LocalSettings != null && LocalSettings.Equals(olapConnectionString.LocalSettings) == false))
+                    return false;
+
+                if ((S3Settings == null && olapConnectionString.S3Settings != null) ||
+                    (S3Settings != null && olapConnectionString.S3Settings == null) ||
+                    (S3Settings != null && olapConnectionString.S3Settings != null && S3Settings.Equals(olapConnectionString.S3Settings) == false))
+                    return false;
+
+                if ((AzureSettings == null && olapConnectionString.AzureSettings != null) ||
+                    (AzureSettings != null && olapConnectionString.AzureSettings == null) ||
+                    (AzureSettings != null && olapConnectionString.AzureSettings != null && AzureSettings.Equals(olapConnectionString.AzureSettings) == false))
+                    return false;
+
+                if ((GlacierSettings == null && olapConnectionString.GlacierSettings != null) ||
+                    (GlacierSettings != null && olapConnectionString.GlacierSettings == null) ||
+                    (GlacierSettings != null && olapConnectionString.GlacierSettings != null && GlacierSettings.Equals(olapConnectionString.GlacierSettings) == false))
+                    return false;
+
+                if ((GoogleCloudSettings == null && olapConnectionString.GoogleCloudSettings != null) ||
+                    (GoogleCloudSettings != null && olapConnectionString.GoogleCloudSettings == null) ||
+                    (GoogleCloudSettings != null && olapConnectionString.GoogleCloudSettings != null && GoogleCloudSettings.Equals(olapConnectionString.GoogleCloudSettings) == false))
+                    return false;
+
+                if ((FtpSettings == null && olapConnectionString.FtpSettings != null) ||
+                    (FtpSettings != null && olapConnectionString.FtpSettings == null) ||
+                    (FtpSettings != null && olapConnectionString.FtpSettings != null && FtpSettings.Equals(olapConnectionString.FtpSettings) == false))
+                    return false;
+
+                return true;
+            }
+
+            return false;
+        }
+    }
+}

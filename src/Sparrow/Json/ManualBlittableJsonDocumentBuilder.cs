@@ -1,0 +1,667 @@
+using System;
+using System.Numerics;
+using static Sparrow.Json.BlittableJsonDocumentBuilder;
+
+namespace Sparrow.Json
+{
+    public sealed class ManualBlittableJsonDocumentBuilder<TWriter> : AbstractBlittableJsonDocumentBuilder
+        where TWriter : struct, IUnmanagedWriteBuffer
+    {
+        private readonly JsonOperationContext _context;
+        private readonly BlittableWriter<TWriter> _writer;
+        private UsageMode _mode;
+        private WriteToken _writeToken;
+
+        /// <summary>
+        /// Allows incrementally building json document
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="mode"></param>
+        /// <param name="writer"></param>
+        public ManualBlittableJsonDocumentBuilder(
+            JsonOperationContext context,
+            UsageMode? mode = null,
+            BlittableWriter<TWriter> writer = null)
+        {
+            _context = context;
+            _mode = mode ?? UsageMode.None;
+            _writer = writer ?? new BlittableWriter<TWriter>(_context);
+        }
+
+        public void StartWriteObjectDocument()
+        {
+            _continuationState.PushByRef() = new BuildingState(ContinuationState.ReadObjectDocument);
+        }
+
+        public void StartArrayDocument()
+        {
+            var currentState = new BuildingState
+            {
+                State = ContinuationState.ReadArrayDocument,
+            };
+
+            var fakeFieldName = _context.GetLazyStringForFieldWithCaching(BlittableJsonReaderArray.RootArrayHolderPropertyNameSegment);
+            var prop = _writer.CachedProperties.GetProperty(fakeFieldName);
+            currentState.CurrentProperty = prop;
+            currentState.MaxPropertyId = prop.PropertyId;
+            currentState.FirstWrite = _writer.Position;
+            currentState.Properties = _propertiesCache.Allocate();
+            currentState.Properties.Add(new PropertyTag { Property = prop });
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WritePropertyName(string propertyName)
+        {
+            var property = _context.GetLazyStringForFieldWithCaching(propertyName);
+            WritePropertyName(property);
+        }
+
+        public void WritePropertyName(LazyStringValue property)
+        {
+            var currentState = _continuationState.Pop();
+
+            if (currentState.State != ContinuationState.ReadPropertyName)
+            {
+                ThrowIllegalStateException(currentState.State, "WritePropertyName");
+            }
+
+            var newPropertyId = _writer.CachedProperties.GetProperty(property);
+            currentState.CurrentProperty = newPropertyId;
+            currentState.MaxPropertyId = Math.Max(currentState.MaxPropertyId, currentState.CurrentProperty.PropertyId);
+            currentState.State = ContinuationState.ReadPropertyValue;
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void StartWriteObject()
+        {
+            var previousState = _continuationState.Pop();
+
+            if (previousState.State != ContinuationState.ReadObjectDocument &&
+                previousState.State != ContinuationState.ReadPropertyValue &&
+                previousState.State != ContinuationState.ReadArray)
+                ThrowIllegalStateException(previousState.State, "WriteObject");
+
+            previousState.State = previousState.State == ContinuationState.ReadPropertyValue ? ContinuationState.ReadPropertyName : previousState.State;
+            _continuationState.PushByRef() = previousState;
+
+            _continuationState.PushByRef() = new BuildingState(ContinuationState.ReadPropertyName, _propertiesCache.Allocate());
+        }
+
+        public void WriteObjectEnd()
+        {
+            var currentState = _continuationState.Pop();
+            long start = 0;
+            start = _writer.Position;
+            switch (currentState.State)
+            {
+                case ContinuationState.ReadPropertyName:
+                case ContinuationState.ReadPropertyValue:
+                    {
+                        _writeToken = _writer.WriteObjectMetadata(currentState.Properties, currentState.FirstWrite,
+                            currentState.MaxPropertyId);
+
+                        _propertiesCache.Return(ref currentState.Properties);
+
+                        // here we know that the last item in the stack is the keep the last ReadObjectDocument
+                        if (_continuationState.Count > 1)
+                        {
+                            var outerState = _continuationState.Pop();
+                            if (outerState.State == ContinuationState.ReadArray)
+                            {
+                                outerState.Types.Add(_writeToken.WrittenToken);
+                                outerState.Positions.Add(_writeToken.ValuePos);
+                            }
+                            else
+                            {
+                                outerState.Properties.Add(new PropertyTag(
+                                    type: (byte)_writeToken.WrittenToken,
+                                    property: outerState.CurrentProperty,
+                                    position: _writeToken.ValuePos
+                                ));
+                            }
+
+                            if (outerState.FirstWrite == -1)
+                                outerState.FirstWrite = start;
+                            _continuationState.PushByRef() = outerState;
+                        }
+                    }
+                    break;
+
+                case ContinuationState.ReadArray:
+                    {
+                        _writeToken = _writer.WriteObjectMetadata(currentState.Properties, currentState.FirstWrite,
+                            currentState.MaxPropertyId);
+
+                        _propertiesCache.Return(ref currentState.Properties);
+
+                        if (_continuationState.Count > 1)
+                        {
+                            var outerState = _continuationState.Count > 0 ? _continuationState.Pop() : currentState;
+                            if (outerState.FirstWrite == -1)
+                                outerState.FirstWrite = start;
+                            _continuationState.PushByRef() = outerState;
+                        }
+
+                        currentState.Types.Add(_writeToken.WrittenToken);
+                        currentState.Positions.Add(_writeToken.ValuePos);
+                        _continuationState.PushByRef() = currentState;
+                    }
+                    break;
+
+                case ContinuationState.ReadObjectDocument:
+                    {
+                        currentState.Properties.Add(new PropertyTag
+                        {
+                            Position = _writeToken.ValuePos,
+                            Type = (byte)_writeToken.WrittenToken,
+                            Property = currentState.CurrentProperty
+                        });
+                        if (currentState.FirstWrite == -1)
+                            currentState.FirstWrite = start;
+
+                        _writeToken = _writer.WriteObjectMetadata(currentState.Properties, currentState.FirstWrite,
+                                            currentState.MaxPropertyId);
+                        _propertiesCache.Return(ref currentState.Properties);
+                    }
+                    break;
+
+                default:
+                    ThrowIllegalStateException(currentState.State, "ReadEndObject");
+                    break;
+            }
+        }
+
+        public void StartWriteArray()
+        {
+            _continuationState.PushByRef() = new BuildingState(ContinuationState.ReadArray, _tokensCache.Allocate(), _positionsCache.Allocate());
+        }
+
+        public void WriteArrayEnd()
+        {
+            var currentState = _continuationState.Pop();
+
+            switch (currentState.State)
+            {
+                case ContinuationState.ReadArrayDocument:
+                    currentState.Properties[0] = new PropertyTag
+                    {
+                        Property = currentState.Properties[0].Property,
+                        Type = (byte)_writeToken.WrittenToken,
+                        Position = _writeToken.ValuePos
+                    };
+
+                    // Register property position, name id (PropertyId) and type (object type and metadata)
+                    _writeToken = _writer.WriteObjectMetadata(currentState.Properties, currentState.FirstWrite, currentState.MaxPropertyId);
+                    _continuationState.PushByRef() = currentState;
+                    break;
+
+                case ContinuationState.ReadArray:
+                    var arrayToken = BlittableJsonToken.StartArray;
+                    var arrayInfoStart = _writer.WriteArrayMetadata(currentState.Positions, currentState.Types, ref arrayToken);
+                    _positionsCache.Return(ref currentState.Positions);
+                    _tokensCache.Return(ref currentState.Types);
+
+                    _writeToken = new WriteToken
+                    {
+                        ValuePos = arrayInfoStart,
+                        WrittenToken = arrayToken
+                    };
+
+                    if (_continuationState.Count >= 1)
+                    {
+                        var outerState = _continuationState.Pop();
+
+                        if (outerState.FirstWrite == -1)
+                            outerState.FirstWrite = arrayInfoStart;
+
+                        if (outerState.State == ContinuationState.ReadPropertyName ||
+                            outerState.State == ContinuationState.ReadPropertyValue)
+                        {
+                            outerState.Properties.Add(new PropertyTag(
+                                type: (byte)_writeToken.WrittenToken,
+                                property: outerState.CurrentProperty,
+                                position: _writeToken.ValuePos
+                            ));
+                            outerState.State = ContinuationState.ReadPropertyName;
+                        }
+                        else if (outerState.State == ContinuationState.ReadArray)
+                        {
+                            outerState.Types.Add(_writeToken.WrittenToken);
+                            outerState.Positions.Add(_writeToken.ValuePos);
+                        }
+                        else if (outerState.State == ContinuationState.ReadArrayDocument)
+                        {
+                            outerState.Properties[0] = new PropertyTag(
+                                type: (byte)_writeToken.WrittenToken,
+                                property: outerState.Properties[0].Property,
+                                position: _writeToken.ValuePos
+                            );
+
+                            // Register property position, name id (PropertyId) and type (object type and metadata)
+                            _writeToken = _writer.WriteObjectMetadata(outerState.Properties, outerState.FirstWrite, outerState.MaxPropertyId);
+                        }
+                        else
+                        {
+                            ThrowIllegalStateException(outerState.State, "ReadEndArray");
+                        }
+
+                        _continuationState.PushByRef() = outerState;
+                    }
+
+                    break;
+
+                default:
+                    ThrowIllegalStateException(currentState.State, "ReadEndArray");
+                    break;
+            }
+        }
+
+        public void WriteValueNull()
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteNull();
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = BlittableJsonToken.Null
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteValue(BlittableJsonToken token, object value)
+        {
+            switch (token)
+            {
+                case BlittableJsonToken.Integer:
+                    WriteValue((long)value);
+                    break;
+
+                case BlittableJsonToken.LazyNumber:
+                    WriteValue((LazyNumberValue)value);
+                    break;
+
+                case BlittableJsonToken.String:
+                    WriteValue((LazyStringValue)value);
+                    break;
+
+                case BlittableJsonToken.CompressedString:
+                    WriteValue((LazyCompressedStringValue)value);
+                    break;
+
+                case BlittableJsonToken.Boolean:
+                    WriteValue((bool)value);
+                    break;
+
+                case BlittableJsonToken.Null:
+                    WriteValueNull();
+                    break;
+
+                case BlittableJsonToken.StartObject:
+                    var obj = value as BlittableJsonReaderObject;
+                    StartWriteObject();
+                    obj.AddItemsToStream(this);
+                    WriteObjectEnd();
+                    break;
+
+                case BlittableJsonToken.EmbeddedBlittable:
+                    WriteEmbeddedBlittableDocument((BlittableJsonReaderObject)value);
+                    break;
+
+                case BlittableJsonToken.StartArray:
+                    var arr = value as BlittableJsonReaderArray;
+                    StartWriteArray();
+                    arr?.AddItemsToStream(this);
+                    WriteArrayEnd();
+                    break;
+
+                case BlittableJsonToken.Vector:
+                {
+                    var vector = (BlittableJsonReaderVector)value;
+                    switch (vector.Type)
+                    {
+                        case BlittableVectorType.Byte:
+                            WriteVector(vector.ReadArray<byte>());
+                            break;
+                        case BlittableVectorType.UInt16:
+                            WriteVector(vector.ReadArray<ushort>());
+                            break;
+                        case BlittableVectorType.UInt32:
+                            WriteVector(vector.ReadArray<uint>());
+                            break;
+                        case BlittableVectorType.UInt64:
+                            WriteVector(vector.ReadArray<ulong>());
+                            break;
+                        
+                        case BlittableVectorType.SByte:
+                            WriteVector(vector.ReadArray<sbyte>());
+                            break;
+                        case BlittableVectorType.Int16:
+                            WriteVector(vector.ReadArray<short>());
+                            break;
+                        case BlittableVectorType.Int32:
+                            WriteVector(vector.ReadArray<int>());
+                            break;
+                        case BlittableVectorType.Int64:
+                            WriteVector(vector.ReadArray<long>());
+                            break;
+                        
+                        case BlittableVectorType.Float:
+                            WriteVector(vector.ReadArray<float>());
+                            break;
+                        case BlittableVectorType.Double:
+                            WriteVector(vector.ReadArray<double>());
+                            break;
+#if NET6_0_OR_GREATER
+                        case BlittableVectorType.Half:
+                            WriteVector(vector.ReadArray<Half>());
+                            break;
+#endif
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(vector.Type), vector.Type, $"Cannot write vector of {vector.Type}.");
+                    }
+                    break;
+                }
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(token), token, null);
+            }
+        }
+
+        public void WriteValue(bool value)
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteValue(value);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = BlittableJsonToken.Boolean
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteValue(long value)
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteValue(value);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = BlittableJsonToken.Integer
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteValue(float value)
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteValue(value);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = BlittableJsonToken.LazyNumber
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteValue(ulong value)
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteValue(value);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = BlittableJsonToken.LazyNumber
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteValue(double value)
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteValue(value);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = BlittableJsonToken.LazyNumber
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteValue(decimal value)
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteValue(value);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = BlittableJsonToken.LazyNumber
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteValue(LazyNumberValue value)
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteValue(value);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = BlittableJsonToken.LazyNumber
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteValue(string value)
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteValue(value, out BlittableJsonToken stringToken, _mode);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = stringToken
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteValue(LazyStringValue value)
+        {
+            var currentState = _continuationState.Pop();
+
+            var valuePos = _writer.WriteValue(value, out BlittableJsonToken stringToken, UsageMode.None, null);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = stringToken
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteValue(LazyCompressedStringValue value)
+        {
+            var currentState = _continuationState.Pop();
+
+            //public unsafe int WriteValue(byte* buffer, int size, out BlittableJsonToken token, UsageMode mode, int? initialCompressedSize)
+            //var valuePos = _writer.WriteValue(value, out stringToken, UsageMode.None, null);
+            var valuePos = _writer.WriteValue(value, out BlittableJsonToken stringToken, UsageMode.None);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = stringToken
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public unsafe void WriteEmbeddedBlittableDocument(BlittableJsonReaderObject document)
+        {
+            WriteEmbeddedBlittableDocument(document.BasePointer, document.Size);
+        }
+
+        public unsafe void WriteRawBlob(byte* ptr, int size)
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteValue(ptr, size, out _, UsageMode.None, null);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = BlittableJsonToken.RawBlob
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public unsafe void WriteEmbeddedBlittableDocument(byte* ptr, int size)
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteValue(ptr, size, out _, UsageMode.None, null);
+            _writeToken = new WriteToken
+            {
+                ValuePos = valuePos,
+                WrittenToken = BlittableJsonToken.EmbeddedBlittable
+            };
+
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        public void WriteVector<T>(ReadOnlySpan<T> array) where T : unmanaged
+        {
+            var currentState = _continuationState.Pop();
+            var valuePos = _writer.WriteVector(array);
+            _writeToken = new WriteToken(position: valuePos, token: BlittableJsonToken.Vector);
+
+            // Update the state accordingly
+            if (currentState.FirstWrite == -1)
+                currentState.FirstWrite = valuePos;
+
+            FinishWritingScalarValue(ref currentState);
+            _continuationState.PushByRef() = currentState;
+        }
+
+        private void FinishWritingScalarValue(ref BuildingState currentState)
+        {
+            switch (currentState.State)
+            {
+                case ContinuationState.ReadPropertyValue:
+                    currentState.Properties.Add(new PropertyTag
+                    {
+                        Position = _writeToken.ValuePos,
+                        Type = (byte)_writeToken.WrittenToken,
+                        Property = currentState.CurrentProperty
+                    });
+
+                    currentState.State = ContinuationState.ReadPropertyName;
+                    break;
+
+                case ContinuationState.ReadArray:
+                    currentState.Types.Add(_writeToken.WrittenToken);
+                    currentState.Positions.Add(_writeToken.ValuePos);
+                    break;
+
+                default:
+                    ThrowIllegalStateException(currentState.State, "ReadValue");
+                    break;
+            }
+        }
+
+        public void FinalizeDocument()
+        {
+            var documentToken = _writeToken.WrittenToken;
+            var rootOffset = _writeToken.ValuePos;
+
+            _writer.WriteDocumentMetadata(rootOffset, documentToken);
+
+            ClearState();
+        }
+
+        private void ThrowIllegalStateException(ContinuationState state, string realOperation)
+        {
+            throw new InvalidOperationException($"Cannot perform {realOperation} when encountered the {state} state");
+        }
+
+        public void Reset(UsageMode mode)
+        {
+            _mode = mode;
+            _writer.ResetAndRenew();
+        }
+
+        public BlittableJsonReaderObject CreateReader()
+        {
+            return _writer.CreateReader();
+        }
+
+        public BlittableJsonReaderArray CreateArrayReader()
+        {
+            var reader = CreateReader();
+            if (reader.TryGet(BlittableJsonReaderArray.RootArrayHolderPropertyNameSegment, out BlittableJsonReaderArray array))
+                return array;
+            throw new InvalidOperationException("Couldn't find array");
+        }
+
+        public override void Dispose()
+        {
+            _writer.Dispose();
+            base.Dispose();
+        }
+    }
+}

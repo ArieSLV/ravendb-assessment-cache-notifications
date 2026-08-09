@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Version></Version>
+    <Description></Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Title>RavenDB TestDriver</Title>
+    <Product>RavenDB TestDriver</Product>
+    <Authors>RavenDB</Authors>
+    <AssemblyName>Raven.TestDriver</AssemblyName>
+    <PackageId>RavenDB.TestDriver</PackageId>
+    <PackageTags>ravendb;client;database;nosql;doc db</PackageTags>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <CodeAnalysisRuleSet>..\..\RavenDB.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+    <TargetFrameworks>netstandard2.0;net462</TargetFrameworks>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+    <Compile Include="..\CommonAssemblyInfo.Windows.cs" Link="Properties\CommonAssemblyInfo.Windows.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+    <Compile Include="..\CommonAssemblyInfo.Linux.cs" Link="Properties\CommonAssemblyInfo.Linux.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath=""/>
+    <None Include="..\..\LICENSE.txt" Pack="true" Visible="false" PackagePath="" />
+    <Compile Include="..\CommonAssemblyInfo.cs" Link="Properties\CommonAssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Raven.Embedded\Raven.Embedded.csproj">
+      <PrivateAssets>analyzers;build</PrivateAssets>
+    </ProjectReference>
+  </ItemGroup>
+
+</Project>

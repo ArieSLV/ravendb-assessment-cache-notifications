@@ -1,0 +1,524 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using Raven.Client.Util;
+using Raven.Server.Dashboard;
+using Raven.Server.Logging;
+using Raven.Server.Dashboard.Cluster;
+using Raven.Server.NotificationCenter.Notifications;
+using Raven.Server.Rachis.Commands;
+using Raven.Server.ServerWide;
+using Raven.Server.ServerWide.Context;
+using Sparrow;
+using Sparrow.Binary;
+using Sparrow.Json;
+using Sparrow.Json.Parsing;
+using Sparrow.Logging;
+using Sparrow.Server.Logging;
+using Sparrow.Server.Utils;
+using Voron;
+using Voron.Data;
+using Voron.Data.Tables;
+
+namespace Raven.Server.NotificationCenter
+{
+    public abstract unsafe class NotificationsStorage
+    {
+        protected readonly ServerStore ServerStore;
+
+        protected readonly string TableName;
+
+        private readonly RavenLogger _logger;
+
+        protected StorageEnvironment Environment;
+
+        protected TransactionContextPool ContextPool;
+
+        protected NotificationsStorage(ServerStore serverStore, string resourceName = null)
+        {
+            ServerStore = serverStore ?? throw new ArgumentNullException(nameof(serverStore));
+            TableName = GetTableName(resourceName);
+
+            _logger = resourceName == null
+                ? RavenLogManager.Instance.GetLoggerForServer(GetType())
+                : RavenLogManager.Instance.GetLoggerForDatabase(GetType(), resourceName);
+        }
+
+        public void Initialize(StorageEnvironment environment, TransactionContextPool contextPool)
+        {
+            Environment = environment;
+            ContextPool = contextPool;
+
+            bool createSchema;
+            using (contextPool.AllocateOperationContext(out TransactionOperationContext context))
+            using (var tx = context.OpenReadTransaction())
+            {
+                var tableTree = tx.InnerTransaction.ReadTree(TableName, RootObjectType.Table);
+                createSchema = tableTree == null;
+            }
+
+            if (createSchema)
+            {
+                CreateSchema();
+            }
+
+            Cleanup();
+        }
+
+        protected abstract void CreateSchema();
+
+        public bool Store(Notification notification, DateTime? postponeUntil = null, bool updateExisting = true)
+        {
+            using (ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+            {
+                using (var tx = context.OpenReadTransaction())
+                {
+                    // if previous notification had postponed until value pass this value to newly saved notification
+                    using (var existing = Get(notification.Id, context, tx))
+                    {
+                        if (existing != null && updateExisting == false)
+                            return false;
+
+                        if (postponeUntil == null)
+                        {
+                            if (existing?.PostponedUntil == DateTime.MaxValue) // postponed until forever
+                                return false;
+
+                            if (existing?.PostponedUntil != null && existing.PostponedUntil.Value > SystemTime.UtcNow)
+                                postponeUntil = existing.PostponedUntil;
+                        }
+                    }
+                }
+
+                if (_logger.IsDebugEnabled)
+                    _logger.Debug($"Saving notification '{notification.Id}'.");
+
+                var notificationType = (long)notification.Type;
+                var notificationReason = notification.GetReasonLongValue();
+
+                using (var json = context.ReadObject(notification.ToJson(), "notification", BlittableJsonDocumentBuilder.UsageMode.ToDisk))
+                {
+                    var command = new StoreNotificationCommand(context.GetLazyString(notification.Id), notification.CreatedAt, postponeUntil, notificationType, notificationReason, json, this);
+
+                    ServerStore.Engine.TxMerger.EnqueueSync(command);
+                }
+            }
+
+            return true;
+        }
+
+        private readonly long _postponeDateNotSpecified = Bits.SwapBytes(long.MaxValue);
+        
+        internal void Store(LazyStringValue id, DateTime createdAt, DateTime? postponedUntil, long notificationType, long notificationReason, BlittableJsonReaderObject action, RavenTransaction tx)
+        {
+            var table = tx.InnerTransaction.OpenTable(Documents.Schemas.Notifications.Current, TableName);
+
+            var createdAtTicks = Bits.SwapBytes(createdAt.Ticks);
+            var notificationTypeSwapped = Bits.SwapBytes(notificationType);
+            var notificationReasonSwapped = Bits.SwapBytes(notificationReason);
+
+            var postponedUntilTicks = postponedUntil != null
+                ? Bits.SwapBytes(postponedUntil.Value.Ticks)
+                : _postponeDateNotSpecified;
+            
+            action.Modifications = new DynamicJsonValue(action)
+            {
+                [nameof(Notification.Type)] = notificationType
+            };
+
+            switch ((NotificationType)notificationType)
+            {
+                case NotificationType.AlertRaised:
+                    action.Modifications[nameof(AlertRaised.Reason)] = notificationReason;
+                    break;
+                case NotificationType.PerformanceHint:
+                    action.Modifications[nameof(PerformanceHint.Reason)] = notificationReason;
+                    break;
+            }
+            
+            using (_ = action)
+            using (ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            using (table.Allocate(out TableValueBuilder tvb))
+            {
+                action = context.ReadObject(action, null);
+                    
+                tvb.Add(id.Buffer, id.Size);
+                tvb.Add((byte*)&createdAtTicks, sizeof(long));
+                tvb.Add((byte*)&postponedUntilTicks, sizeof(long));
+                tvb.Add(action.BasePointer, action.Size);
+                tvb.Add((byte*)&notificationTypeSwapped, sizeof(long));
+                tvb.Add((byte*)&notificationReasonSwapped, sizeof(long));
+
+                table.Set(tvb);
+            }
+        }
+
+        public IDisposable ReadActionsOrderedByCreationDate(out IEnumerable<NotificationTableValue> actions)
+        {
+            using (var scope = new DisposableScope())
+            {
+                scope.EnsureDispose(ContextPool.AllocateOperationContext(out TransactionOperationContext context));
+                scope.EnsureDispose(context.OpenReadTransaction());
+
+                actions = ReadActionsByCreatedAtIndex(context);
+
+                return scope.Delay();
+            }
+        }
+
+        public IDisposable Read(string id, out NotificationTableValue value)
+        {
+            using (var scope = new DisposableScope())
+            {
+                RavenTransaction tx;
+
+                scope.EnsureDispose(ContextPool.AllocateOperationContext(out TransactionOperationContext context));
+                scope.EnsureDispose(tx = context.OpenReadTransaction());
+
+                value = Get(id, context, tx);
+
+                return scope.Delay();
+            }
+        }
+
+        private IEnumerable<NotificationTableValue> ReadActionsByCreatedAtIndex(TransactionOperationContext context)
+        {
+            var table = context.Transaction.InnerTransaction.OpenTable(Documents.Schemas.Notifications.Current, TableName);
+            if (table == null)
+                yield break;
+
+            foreach (var tvr in table.SeekForwardFrom(Documents.Schemas.Notifications.Current.Indexes[Documents.Schemas.Notifications.ByCreatedAt], Slices.BeforeAllKeys, 0))
+            {
+                yield return Read(context, ref tvr.Result.Reader);
+            }
+        }
+
+        public IEnumerable<NotificationTableValue> ReadActionsOfType(TransactionOperationContext context, NotificationType notificationType)
+        {
+            var result = new List<NotificationTableValue>();
+            
+            var table = context.Transaction.InnerTransaction.OpenTable(Documents.Schemas.Notifications.Current, TableName);
+            if (table == null)
+                return Enumerable.Empty<NotificationTableValue>();
+            
+            var notificationTypeLongValue = (long)notificationType;
+            var notificationTypeSwapped = Bits.SwapBytes(notificationTypeLongValue);
+            
+            using (Slice.External(context.Transaction.InnerTransaction.Allocator, (byte*)&notificationTypeSwapped, sizeof(long), out Slice typeSlice))
+            {
+                foreach (var tvr in table.SeekForwardFrom(Documents.Schemas.Notifications.Current.Indexes[Documents.Schemas.Notifications.ByType], typeSlice, 0))
+                {
+                    var notification = Read(context, ref tvr.Result.Reader);
+                    
+                    if (notification.Type != notificationTypeSwapped)
+                        break;
+                    
+                    result.Add(notification);
+                }
+            }
+
+            return result;
+        }
+
+        public IDisposable ReadPostponedActions(out IEnumerable<NotificationTableValue> actions, DateTime cutoff)
+        {
+            using (var scope = new DisposableScope())
+            {
+                scope.EnsureDispose(ContextPool.AllocateOperationContext(out TransactionOperationContext context));
+                scope.EnsureDispose(context.OpenReadTransaction());
+
+                actions = ReadPostponedActionsByPostponedUntilIndex(context, cutoff);
+
+                return scope.Delay();
+            }
+        }
+
+        private IEnumerable<NotificationTableValue> ReadPostponedActionsByPostponedUntilIndex(TransactionOperationContext context, DateTime cutoff)
+        {
+            var table = context.Transaction.InnerTransaction.OpenTable(Documents.Schemas.Notifications.Current, TableName);
+            if (table == null)
+                yield break;
+
+            foreach (var tvr in table.SeekForwardFrom(Documents.Schemas.Notifications.Current.Indexes[Documents.Schemas.Notifications.ByPostponedUntil], Slices.BeforeAllKeys, 0))
+            {
+                var action = Read(context, ref tvr.Result.Reader);
+
+                if (action.PostponedUntil == null)
+                {
+                    action.Dispose();
+                    continue;
+                }
+
+                if (action.PostponedUntil > cutoff)
+                {
+                    action.Dispose();
+                    break;
+                }
+
+                if (action.PostponedUntil == DateTime.MaxValue)
+                {
+                    action.Dispose();
+                    break;
+                }
+
+                yield return action;
+            }
+        }
+
+        private NotificationTableValue Get(string id, JsonOperationContext context, RavenTransaction tx)
+        {
+            var table = tx.InnerTransaction.OpenTable(Documents.Schemas.Notifications.Current, TableName);
+            if (table == null)
+                return null;
+
+            using (Slice.From(tx.InnerTransaction.Allocator, id, out Slice slice))
+            {
+                if (table.ReadByKey(slice, out TableValueReader tvr) == false)
+                    return null;
+
+                return Read(context, ref tvr);
+            }
+        }
+
+        public IEnumerable<NotificationTableValue> GetByPrefix(TransactionOperationContext<RavenTransaction> context, string prefix)
+        {
+            var table = context.Transaction.InnerTransaction.OpenTable(Documents.Schemas.Notifications.Current, TableName);
+
+            using (Slice.From(context.Transaction.InnerTransaction.Allocator, prefix, out Slice prefixSlice))
+            {
+                foreach (var notification in table.SeekByPrimaryKeyPrefix(prefixSlice, prefixSlice, skip: 0))
+                {
+                    yield return Read(context, ref notification.Value.Reader);
+                }
+            }
+        }
+
+        public bool Delete(string id, RavenTransaction existingTransaction = null)
+        {
+            bool deleteResult;
+
+            if (existingTransaction != null)
+            {
+                deleteResult = DeleteFromTable(id, existingTransaction);
+            }
+            else
+            {
+                var command = new DeleteNotificationCommand(id, this);
+                ServerStore.Engine.TxMerger.EnqueueSync(command);
+                deleteResult = command.Deleted;
+            }
+
+            if (deleteResult && _logger.IsInfoEnabled)
+                _logger.Info($"Deleted notification '{id}'.");
+            return deleteResult;
+        }
+
+        public bool DeleteFromTable(string id, RavenTransaction tx)
+        {
+            var table = tx.InnerTransaction.OpenTable(Documents.Schemas.Notifications.Current, TableName);
+
+            using (Slice.From(tx.InnerTransaction.Allocator, id, out Slice alertSlice))
+            {
+                return table.DeleteByKey(alertSlice);
+            }
+        }
+
+        public bool Exists(string id)
+        {
+            using (ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+            using (var tx = context.OpenReadTransaction())
+            using (Slice.From(tx.InnerTransaction.Allocator, id, out Slice slice))
+            {
+                var table = tx.InnerTransaction.OpenTable(Documents.Schemas.Notifications.Current, TableName);
+                if (table == null)
+                    return false;
+
+                return table.ReadByKey(slice, out _);
+            }
+        }
+
+        public long GetAlertCount()
+        {
+            return GetNotificationCount(NotificationType.AlertRaised);
+        }
+
+        public long GetPerformanceHintCount()
+        {
+            return GetNotificationCount(NotificationType.PerformanceHint);
+        }
+
+        private long GetNotificationCount(NotificationType notificationType)
+        {
+            long count = 0;
+
+            using (ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+            using (context.OpenReadTransaction())
+            {
+                foreach (var notification in ReadActionsOfType(context, notificationType))
+                {
+                    count++;
+                    notification.Dispose();
+                }
+            }
+
+            return count;
+        }
+
+        private NotificationTableValue Read(JsonOperationContext context, ref TableValueReader reader)
+        {
+            var createdAt = new DateTime(Bits.SwapBytes(*(long*)reader.Read(Documents.Schemas.Notifications.NotificationsTable.CreatedAtIndex, out _)));
+
+            var postponeUntilTicks = *(long*)reader.Read(Documents.Schemas.Notifications.NotificationsTable.PostponedUntilIndex, out _);
+
+            DateTime? postponedUntil = null;
+            if (postponeUntilTicks != _postponeDateNotSpecified)
+                postponedUntil = new DateTime(Bits.SwapBytes(postponeUntilTicks));
+
+            var jsonPtr = reader.Read(Documents.Schemas.Notifications.NotificationsTable.JsonIndex, out int jsonSize);
+            var type = reader.ReadLong(Documents.Schemas.Notifications.NotificationsTable.TypeIndex);
+            var reason = reader.ReadLong(Documents.Schemas.Notifications.NotificationsTable.ReasonIndex);
+
+            var json = new BlittableJsonReaderObject(jsonPtr, jsonSize, context);
+
+            // If notification JSON has Type and Reason stored as strings, they can be extracted directly
+            // Maintains backward compatibility due to RavenDB-24424
+            if (json.TryGet(nameof(Notification.Type), out string _))
+            {
+                return new NotificationTableValue
+                {
+                    CreatedAt = createdAt,
+                    PostponedUntil = postponedUntil,
+                    Json = json,
+                    Type = type,
+                    Reason = reason
+                };
+            }
+
+            var typeEnumValue = (NotificationType)Bits.SwapBytes(type);
+            
+            json.Modifications = new DynamicJsonValue
+            {
+                [nameof(Notification.Type)] = typeEnumValue
+            };
+
+            switch (typeEnumValue)
+            {
+                case NotificationType.AlertRaised:
+                    json.Modifications[nameof(AlertRaised.Reason)] = (AlertReason)Bits.SwapBytes(reason);
+                    break;
+                case NotificationType.PerformanceHint:
+                    json.Modifications[nameof(PerformanceHint.Reason)] = (PerformanceHintReason)Bits.SwapBytes(reason);
+                    break;
+            }
+
+            using (_ = json)
+            {
+                json = context.ReadObject(json, null);
+                
+                return new NotificationTableValue
+                {
+                    CreatedAt = createdAt,
+                    PostponedUntil = postponedUntil,
+                    Json = json,
+                    Type = type,
+                    Reason = reason
+                };
+            }
+        }
+
+        public string GetDatabaseFor(string id)
+        {
+            using (ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+            using (var tx = context.OpenReadTransaction())
+            {
+                using (var item = Get(id, context, tx))
+                {
+                    if (item == null)
+                        return null;
+                    item.Json.TryGet("Database", out string db);
+                    return db;
+                }
+            }
+        }
+
+        public void ChangePostponeDate(string id, DateTime? postponeUntil)
+        {
+            using (ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+            using (var tx = context.OpenReadTransaction())
+            {
+                using (var item = Get(id, context, tx))
+                {
+                    if (item == null)
+                        return;
+
+                    var itemCopy = context.GetMemory(item.Json.Size);
+
+                    Memory.Copy(itemCopy.Address, item.Json.BasePointer, item.Json.Size);
+                    var command = new StoreNotificationCommand(context.GetLazyString(id), item.CreatedAt, postponeUntil, item.Type, item.Reason, new BlittableJsonReaderObject(itemCopy.Address, item.Json.Size, context), this);
+                    
+                    ServerStore.Engine.TxMerger.EnqueueSync(command);
+                }
+            }
+        }
+
+        protected virtual void Cleanup()
+        {
+        }
+
+        private static string GetTableName(string resourceName)
+        {
+            return string.IsNullOrEmpty(resourceName)
+                ? $"{Documents.Schemas.Notifications.NotificationsTree}.Server"
+                : $"{Documents.Schemas.Notifications.NotificationsTree}.Database.{resourceName.ToLowerInvariant()}";
+        }
+
+        [DoesNotReturn]
+        private static void ThrowCouldNotFindNotificationType(NotificationTableValue action)
+        {
+            string notificationJson;
+
+            try
+            {
+                notificationJson = action.Json.ToString();
+            }
+            catch (Exception e)
+            {
+                notificationJson = $"invalid json - {e.Message}";
+            }
+
+            throw new InvalidOperationException(
+                $"Could not find notification type. Notification: {notificationJson}, created at: {action.CreatedAt}, postponed until: {action.PostponedUntil}");
+        }
+
+        public DatabaseNotificationStorage GetStorageFor(string database)
+        {
+            if (database == null)
+                throw new ArgumentNullException(nameof(database));
+
+            var storage = new DatabaseNotificationStorage(ServerStore, database);
+            storage.Initialize(Environment, ContextPool);
+
+            return storage;
+        }
+
+        public void DeleteStorageFor(string database)
+        {
+            if (database == null)
+                throw new ArgumentNullException(nameof(database));
+
+            var tableName = GetTableName(database);
+            var command = new DeleteTableForNotificationsCommand(tableName);
+            ServerStore.Engine.TxMerger.EnqueueSync(command);
+        }
+
+        public void DeleteStorageFor<T>(TransactionOperationContext<T> ctx, string database) where T : RavenTransaction
+        {
+            if (database == null)
+                throw new ArgumentNullException(nameof(database));
+
+            var tableName = GetTableName(database);
+            ctx.Transaction.InnerTransaction.DeleteTable(tableName);
+        }
+    }
+}

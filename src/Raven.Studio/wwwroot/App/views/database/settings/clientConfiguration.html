@@ -1,0 +1,172 @@
+<div id="client-configuration-view">
+    <form data-bind="submit: saveConfiguration" novalidate>
+        <div class="content-margin">
+            <div class="toolbar margin-bottom flex-horizontal">
+                <button type="submit" class="btn btn-primary" data-bind="enable: isSaveEnabled, css: { 'btn-spinner': spinners.save }, requiredAccess: 'DatabaseAdmin'">
+                    <i class="icon-save"></i><span>Save</span>
+                </button>
+            </div>
+            <div>
+                <div data-bind="css: { 'row': !hasGlobalConfiguration() }">
+                    <div data-bind="css: { 'col-sm-6': !hasGlobalConfiguration() }">
+                        <div class="margin-bottom margin-bottom-xs flex-horizontal">
+                            <div class="flex-separator"></div>
+                            <small title="Navigate to the server-wide Client Configuration View">
+                                <a target="_blank" data-bind="attr: { href: serverWideClientConfigurationUrl }, visible: canNavigateToServerSettings">
+                                    <i class="icon-link"></i>Go to Server-Wide Client Configuration View
+                                </a>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="row" data-bind="visible: hasGlobalConfiguration">
+                        <div class="col-sm-3 margin-top margin-top-sm">
+                            <div class="toggle margin-left" data-bind="visible: hasGlobalConfiguration">
+                                <input id="toggleOverride" type="checkbox" data-bind="checked: overrideServer">
+                                <label for="toggleOverride">
+                                    Override Server Configuration
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-sm-2 margin-top">
+                            <h3 class="margin-left margin-left-sm">Database Configuration</h3>
+                        </div>
+                        <div class="col-sm-2 flex-horizontal">
+                            <div class="margin-top margin-top-sm" title="Navigate to server-wide client configuration">
+                                <a href="#" data-bind="attr: { href: serverWideClientConfigurationUrl }, visible: canNavigateToServerSettings"><i class="icon-link"></i></a>
+                            </div>
+                            <div class="margin-top"><h3>Server Configuration</h3></div>
+                        </div>
+                        <div class="col-sm-2 margin-top">
+                            <h3><strong>Effective Configuration</strong></h3>
+                        </div>
+                    </div>
+                </div>
+                <div data-bind="css: { 'row': !hasGlobalConfiguration() }">
+                    <div data-bind="css: { 'col-sm-6': !hasGlobalConfiguration() }">
+                        <div class="panel padding-sm">
+                            <div class="row">
+                                <div data-bind="css: { 'col-sm-3': hasGlobalConfiguration, 'col-sm-6': !hasGlobalConfiguration() }">
+                                    <!-- // TODO: don't show checkboxes, only lables.. can be done -->
+                                    <div class="checkbox">
+                                        <input id="checkboxSeparator" type="checkbox"
+                                               data-bind="checked: model.isDefined, checkedValue: 'identityPartsSeparator', enable: canEditSettings, validationElement: model.identityPartsSeparator,
+                                                          requiredAccess: 'DatabaseAdmin', requiredAccessOptions: { strategy: 'disable' }">
+                                        <label for="checkboxSeparator">
+                                            Identity parts separator
+                                        </label>
+                                    </div>
+                                </div>
+                                <div data-bind="validationElement: model.identityPartsSeparator, css: { 'col-sm-2': hasGlobalConfiguration,'col-sm-5': !hasGlobalConfiguration() }">
+                                    <input class="form-control" type="text"
+                                           data-bind="textInput: model.identityPartsSeparator, enable: _.includes(model.isDefined(), 'identityPartsSeparator'), 
+                                                      attr: { placeholder: separatorPlaceHolderInSettings }" />
+                                </div>
+                                <div class="col-sm-2" data-bind="visible: hasGlobalConfiguration, if: hasGlobalConfiguration">
+                                    <input class="form-control" disabled data-bind="value: globalModel.identityPartsSeparator" />
+                                </div>
+                                <div class="col-sm-2" data-bind="visible: hasGlobalConfiguration">
+                                    <h3 class="margin-top margin-top-sm" data-bind="text: effectiveIdentityPartsSeparator"></h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div data-bind="css: { 'row': !hasGlobalConfiguration() }">
+                    <div data-bind="css: { 'col-sm-6': !hasGlobalConfiguration() }">
+                        <div class="panel padding-sm">
+                            <div class="row">
+                                <div data-bind="css: { 'col-sm-3': hasGlobalConfiguration, 'col-sm-6': !hasGlobalConfiguration() }">
+                                    <div class="checkbox">
+                                        <input id="checkboxMaxRequests" type="checkbox" min="0"
+                                               data-bind="checked: model.isDefined, checkedValue: 'maxNumberOfRequestsPerSession', enable: canEditSettings, validationElement: model.maxNumberOfRequestsPerSession,
+                                                          requiredAccess: 'DatabaseAdmin', requiredAccessOptions: { strategy: 'disable' }">
+                                        <label for="checkboxMaxRequests">
+                                            Maximum number of requests per session
+                                        </label>
+                                    </div>
+                                </div>
+                                <div data-bind="validationElement: model.maxNumberOfRequestsPerSession, css: { 'col-sm-2': hasGlobalConfiguration,'col-sm-5': !hasGlobalConfiguration() }">
+                                    <input class="form-control" type="number" min="0" placeholder="Enter requests number"
+                                           data-bind="numericInput: model.maxNumberOfRequestsPerSession, enable: _.includes(model.isDefined(), 'maxNumberOfRequestsPerSession'),
+                                                      attr: { placeholder: requestsNumberPlaceHolderInSettings }" />
+                                </div>
+                                <div class="col-sm-2" data-bind="visible: hasGlobalConfiguration, if: hasGlobalConfiguration">
+                                    <input class="form-control" disabled data-bind="value: globalModel.maxNumberOfRequestsPerSession" />
+                                </div>
+                                <div class="col-sm-2" data-bind="visible: hasGlobalConfiguration">
+                                    <h3 class="margin-top margin-top-sm" data-bind="text: effectiveMaxNumberOfRequestsPerSession"></h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div data-bind="css: { 'row': !hasGlobalConfiguration() }">
+                    <div data-bind="css: { 'col-sm-6': !hasGlobalConfiguration() }">
+                        <div class="panel padding-sm">
+                            <div class="row">
+                                <div data-bind="css: { 'col-sm-3': hasGlobalConfiguration, 'col-sm-6': !hasGlobalConfiguration() }">
+                                    <div class="checkbox">
+                                        <input id="useSessionContextToggle" type="checkbox"
+                                               data-bind="checked: model.isDefined, checkedValue: 'useSessionContextForLoadBehavior', enable: canEditSettings(),
+                                                          requiredAccess: 'DatabaseAdmin', requiredAccessOptions: { strategy: 'disable' }">
+                                        <label for="useSessionContextToggle">
+                                            Use Session Context for Load Balancing
+                                        </label>
+                                    </div>
+                                </div>
+                                <div data-bind="validationElement: model.loadBalanceContextSeed, validationOptions: { insertMessages: false }, css: { 'col-sm-2': hasGlobalConfiguration,'col-sm-5': !hasGlobalConfiguration() }">
+                                    <div class="flex-horizontal">
+                                        <div class="toggle">
+                                            <input id="toggleSeed" type="checkbox"
+                                                   data-bind="checked: model.setLoadBalanceSeed, enable: _.includes(model.isDefined(), 'useSessionContextForLoadBehavior')">
+                                            <label for="toggleSeed">
+                                                Seed
+                                            </label>
+                                        </div>
+                                        <input class="form-control margin-left" type="number" min="0" placeholder="Enter number"
+                                               data-bind="numericInput: model.loadBalanceContextSeed, enable: model.setLoadBalanceSeed" />
+                                    </div>
+                                    <div class="help-block" data-bind="validationMessage: model.loadBalanceContextSeed"></div>
+                                </div>
+                                <div class="col-sm-2" data-bind="visible: hasGlobalConfiguration, if: hasGlobalConfiguration">
+                                    <input class="form-control" disabled data-bind="value: globalModel.loadBalanceContextSeed" />
+                                </div>
+                            </div>
+                            <div class="row margin-top">
+                                <div data-bind="css: { 'col-sm-3': hasGlobalConfiguration, 'col-sm-6': !hasGlobalConfiguration() }">
+                                    <div class="checkbox">
+                                        <input id="checkboxReadBalance" type="checkbox"
+                                               data-bind="checked: model.isDefined, checkedValue: 'readBalanceBehavior', enable: canEditSettings(),
+                                                          requiredAccess: 'DatabaseAdmin', requiredAccessOptions: { strategy: 'disable' }">
+                                        <label for="checkboxReadBalance">
+                                            Read balance behavior
+                                        </label>
+                                    </div>
+                                </div>
+                                <div data-bind="css: { 'col-sm-2': hasGlobalConfiguration,'col-sm-5': !hasGlobalConfiguration() }">
+                                    <div class="dropdown flex-vertical">
+                                        <button class="btn btn-default btn-block dropdown-toggle" data-toggle="dropdown" aria-expanded="false"
+                                                data-bind="enable: _.includes(model.isDefined(), 'readBalanceBehavior')">
+                                            <span data-bind="text: model.readBalanceBehaviorLabel"></span><span class="caret"></span>
+                                        </button>
+                                        <ul class="dropdown-menu" data-bind="foreach: model.constructor.readModes">
+                                            <li><a href="#" data-bind="text: label, click: _.partial($root.setReadMode, value)"></a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="col-sm-2" data-bind="visible: hasGlobalConfiguration, if: hasGlobalConfiguration">
+                                    <input class="form-control" disabled data-bind="value: globalModel.readBalanceBehaviorLabel" />
+                                </div>
+                                <div class="col-sm-3" data-bind="visible: hasGlobalConfiguration()">
+                                    <h3 class="margin-top margin-top-sm" data-bind="text: effectiveReadBalanceBehavior"></h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>

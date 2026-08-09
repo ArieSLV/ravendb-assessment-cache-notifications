@@ -1,0 +1,43 @@
+<div class="modal-dialog" role="document">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">
+                Toggle database state confirmation
+            </h5>
+            <button type="button" class="close" data-bind="click: cancel" aria-hidden="true">
+                <i class="icon-cancel"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div data-bind="visible: databases.length === 1">
+                <span data-bind="text: deletionText"></span>
+                <ul class="databases-list margin-top-xs">
+                    <li class="force-text-wrap" data-bind="with: databases[0]"><i class="icon-database text-primary"></i>
+                        <small title="This database is encrypted" data-bind="visible: isEncrypted"><i class="icon-encryption text-success"></i></small>
+                        <small title="This database is not encrypted" data-bind="visible: !isEncrypted"><i class="icon-unlock text-muted"></i></small>
+                        <strong data-bind="text: name"></strong>
+                    </li>
+                </ul>
+            </div>
+            <div data-bind="visible: databases.length > 1">
+                <span data-bind="text: deletionText"></span>
+                <strong data-bind="text: databases.length"></strong>
+                databases
+                <br />
+                <div style="max-height: 290px; overflow-y: auto;">
+                    <ul class="databases-list margin-top-xs" data-bind="foreach: databases">
+                        <li class="force-text-wrap"><i class="icon-database text-primary"></i>
+                            <small title="This database is encrypted" data-bind="visible: isEncrypted"><i class="icon-encryption text-success"></i></small>
+                            <small title="This database is not encrypted" data-bind="visible: !isEncrypted"><i class="icon-unlock text-muted"></i></small>
+                            <strong data-bind="text: name"></strong>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-bind="click: cancel">Cancel</button>
+            <button type="button" class="btn btn-primary" data-bind="click: confirm, text: confirmDeletionText"></button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,984 @@
+﻿@external-replication-color: @color-5;
+@external-replication-color-dark: darken(@external-replication-color, 10%);
+@external-replication-color-light: lighten(@external-replication-color, 5%);
+
+@pull-replication-hub-color: @color-5-1;
+@pull-replication-hub-color-dark: darken(@pull-replication-hub-color, 10%);
+@pull-replication-hub-color-light: lighten(@pull-replication-hub-color, 5%);
+
+@pull-replication-sink-color: @color-5-2;
+@pull-replication-sink-color-dark: darken(@pull-replication-sink-color, 10%);
+@pull-replication-sink-color-light:lighten(@pull-replication-sink-color, 5%);
+
+@backup-color: @color-4;
+@backup-color-dark: darken(@backup-color, 10%);
+@backup-color-light: lighten(@backup-color, 5%);
+
+@subscription-color: @color-4-1;
+@subscription-color-dark: darken(@subscription-color, 10%);
+@subscription-color-light: lighten(@subscription-color, 5%);
+
+@ravendb-etl-color: @color-1;
+@ravendb-etl-color-dark: darken(@ravendb-etl-color, 10%);
+@ravendb-etl-color-light: lighten(@ravendb-etl-color, 5%);
+
+@elastic-etl-color: @color-1-1;
+@elastic-etl-color-dark: darken(@elastic-etl-color, 10%);
+@elastic-etl-color-light: lighten(@elastic-etl-color, 5%);
+
+@kafka-etl-color: @color-1-2;
+@kafka-etl-color-dark: darken(@kafka-etl-color, 10%);
+@kafka-etl-color-light: lighten(@kafka-etl-color, 3%);
+
+@sql-etl-color: @color-1-3;
+@sql-etl-color-dark: darken(@sql-etl-color, 10%);
+@sql-etl-color-light: lighten(@sql-etl-color, 5%);
+
+@snowflake-etl-color: @color-2;
+@snowflake-etl-color-dark: darken(@snowflake-etl-color, 10%);
+@snowflake-etl-color-light: lighten(@snowflake-etl-color, 5%);
+
+@olap-etl-color: @color-2-1;
+@olap-etl-color-dark: darken(@olap-etl-color, 10%);
+@olap-etl-color-light: lighten(@olap-etl-color, 5%);
+
+@rabbitmq-etl-color: @color-2-2;
+@rabbitmq-etl-color-dark: darken(@rabbitmq-etl-color, 10%);
+@rabbitmq-etl-color-light: lighten(@rabbitmq-etl-color, 5%);
+
+@azure-queue-storage-etl-color: @color-2-3;
+@azure-queue-storage-etl-color-dark: darken(@azure-queue-storage-etl-color, 10%);
+@azure-queue-storage-etl-color-light: lighten(@azure-queue-storage-etl-color, 5%);
+
+@amazon-sqs-etl-color: @color-3; //TODO:
+@amazon-sqs-etl-color-dark: darken(@amazon-sqs-etl-color, 10%);
+@amazon-sqs-etl-color-light: lighten(@amazon-sqs-etl-color, 5%);
+
+@kafka-sink-color: @color-3-1;
+@kafka-sink-color-dark: darken(@kafka-sink-color, 10%);
+@kafka-sink-color-light: lighten(@kafka-sink-color, 3%);
+
+@rabbitmq-sink-color: @color-3-2;
+@rabbitmq-sink-color-dark: darken(@rabbitmq-sink-color, 5%);
+@rabbitmq-sink-color-light: lighten(@rabbitmq-sink-color, 5%);
+
+@ai-etl-color: @color-3-3;
+@ai-etl-color-dark: darken(@ai-etl-color, 5%);
+@ai-etl-color-light: lighten(@ai-etl-color, 5%);
+
+@genai-color: @color-4;
+@genai-color-dark: darken(@genai-color, 5%);
+@genai-color-light: lighten(@genai-color, 5%);
+
+.bigbtn-variant(@color, @color-dark) {
+    background-color: fadeout(@color-dark,90%);
+    color: @color;
+    h4 {
+        color: @color;
+    }
+
+    &:hover {
+        background-color: fadeout(@color-dark,10%);
+        color: white;
+        h4 {
+            color: white;
+        }
+    }
+}
+
+.name-variant (@color, @color-light) {
+    .destination-name {
+        color: @color;
+
+        &:hover {
+            color: @color-light;
+        }
+    }
+}
+
+.destinationModal {
+    .external-replication, 
+    .sql-etl, 
+    .snowflake-etl, 
+    .ai-etl, 
+    .olap-etl, 
+    .elastic-etl, 
+    .ravendb-etl, 
+    .periodic-backup, 
+    .subscription, 
+    .pull-replication-hub, 
+    .pull-replication-sink, 
+    .kafka-etl, 
+    .azure-queue-storage-etl,
+    .amazon-sqs-etl,
+    .rabbitmq-etl, 
+    .kafka-sink, 
+    .rabbitmq-sink {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        padding: @gutter-sm;
+        border-radius: @gutter-xxs;
+        transition: none;
+
+        i {
+            font-size: 48px;
+        }
+        &:hover {
+            transition: background-color 0.5s cubic-bezier(0, 0.67, 0.76, 1.04), color 0.1s;
+        }
+    }
+
+    .pull-replication-hub {
+        .bigbtn-variant (@pull-replication-hub-color, @pull-replication-hub-color-dark);
+    } 
+    
+    .pull-replication-sink {
+        .bigbtn-variant (@pull-replication-sink-color, @pull-replication-sink-color-dark);
+    }
+    
+    .external-replication {
+        .bigbtn-variant (@external-replication-color, @external-replication-color-dark);
+    }
+
+    .sql-etl {
+        .bigbtn-variant (@sql-etl-color, @sql-etl-color-dark);
+    }
+    
+    .snowflake-etl {
+        .bigbtn-variant (@snowflake-etl-color, @snowflake-etl-color-dark);
+    }
+
+    .olap-etl {
+        .bigbtn-variant (@olap-etl-color, @olap-etl-color-dark);
+    }
+
+    .elastic-etl {
+        .bigbtn-variant (@elastic-etl-color, @elastic-etl-color-dark);
+    }
+
+    .ravendb-etl {
+        .bigbtn-variant (@ravendb-etl-color, @ravendb-etl-color-dark);
+    }
+
+    .kafka-etl {
+        .bigbtn-variant (@kafka-etl-color, @kafka-etl-color-dark);
+    }
+
+    .rabbitmq-etl {
+        .bigbtn-variant (@rabbitmq-etl-color, @rabbitmq-etl-color-dark);
+    }
+
+    .azure-queue-storage-etl {
+        .bigbtn-variant (@azure-queue-storage-etl-color, @azure-queue-storage-etl-color-dark);
+    }
+
+    .amazon-sqs-etl {
+        .bigbtn-variant (@amazon-sqs-etl-color, @amazon-sqs-etl-color-dark);
+    }
+    
+    .ai-etl {
+        .bigbtn-variant (@ai-etl-color, @ai-etl-color-dark);
+    }
+
+    .genai {
+        .bigbtn-variant (@genai-color, @genai-color-dark);
+    }
+
+    .kafka-sink {
+        .bigbtn-variant (@kafka-sink-color, @kafka-sink-color-dark);
+    }
+
+    .rabbitmq-sink {
+        .bigbtn-variant (@rabbitmq-sink-color, @rabbitmq-sink-color-dark);
+    }
+
+    .periodic-backup {
+        .bigbtn-variant (@backup-color, @backup-color-dark);
+    }
+
+    .subscription {
+        .bigbtn-variant (@subscription-color, @subscription-color-dark);
+    }
+}
+
+.etl-list {
+    .item {
+        transition: background-color .2s;
+
+        .form-control {
+            background-color: @gray-darker;
+            border: none;
+        }
+
+        &:not(.edit) {
+            .edit-name {
+                display: none;
+            }
+        }
+
+        &.edit {
+            background-color: @gray-dark;
+
+            .info {
+                display: none;
+            }
+        }
+
+        .info {
+            line-height: 18px;
+        }
+
+        .actions {
+            flex-shrink: 0;
+            align-self: flex-start;
+        }
+
+        .transformer-name {
+            color: @text-emphasis;
+        }
+
+        .collections, .queues {
+            font-size: 12px;
+        }
+        
+    }
+}
+
+.destinations, .cluster {
+    .legend {
+        background-color: @panel-bg;
+        font-size: 12px;
+        .padding;
+
+        h5 {
+            margin-top: 0;
+        }
+
+        .here {
+            color: #FFF;
+        }
+
+        .db-group-node {
+            color: cyan;
+        }
+
+        .task-rect {
+            width: 12px;
+            height: 12px;
+            margin-right: 10px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .external-replication {
+            color: @external-replication-color;
+        }
+
+        .task-external-replication {
+            background-color: @external-replication-color;
+        }
+        
+        .pull-replication-hub {
+            color: @pull-replication-hub-color;
+        }
+ 
+        .task-pull-replication-hub {
+            background-color: @pull-replication-hub-color;
+        }
+
+        .pull-replication-sink {
+            color: @pull-replication-sink-color;
+        }
+
+        .task-pull-replication-sink {
+            background-color: @pull-replication-sink-color;
+        }
+
+        .sql-etl {
+            color: @sql-etl-color;
+        }
+
+        .task-sql-etl {
+            background-color: @sql-etl-color;
+        }
+
+        .snowflake-etl {
+            color: @snowflake-etl-color;
+        }
+
+        .task-snowflake-etl {
+            background-color: @snowflake-etl-color;
+        }
+
+        .olap-etl {
+            color: @olap-etl-color;
+        }
+
+        .task-olap-etl {
+            background-color: @olap-etl-color;
+        }
+
+        .elastic-etl {
+            color: @elastic-etl-color;
+        }
+
+        .task-elastic-etl {
+            background-color: @elastic-etl-color;
+        }
+
+        .subscriptions {
+            color: @subscription-color;
+        }
+
+        .task-subscriptions {
+            background-color: @subscription-color;
+        }
+
+        .db-group-node {
+        }
+
+        .ravendb-etl {
+            color: @ravendb-etl-color;
+        }
+
+        .task-ravendb-etl {
+            background-color: @ravendb-etl-color;
+        }
+
+        .kafka-etl {
+            color: @kafka-etl-color;
+        }
+
+        .task-kafka-etl {
+            background-color: @kafka-etl-color;
+        }
+
+        .rabbitmq-etl {
+            color: @rabbitmq-etl-color;
+        }
+
+        .task-rabbitmq-etl {
+            background-color: @rabbitmq-etl-color;
+        }
+
+        .azure-queue-storage-etl {
+            color: @azure-queue-storage-etl-color;
+        }
+
+        .amazon-sqs-etl {
+            color: @amazon-sqs-etl-color;
+        }
+
+        .ai-etl {
+            color: @ai-etl-color;
+        }
+
+        .genai {
+            color: @genai-color;
+        }
+
+        .task-azure-queue-storage-etl {
+            background-color: @azure-queue-storage-etl-color;
+        }
+
+        .task-amazon-sqs-etl {
+            background-color: @amazon-sqs-etl-color;
+        }
+
+        .task-ai-etl {
+            background-color: @ai-etl-color;
+        }
+
+        .task-genai {
+            background-color: @genai-color;
+        }
+
+        .kafka-sink {
+            color: @kafka-sink-color;
+        }
+
+        .task-kafka-sink {
+            background-color: @kafka-sink-color;
+        }
+
+        .rabbitmq-sink {
+            color: @rabbitmq-sink-color;
+        }
+
+        .task-rabbitmq-sink {
+            background-color: @rabbitmq-sink-color;
+        }
+
+        .periodic-backup {
+            color: @backup-color;
+        }
+
+        .task-periodic-backup {
+            background-color: @backup-color;
+        }
+    }
+
+    .settings-menu {
+        width: 300px !important;
+    }
+
+    .address, .cores, .memory, .serverVersion, .os{
+        margin-top: 0;
+        line-height: 18px;
+        white-space: nowrap;
+    }
+
+    .os {
+        .tooltip {
+            .tooltip-inner {
+                max-width: unset;
+            }
+        }
+    }
+    
+    .memory {
+        min-width: 112px;
+    }
+    
+    .serverVersion {
+        max-width: 150px;
+        flex-grow: 0;
+        
+        &, & > strong {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    }
+
+    .destination-item {
+        padding-left: 30px;
+        position: relative;
+
+        &.raven-replication {
+        }
+
+        &.sql-etl {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+
+        &.snowflake-etl {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+
+        &.olap-etl {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+
+        &.elastic-etl {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+
+        &.kafka-etl {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+
+        &.rabbitmq-etl {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+
+        &.azure-queue-storage-etl {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+
+        &.amazon-sqs-etl {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+        &.ai-etl {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+        
+        &.kafka-sink {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+
+        &.rabbitmq-sink {
+            .name-variant (@brand-info, @brand-info-light);
+        }
+
+        &.ravendb-etl {
+            .name-variant (@brand-warning, @brand-warning-light);
+        }
+
+        &.periodic-backup {
+            .name-variant (@backup-color, @backup-color-light);
+        }
+
+        &.subscription {
+            .name-variant (@subscription-color, @subscription-color-light);
+        }
+
+        .info-container {
+            flex-grow: 1;
+        }
+
+        .actions-container {
+            //margin-left: @grid-gutter-width/3;
+        }
+
+        .destination-info {
+            display: flex;
+            flex-wrap: wrap;
+
+            @media (max-width: @screen-xs-max) {
+                flex-direction: column;
+            }
+        }
+    }
+
+    .node-type {
+        width: 120px;
+        white-space: nowrap;
+    }
+
+    .destination-name {
+        font-size: 18px;
+        margin-bottom: 0;
+        font-weight: normal;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex-grow: 1;
+    }
+
+    h3 {
+        margin: 0;
+    }
+
+    .info-container {
+        align-items: flex-start;
+
+        h5 {
+            margin-top: 0;
+        }
+
+        .location {
+            line-height: 18px;
+        }
+
+        .destination-name {
+            i {
+                top: 0;
+            }
+
+            position: relative;
+        }
+    }
+
+    .actions-container {
+        flex-shrink: 0;
+    }
+}
+
+.cluster {
+    .resources {
+        line-height: 14px;
+        font-size: 12px;
+        text-transform: uppercase;
+    }
+
+    .info-container {
+        flex-grow: 0 !important;
+        width: 420px;
+
+        h5 {
+            margin-bottom: 3px;
+        }
+    }
+}
+
+.sql-tables-list {
+    min-height: 80px;
+    max-height: 500px;
+    overflow: auto;
+    flex-shrink: 0;
+}
+
+.snowflake-tables-list {
+    min-height: 80px;
+    max-height: 500px;
+    overflow: auto;
+    flex-shrink: 0;
+}
+
+.olap-tables-list {
+    min-height: 80px;
+    max-height: 500px;
+    overflow: auto;
+    flex-shrink: 0;
+}
+
+.transformation-scripts-list {
+    max-height: 500px;
+    overflow: auto;
+    flex-shrink: 0;
+}
+
+.collection-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 200px;
+    overflow: auto;
+
+    li {
+        display: flex;
+        align-items: stretch;
+        font-size: 13px;
+
+        &:hover {
+            background-color: @well-bg-2;
+        }
+
+        .name {
+            padding: 5px 10px;
+            flex-grow: 1;
+        }
+
+        a {
+            padding: 5px 10px;
+
+            &:hover {
+                background-color: @gray-dark;
+            }
+        }
+
+        .btn-group {
+            align-self: center;
+        }
+
+        .checkbox input [type="checkbox"], .radio input[type="checkbox"], .checkbox input[type="radio"], .radio input[type="radio"] {
+            top: 3px;
+        }
+
+        .checkbox label {
+            &::before {
+                top: 0px;
+            }
+
+            &::after {
+                top: -3px;
+            }
+        }
+    }
+}
+
+#addNewScript {
+    margin-left: auto;
+}
+
+.etl-collections, .transformation-scripts-list, .sink-queues {
+
+    .collection-color-0 {
+        color: @color-3;
+    }
+    .collection-color-1 {
+        color: @color-5;
+    }
+    .collection-color-2 {
+        color: @color-2;
+    }
+    .collection-color-3 {
+        color: @color-1-2;
+    }
+    .collection-color-4 {
+        color: @color-4;
+    }
+    .collection-color-5 {
+        color: @color-5-3;
+    }
+}
+
+#connection-strings .task {
+    margin-top: 5px;
+}
+
+.edit-raven-sql-task, .edit-raven-snowflake-task {
+
+    overflow-x: hidden;
+
+    .flex-row {
+        transition: transform 0.5s;
+    }
+
+    .test-container {
+        position: absolute;
+        right: 0;
+        top: @gutter-xl;
+        bottom: 0;
+        width: 50%;
+        transform: translateX(100%);
+        transition: transform 0.5s;
+
+        .tab-content {
+            overflow: auto;
+        }
+    }
+    &.test-mode {
+        .flex-row {
+            transform: translateX(-50%);
+        }
+        .test-container {
+            transform: translateX(0%);
+        }
+    }
+}
+
+.edit-raven-etl-task {
+
+    overflow-x: hidden;
+    
+    .result-item {
+        .header {
+            padding: @grid-gutter-width / 2;
+            background-color: @gray-dark;
+        }
+        pre {
+            background-color: @well-bg;
+        }
+    }
+    
+    .flex-row {
+        transition: transform 0.5s;
+    }
+    
+    .test-container {
+        position: absolute;
+        right: 0;
+        top: @gutter-xl;
+        bottom: 0;
+        width: 50%;
+        transform: translateX(100%);
+        transition: transform 0.5s;
+     
+        .tab-content {
+            overflow: auto;
+        }
+    }
+    &.test-mode {
+        .flex-row {
+            transform: translateX(-50%);
+        }
+        .test-container {
+            transform: translateX(0%);
+        }
+    }
+}
+
+.edit-raven-olap-task {
+
+    overflow-x: hidden;
+
+    .result-item {
+        .header {
+            padding: @grid-gutter-width / 2;
+            background-color: @gray-dark;
+        }
+        pre {
+            background-color: @gray-darker;
+        }
+    }
+
+    .flex-row {
+        transition: transform 0.5s;
+    }
+
+    .test-container {
+        position: absolute;
+        right: 0;
+        top: @gutter-xl;
+        bottom: 0;
+        width: 50%;
+        transform: translateX(100%);
+        transition: transform 0.5s;
+
+        .tab-content {
+            overflow: auto;
+        }
+    }
+    &.test-mode {
+        .flex-row {
+            transform: translateX(-50%);
+        }
+        .test-container {
+            transform: translateX(0%);
+        }
+    }
+}
+
+.edit-elastic-search-task {
+
+    overflow-x: hidden;
+
+    .result-item {
+        .header {
+            padding: @grid-gutter-width / 2;
+            background-color: @gray-dark;
+        }
+        pre {
+            background-color: @gray-darker;
+        }
+    }
+
+    .flex-row {
+        transition: transform 0.5s;
+    }
+
+    .test-container {
+        position: absolute;
+        right: 0;
+        top: @gutter-xl;
+        bottom: 0;
+        width: 50%;
+        transform: translateX(100%);
+        transition: transform 0.5s;
+
+        .tab-content {
+            overflow: auto;
+        }
+    }
+    &.test-mode {
+        .flex-row {
+            transform: translateX(-50%);
+        }
+        .test-container {
+            transform: translateX(0%);
+        }
+    }
+}
+
+.edit-kafka-etl-task, .edit-rabbitmq-etl-task, .edit-azure-queue-storage-etl-task, .edit-amazon-sqs-etl-task, .edit-kafka-sink-task, .edit-rabbitmq-sink-task, .edit-ai-etl-task {
+
+    overflow-x: hidden;
+
+    .result-item {
+        .header {
+            padding: @grid-gutter-width / 2;
+            background-color: @gray-dark;
+        }
+        pre {
+            background-color: @gray-darker;
+        }
+    }
+
+    .flex-row {
+        transition: transform 0.5s;
+    }
+
+    .test-container {
+        position: absolute;
+        right: 0;
+        top: @gutter-xl;
+        bottom: 0;
+        width: 50%;
+        transform: translateX(100%);
+        transition: transform 0.5s;
+
+        .tab-content {
+            overflow: auto;
+        }
+    }
+    &.test-mode {
+        .flex-row {
+            transform: translateX(-50%);
+        }
+        .test-container {
+            transform: translateX(0%);
+        }
+    }
+}
+
+.js-test-sql-tooltip {
+    z-index: calc(var(--zindex-modal) + 1);
+}
+
+.js-test-snowflake-tooltip {
+    z-index: calc(var(--zindex-modal) + 1);
+}
+
+.show-test {
+    .backdrop {
+        .backdrop.show;
+    }
+    
+    .test-output pre, #debugOutput pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .transformation-errors, .load-errors {
+        pre {
+            white-space: pre-wrap;
+        }
+    } 
+    
+    .slow-sqls {
+        .sql-warning {
+            position: relative;
+            margin-left: @grid-gutter-width / 2;
+            
+            pre {
+                padding-bottom: @grid-gutter-width;
+                white-space: normal;
+            }
+            margin-bottom: @grid-gutter-width / 2;
+        }
+
+        .duration {
+            bottom: @grid-gutter-width / 4;
+            left: @grid-gutter-width / 2;
+            position: absolute;
+            font-size: 12px;
+        }
+    }
+}
+
+#connection-strings {
+    .connection-string-title {
+        margin-right: 7.5px;
+    }
+}
+
+.edit-ongoing-task {
+    &.test-mode {
+        z-index: @zindex-modal;
+    }
+}
+
+.test-result-item {
+    display: flex;
+    flex-grow: 1;
+    width: 100%;
+    max-width: calc((100%/3) - @gutter-xxs);
+    word-break: break-all;
+    &.show-document {
+        max-width: 100%;
+    }
+    .tab-data, pre {
+        font-size: 12px;
+    }
+    small {
+        padding: @gutter-xxs;
+    }
+    pre {
+        background-color: var(--well-bg);
+        border-radius: @gutter-xxs;
+        flex-grow: 1;
+    }
+    pre:not(:empty).show + small:not(:empty) {
+        margin-top: @gutter-xxs;
+    }
+}
+
+.test-result-item > * + *:not(:empty),
+.test-result-item > span > * + small:not(:empty) {
+    border-top: 1px solid var(--border-color-light);
+}

@@ -1,0 +1,565 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Newtonsoft.Json;
+using Raven.Client.Documents.Operations.Replication;
+using Raven.Client.Documents.Replication;
+using Raven.Client.Http;
+using Sparrow;
+using Sparrow.Json;
+using Sparrow.Json.Parsing;
+
+namespace Raven.Client.ServerWide
+{
+    public enum DatabasePromotionStatus
+    {
+        WaitingForFirstPromotion,
+        NotResponding,
+        IndexNotUpToDate,
+        ChangeVectorNotMerged,
+        WaitingForResponse,
+        Ok,
+        OutOfCpuCredits,
+        EarlyOutOfMemory,
+        HighDirtyMemory,
+        RaftIndexNotUpToDate
+    }
+
+    public interface IDatabaseTask
+    {
+        ulong GetTaskKey();
+
+        string GetMentorNode();
+        
+        string GetDefaultTaskName();
+
+        string GetTaskName();
+
+        bool IsResourceIntensive();
+
+        bool IsPinnedToMentorNode();
+    }
+
+    public interface IDatabaseTaskStatus
+    {
+        string NodeTag { get; }
+    }
+
+    public sealed class LeaderStamp : IDynamicJson
+    {
+        public long Index = -1;
+        public long Term = -1;
+        public long LeadersTicks = -1;
+
+        public DynamicJsonValue ToJson()
+        {
+            return new DynamicJsonValue
+            {
+                [nameof(Index)] = Index,
+                [nameof(Term)] = Term,
+                [nameof(LeadersTicks)] = LeadersTicks
+            };
+        }
+    }
+
+    public sealed class PromotableTask : IDatabaseTask
+    {
+        private readonly string _tag;
+        private readonly string _url;
+        private readonly string _name;
+        private readonly string _mentorNode;
+
+        public PromotableTask(string tag, string url, string name, string mentorNode = null)
+        {
+            _tag = tag;
+            _url = url;
+            _name = name;
+            _mentorNode = mentorNode;
+        }
+
+        private static ulong CalculateStringHash(string s)
+        {
+            return string.IsNullOrEmpty(s) ? 0 : Hashing.XXHash64.Calculate(s, Encodings.Utf8);
+        }
+
+        public ulong GetTaskKey()
+        {
+            var hashCode = CalculateStringHash(_tag);
+            hashCode = (hashCode * 397) ^ CalculateStringHash(_url);
+            return (hashCode * 397) ^ CalculateStringHash(_name);
+        }
+
+        public string GetMentorNode()
+        {
+            return _mentorNode;
+        }
+
+        public string GetDefaultTaskName()
+        {
+            return _name;
+        }
+
+        public string GetTaskName()
+        {
+            return _name;
+        }
+
+        public bool IsResourceIntensive()
+        {
+            return false;
+        }
+
+        public bool IsPinnedToMentorNode()
+        {
+            return false;
+        }
+    }
+
+    internal static class ThreadSafeRandom
+    {
+        [ThreadStatic]
+        private static Random _random;
+
+        // Fisher-Yates shuffle algorithm
+        public static void Shuffle<T>(this IList<T> list)
+        {
+            var n = list.Count;
+            while (n > 1)
+            {
+                n--;
+                var k = (_random ??= new Random()).Next(n + 1);
+                var value = list[k];
+                list[k] = list[n];
+                list[n] = value;
+            }
+        }
+    }
+
+    public sealed class OrchestratorTopology : DatabaseTopology
+    {
+        public void Update(DatabaseTopology topology)
+        {
+            Members = topology.Members;
+            Promotables = topology.Promotables;
+            Rehabs = topology.Rehabs;
+
+            PredefinedMentors = topology.PredefinedMentors;
+            DemotionReasons = topology.DemotionReasons;
+            PromotablesStatus = topology.PromotablesStatus;
+
+            Stamp = topology.Stamp;
+            PriorityOrder = topology.PriorityOrder;
+            NodesModifiedAt = topology.NodesModifiedAt;
+
+            ReplicationFactor = topology.ReplicationFactor;
+            DynamicNodesDistribution = topology.DynamicNodesDistribution;
+        }
+    }
+
+    public class DatabaseTopology : IDynamicJson
+    {
+        public List<string> Members = new List<string>();
+        public List<string> Promotables = new List<string>();
+        public List<string> Rehabs = new List<string>();
+
+        public Dictionary<string, string> PredefinedMentors = new Dictionary<string, string>();
+        public Dictionary<string, string> DemotionReasons = new Dictionary<string, string>();
+        public Dictionary<string, DatabasePromotionStatus> PromotablesStatus = new Dictionary<string, DatabasePromotionStatus>();
+
+        public LeaderStamp Stamp;
+        public bool DynamicNodesDistribution;
+        public int ReplicationFactor = 1;
+        public List<string> PriorityOrder;
+        public DateTime? NodesModifiedAt;
+
+        internal void ReorderMembers()
+        {
+            Members.Shuffle();
+
+            if (PriorityOrder == null || PriorityOrder.Count == 0)
+                return;
+
+            var members = new List<string>();
+            for (int i = 0; i < PriorityOrder.Count; i++)
+            {
+                var priorityNode = PriorityOrder[i];
+                if (Members.Contains(priorityNode))
+                    members.Add(priorityNode);
+            }
+
+            for (int i = 0; i < Members.Count; i++)
+            {
+                var member = Members[i];
+                if (members.Contains(member) == false)
+                    members.Add(member);
+            }
+
+            Members = members;
+        }
+
+        internal bool TryUpdateByPriorityOrder()
+        {
+            if (IsReorderNeeded() == false)
+                return false;
+
+            var originalOrder = new List<string>(Members);
+            ReorderMembers();
+
+            if (originalOrder.SequenceEqual(Members))
+                return false; // members hasn't changed after the reorder
+
+            return true;
+        }
+
+        internal void ValidateTopology(string databaseName)
+        {
+            var nodes = new HashSet<string>();
+            if (Count > 0)
+            {
+                nodes.Clear();
+                foreach (var node in AllNodes)
+                {
+                    if (nodes.Contains(node))
+                        throw new InvalidOperationException(
+                            $"Database {databaseName} cannot have multiple replicas reside on the same node {node}.");
+                    nodes.Add(node);
+                }
+            }
+        }
+
+        private bool IsReorderNeeded()
+        {
+            if (PriorityOrder == null || PriorityOrder.Count == 0)
+                return false;
+
+            for (var index = 0; index < Math.Min(Members.Count, PriorityOrder.Count); index++)
+            {
+                var member = Members[index];
+                if (PriorityOrder[index] != member)
+                    return true;
+            }
+
+            return false;
+        }
+
+        public bool RelevantFor(string nodeTag)
+        {
+            return Members.Contains(nodeTag) ||
+                   Rehabs.Contains(nodeTag) ||
+                   Promotables.Contains(nodeTag);
+        }
+
+        public List<ReplicationNode> GetDestinations(string myTag, string databaseName, Dictionary<string, DeletionInProgressStatus> deletionInProgress,
+            ClusterTopology clusterTopology, RachisState state)
+        {
+            var list = new List<string>();
+            var destinations = new List<ReplicationNode>();
+
+            if (Promotables.Contains(myTag)) // if we are a promotable we can't have any destinations
+                return destinations;
+
+            if (Rehabs.Contains(myTag)) // if I'm rehab my only destination is my mentor
+            {
+                var myUrl = clusterTopology.GetUrlFromTag(myTag);
+                var repNode = WhoseTaskIsIt(state, new PromotableTask(myTag, myUrl, databaseName));
+                if (repNode == null)
+                {
+                    return destinations;
+                }
+                var repNodeUrl = clusterTopology.GetUrlFromTag(repNode);
+
+                destinations.Add(new InternalReplication
+                {
+                    NodeTag = repNode,
+                    Url = repNodeUrl,
+                    Database = databaseName
+                });
+
+                return destinations;
+            }
+
+            foreach (var node in Members)
+            {
+                if (node == myTag) // skip me
+                    continue;
+                if (deletionInProgress != null && deletionInProgress.ContainsKey(node))
+                    continue;
+                list.Add(clusterTopology.GetUrlFromTag(node));
+            }
+
+            foreach (var promotable in Promotables)
+            {
+                if (deletionInProgress != null && deletionInProgress.ContainsKey(promotable))
+                    continue;
+
+                var url = clusterTopology.GetUrlFromTag(promotable);
+                PredefinedMentors.TryGetValue(promotable, out var mentor);
+                if (WhoseTaskIsIt(state, new PromotableTask(promotable, url, databaseName, mentor)) == myTag)
+                {
+                    list.Add(url);
+                }
+            }
+
+            foreach (var rehab in Rehabs)
+            {
+                if (deletionInProgress != null && deletionInProgress.ContainsKey(rehab))
+                    continue;
+
+                var url = clusterTopology.GetUrlFromTag(rehab);
+                if (WhoseTaskIsIt(state, new PromotableTask(rehab, url, databaseName)) == myTag)
+                {
+                    list.Add(url);
+                }
+            }
+
+            // remove nodes that are not in the raft cluster topology
+            list.RemoveAll(url => clusterTopology.TryGetNodeTagByUrl(url).HasUrl == false);
+
+            foreach (var url in list)
+            {
+                destinations.Add(new InternalReplication
+                {
+                    NodeTag = clusterTopology.TryGetNodeTagByUrl(url).NodeTag,
+                    Url = url,
+                    Database = databaseName
+                });
+            }
+
+            return destinations;
+        }
+
+        public static (List<string> Members, List<string> Promotables, List<string> Rehabs) Reorder(DatabaseTopology topology, List<string> order)
+        {
+            if (topology.Count != order.Count
+                || topology.AllNodes.All(order.Contains) == false)
+            {
+                throw new ArgumentException("The reordered list doesn't correspond to the existing nodes of the database group.");
+            }
+
+            var newMembers = new List<string>();
+            var newPromotables = new List<string>();
+            var newRehabs = new List<string>();
+
+            foreach (var node in order)
+            {
+                if (topology.Members.Contains(node))
+                {
+                    newMembers.Add(node);
+                }
+                else if (topology.Promotables.Contains(node))
+                {
+                    newPromotables.Add(node);
+                }
+                else if (topology.Rehabs.Contains(node))
+                {
+                    newRehabs.Add(node);
+                }
+                else
+                {
+                    throw new ArgumentException($"Can't find node {node} in the topology");
+                }
+            }
+
+            return (newMembers, newPromotables, newRehabs);
+        }
+
+        // Find changes in the connection of the internal database group
+        internal static (HashSet<string> AddedDestinations, HashSet<string> RemovedDestiantions) FindChanges(IEnumerable<ReplicationNode> oldDestinations, List<ReplicationNode> newDestinations)
+        {
+            var oldList = new List<string>();
+            var newList = new List<string>();
+
+            if (oldDestinations != null)
+            {
+                oldList.AddRange(oldDestinations.Select(s => s.Url));
+            }
+            if (newDestinations != null)
+            {
+                newList.AddRange(newDestinations.Select(s => s.Url));
+            }
+
+            var addDestinations = new HashSet<string>(newList);
+            var removeDestinations = new HashSet<string>(oldList);
+
+            foreach (var destination in newList)
+            {
+                if (removeDestinations.Contains(destination))
+                {
+                    removeDestinations.Remove(destination);
+                    addDestinations.Remove(destination);
+                }
+            }
+
+            return (addDestinations, removeDestinations);
+        }
+
+        public string DatabaseTopologyIdBase64;
+        public string ClusterTransactionIdBase64;
+
+        [JsonIgnore]
+        public int Count => Members.Count + Promotables.Count + Rehabs.Count;
+
+        [JsonIgnore]
+        public IEnumerable<string> AllNodes
+        {
+            get
+            {
+                foreach (var member in Members)
+                {
+                    yield return member;
+                }
+                foreach (var promotable in Promotables)
+                {
+                    yield return promotable;
+                }
+                foreach (var rehab in Rehabs)
+                {
+                    yield return rehab;
+                }
+            }
+        }
+
+        public DynamicJsonValue ToJson()
+        {
+            return new DynamicJsonValue
+            {
+                [nameof(Members)] = new DynamicJsonArray(Members),
+                [nameof(Promotables)] = new DynamicJsonArray(Promotables),
+                [nameof(Rehabs)] = new DynamicJsonArray(Rehabs),
+                [nameof(Stamp)] = Stamp?.ToJson(),
+                [nameof(NodesModifiedAt)] = NodesModifiedAt,
+                [nameof(PromotablesStatus)] = DynamicJsonValue.Convert(PromotablesStatus),
+                [nameof(DemotionReasons)] = DynamicJsonValue.Convert(DemotionReasons),
+                [nameof(DynamicNodesDistribution)] = DynamicNodesDistribution,
+                [nameof(ReplicationFactor)] = ReplicationFactor,
+                [nameof(DatabaseTopologyIdBase64)] = DatabaseTopologyIdBase64,
+                [nameof(ClusterTransactionIdBase64)] = ClusterTransactionIdBase64,
+                [nameof(PriorityOrder)] = PriorityOrder != null ? new DynamicJsonArray(PriorityOrder) : null
+            };
+        }
+
+        public override string ToString()
+        {
+            using (var ctx = JsonOperationContext.ShortTermSingleUse())
+            {
+                return ctx.ReadObject(ToJson(), "database-topology").ToString();
+            }
+        }
+
+        public void RemoveFromTopology(string delDbFromNode)
+        {
+            Members.RemoveAll(m => m == delDbFromNode);
+            Promotables.RemoveAll(p => p == delDbFromNode);
+            Rehabs.RemoveAll(r => r == delDbFromNode);
+
+            DemotionReasons.Remove(delDbFromNode);
+            PromotablesStatus.Remove(delDbFromNode);
+            PredefinedMentors.Remove(delDbFromNode);
+            PriorityOrder.Remove(delDbFromNode);
+        }
+
+        public string WhoseTaskIsIt(
+            RachisState state,
+            IDatabaseTask task,
+            Func<string> getLastResponsibleNode = null,
+            List<string> explanations = null)
+        {
+            if (state == RachisState.Candidate || state == RachisState.Passive)
+            {
+                explanations?.Add($"Task doesn't belong to this node because the node is in '{state}' state");
+                return null;
+            }
+
+            explanations?.Add($"Node state is '{state}'");
+
+            var mentorNode = task.GetMentorNode();
+            if (mentorNode != null)
+            {
+                if (Members.Contains(mentorNode))
+                {
+                    explanations?.Add($"Task belongs to mentor node ({mentorNode})");
+                    return mentorNode;
+                }
+
+                if (AllNodes.Contains(mentorNode) && task.IsPinnedToMentorNode())
+                {
+                    explanations?.Add($"Task is pinned to mentor node ({mentorNode})");
+                    return mentorNode;
+                }
+
+                explanations?.Add($"Mentor node is {mentorNode}");
+            }
+
+            var lastResponsibleNode = getLastResponsibleNode?.Invoke();
+            if (lastResponsibleNode != null)
+            {
+                explanations?.Add($"Task belongs to last responsible node ({lastResponsibleNode})");
+                return lastResponsibleNode;
+            }
+
+            var node = WhoseTaskIsIt(task, explanations);
+
+            explanations?.Add(node != null ? $"Task belongs to node {node}" : "No responsible node has been found");
+
+            return node;
+        }
+
+        internal string WhoseTaskIsIt(IDatabaseTask task, List<string> explanations = null)
+        {
+            var topology = new List<string>(Members);
+            topology.AddRange(Promotables);
+            topology.AddRange(Rehabs);
+            topology.Sort();
+
+            if (task.IsResourceIntensive() && Members.Count > 1)
+            {
+                // if resource intensive operation, we don't want to have it on the first node of the database topology
+
+                explanations?.Add("Task is resource intensive");
+
+                return FindNodeForIntensiveOperation(task.GetTaskKey(), topology, explanations);
+            }
+
+            return FindNode(task.GetTaskKey(), topology, explanations);
+        }
+
+        private string FindNodeForIntensiveOperation(ulong key, List<string> topology, List<string> explanations = null)
+        {
+            var firstNode = Members[0];
+            topology.Remove(firstNode);
+
+            var node = FindNode(key, topology, explanations);
+            if (node == null)
+                return firstNode;
+
+            return node;
+        }
+
+        private string FindNode(ulong key, List<string> topology, List<string> explanations = null)
+        {
+            if (topology.Count == 0)
+            {
+                explanations?.Add("Topology count is zero. Database is probably being deleted now");
+                return null; // this is probably being deleted now, no one is able to run tasks
+            }
+
+            while (true)
+            {
+                var index = (int)Hashing.JumpConsistentHash.Calculate(key, topology.Count);
+                var entry = topology[index];
+                if (Members.Contains(entry))
+                    return entry;
+
+                topology.RemoveAt(index);
+                if (topology.Count == 0)
+                {
+                    explanations?.Add("All nodes in the topology are probably in Rehab state");
+                    return null; // all nodes in the topology are probably in rehab
+                }
+
+                // rehash so it will likely go to a different member in the cluster
+                key = Hashing.Mix(key);
+            }
+        }
+    }
+}

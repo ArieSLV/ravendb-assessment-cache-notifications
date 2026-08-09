@@ -1,0 +1,52 @@
+﻿using Raven.Client.Exceptions.Commercial;
+using Raven.Server.Web.System;
+using Sparrow.Json.Parsing;
+
+namespace Raven.Server.NotificationCenter.Notifications.Details
+{
+    internal sealed class LicenseLimitWarning : INotificationDetails
+    {
+        private LicenseLimitWarning()
+        {
+            // for deserialization
+        }
+
+        private LicenseLimitWarning(LicenseLimitException licenseLimit)
+        {
+            Type = licenseLimit.LimitType;
+            Message = licenseLimit.Message;
+        }
+
+        public LimitType Type { get; set; }
+
+        public string Message { get; set; }
+
+        public DynamicJsonValue ToJson()
+        {
+            return new DynamicJsonValue(GetType())
+            {
+                [nameof(Type)] = Type,
+                [nameof(Message)] = Message
+            };
+        }
+
+        public static void AddLicenseLimitNotification(ServerNotificationCenter notificationCenter, LicenseLimitException licenseLimit)
+        {
+            var alert = AlertRaised.Create(
+                null,
+                $@"You've reached your license limit ({EnumHelper.GetDescription(licenseLimit.LimitType)})",
+                licenseLimit.Message,
+                AlertReason.LicenseManager_LicenseLimit,
+                NotificationSeverity.Warning,
+                key: licenseLimit.LimitType.ToString(),
+                details: new LicenseLimitWarning(licenseLimit));
+
+            notificationCenter.Add(alert, updateExisting: true);
+        }
+
+        public static void DismissLicenseLimitNotification(ServerNotificationCenter notificationCenter, LimitType type)
+        {
+            notificationCenter.Dismiss(AlertRaised.GetKey(AlertReason.LicenseManager_LicenseLimit, type.ToString()));
+        }
+    }
+}

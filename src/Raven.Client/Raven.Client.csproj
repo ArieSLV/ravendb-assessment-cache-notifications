@@ -1,0 +1,173 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Version></Version>
+    <Description>RavenDB Client is the client library for accessing RavenDB</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Authors>Hibernating Rhinos</Authors>
+    <Authors>RavenDB</Authors>
+    <TargetFrameworks>net10.0;net8.0;netstandard2.1;netstandard2.0</TargetFrameworks>
+    <DefineConstants>$(DefineConstants);PORTABLE</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Raven.Client</AssemblyName>
+    <PackageId>RavenDB.Client</PackageId>
+    <PackageTags>ravendb;client;database;nosql;doc db</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Product>RavenDB Client</Product>
+    <Title>RavenDB Client</Title>
+    <CodeAnalysisRuleSet>..\..\RavenDB.Client.ruleset</CodeAnalysisRuleSet>
+    <Configurations>Debug;Release;Validate</Configurations>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Validate'">
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+    <Compile Remove="Properties\AssemblyInfo.Linux.cs" />
+    <Compile Include="..\CommonAssemblyInfo.Windows.cs" Link="Properties\CommonAssemblyInfo.Windows.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+    <Compile Remove="Properties\AssemblyInfo.Windows.cs" />
+    <Compile Include="..\CommonAssemblyInfo.Linux.cs" Link="Properties\CommonAssemblyInfo.Linux.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\CommonAssemblyInfo.cs" Link="Properties\CommonAssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- this is required for the nuget build to properly include the right files -->
+    <Content Include="..\Sparrow\bin\Release\netstandard2.0\Sparrow.dll">
+      <PackagePath>lib/netstandard2.0/</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+    <Content Include="..\Sparrow\bin\Release\netstandard2.0\Sparrow.xml">
+      <PackagePath>lib/netstandard2.0/</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+    <Content Include="..\Sparrow\bin\Release\netstandard2.0\Sparrow.pdb">
+      <PackagePath>lib/netstandard2.0/</PackagePath>
+      <IncludeInPackage>false</IncludeInPackage>
+      <IncludeInSymbolPackage>true</IncludeInSymbolPackage>
+    </Content>
+    <!-- this is required for the nuget build to properly include the right files -->
+    <Content Include="..\Sparrow\bin\Release\netstandard2.1\Sparrow.dll">
+      <PackagePath>lib/netstandard2.1/</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+    <Content Include="..\Sparrow\bin\Release\netstandard2.1\Sparrow.xml">
+      <PackagePath>lib/netstandard2.1/</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+    <Content Include="..\Sparrow\bin\Release\netstandard2.1\Sparrow.pdb">
+      <PackagePath>lib/netstandard2.1/</PackagePath>
+      <IncludeInPackage>false</IncludeInPackage>
+      <IncludeInSymbolPackage>true</IncludeInSymbolPackage>
+    </Content>
+    <!-- this is required for the nuget build to properly include the right files -->
+    <Content Include="..\Sparrow\bin\Release\net8.0\Sparrow.dll">
+      <PackagePath>lib/net8.0/</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+    <Content Include="..\Sparrow\bin\Release\net8.0\Sparrow.xml">
+      <PackagePath>lib/net8.0/</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+    <Content Include="..\Sparrow\bin\Release\net8.0\Sparrow.pdb">
+      <PackagePath>lib/net8.0/</PackagePath>
+      <IncludeInPackage>false</IncludeInPackage>
+      <IncludeInSymbolPackage>true</IncludeInSymbolPackage>
+    </Content>
+    <!-- this is required for the nuget build to properly include the right files -->
+    <Content Include="..\Sparrow\bin\Release\net10.0\Sparrow.dll">
+      <PackagePath>lib/net10.0/</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+    <Content Include="..\Sparrow\bin\Release\net10.0\Sparrow.xml">
+      <PackagePath>lib/net10.0/</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+    <Content Include="..\Sparrow\bin\Release\net10.0\Sparrow.pdb">
+      <PackagePath>lib/net10.0/</PackagePath>
+      <IncludeInPackage>false</IncludeInPackage>
+      <IncludeInSymbolPackage>true</IncludeInSymbolPackage>
+    </Content>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Client_IncludeZstd)' == '' OR '$(Client_IncludeZstd)' == 'true'">
+    <None Include="..\..\libs\libzstd\libzstd.win.x64.dll" Link="libzstd.win.x64.dll">
+      <PackagePath>runtimes/win-x64/native/</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <Pack>true</Pack>
+    </None>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Client_IncludeZstd)' == '' OR '$(Client_IncludeZstd)' == 'true'">
+    <None Include="..\..\libs\libzstd\libzstd.win.x86.dll" Link="libzstd.win.x86.dll">
+      <PackagePath>runtimes/win-x86/native/</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <Pack>true</Pack>
+    </None>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Client_IncludeZstd)' == '' OR '$(Client_IncludeZstd)' == 'true'">
+    <None Include="..\..\libs\libzstd\libzstd.linux.x64.so" Link="libzstd.linux.x64.so">
+      <PackagePath>runtimes/linux-x64/native/</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <Pack>true</Pack>
+    </None>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Client_IncludeZstd)' == '' OR '$(Client_IncludeZstd)' == 'true'">
+    <None Include="..\..\libs\libzstd\libzstd.arm.64.so" Link="libzstd.arm.64.so">
+      <PackagePath>runtimes/linux-arm64/native/</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <Pack>true</Pack>
+    </None>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Client_IncludeZstd)' == '' OR '$(Client_IncludeZstd)' == 'true'">
+    <None Include="..\..\libs\libzstd\libzstd.arm.32.so" Link="libzstd.arm.32.so">
+      <PackagePath>runtimes/linux-arm/native/</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <Pack>true</Pack>
+    </None>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Client_IncludeZstd)' == '' OR '$(Client_IncludeZstd)' == 'true'">
+    <None Include="..\..\libs\libzstd\libzstd.mac.x64.dylib" Link="libzstd.mac.x64.dylib">
+      <PackagePath>runtimes/osx-x64/native/</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <Pack>true</Pack>
+    </None>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Client_IncludeZstd)' == '' OR '$(Client_IncludeZstd)' == 'true'">
+    <None Include="..\..\libs\libzstd\libzstd.mac.arm64.dylib" Link="libzstd.mac.arm64.dylib">
+      <PackagePath>runtimes/osx-arm64/native/</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <Pack>true</Pack>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Sparrow\Sparrow.csproj" PrivateAssets="All" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Lambda2Js.Signed" />
+    <PackageReference Include="Microsoft.AspNetCore.JsonPatch" />
+    <PackageReference Include="Microsoft.IO.RecyclableMemoryStream" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="Nito.AsyncEx.Coordination" />
+    <PackageReference Include="Raven.CodeAnalysis" PrivateAssets="All" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0' OR '$(TargetFramework)' == 'netstandard2.1' OR '$(TargetFramework)' == 'netcoreapp3.1'">
+    <PackageReference Include="Microsoft.CSharp" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+    <PackageReference Include="Microsoft.Bcl.HashCode" />
+    <PackageReference Include="System.Buffers" />
+    <PackageReference Include="System.Memory" />
+    <PackageReference Include="System.Threading.Tasks.Extensions" />
+  </ItemGroup>
+</Project>

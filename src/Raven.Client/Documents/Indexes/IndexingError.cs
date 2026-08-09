@@ -1,0 +1,17 @@
+﻿using System;
+
+namespace Raven.Client.Documents.Indexes
+{
+    public sealed class IndexingError
+    {
+        public string Error { get; set; }
+        public DateTime Timestamp { get; set; }
+        public string Document { get; set; }
+        public string Action { get; set; }
+
+        public override string ToString()
+        {
+            return $"Error: {Error}, Document: {Document}, Action: {Action}";
+        }
+    }
+}

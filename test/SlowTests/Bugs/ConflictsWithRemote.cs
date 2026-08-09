@@ -1,0 +1,95 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using FastTests;
+using Raven.Client.Documents;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Bugs
+{
+    public class ConflictsWithRemote : RavenTestBase
+    {
+        public ConflictsWithRemote(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class DeviceStatusRecord
+        {
+            public int DeviceId { get; set; }
+            public DateTimeOffset Timestamp { get; set; }
+            public int StatusId { get; set; }
+        }
+
+        [RavenFact(RavenTestCategory.ClientApi)]
+        public async Task MultiThreadedInsert()
+        {
+            const int threadCount = 4;
+            var tasks = new List<Task>();
+
+            DoNotReuseServer();
+            using (var store = GetDocumentStore())
+            {
+                for (int i = 1; i <= threadCount; i++)
+                {
+                    var copy = i;
+                    var taskHandle = Task.Factory.StartNew(() => DoInsert(store, copy));
+                    tasks.Add(taskHandle);
+                }
+
+                await Task.WhenAll(tasks.ToArray());
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClientApi)]
+        public async Task InnefficientMultiThreadedInsert()
+        {
+            DoNotReuseServer();
+            const int threadCount = 4;
+            var tasks = new List<Task>();
+            for (int i = 1; i <= threadCount; i++)
+            {
+                var copy = i;
+                var taskHandle = Task.Factory.StartNew(() => DoInefficientInsert(copy));
+                tasks.Add(taskHandle);
+            }
+
+            await Task.WhenAll(tasks.ToArray());
+
+        }
+
+        private void DoInsert(IDocumentStore store, int deviceId)
+        {
+            using (var session = store.OpenSession())
+            {
+                session.Store(new DeviceStatusRecord
+                {
+                    DeviceId = deviceId,
+                    Timestamp = DateTime.Now,
+                    StatusId = 1024
+                });
+                session.SaveChanges();
+            }
+        }
+
+        private void DoInefficientInsert(int deviceId)
+        {
+            using (var store = GetDocumentStore())
+            {
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new DeviceStatusRecord
+                    {
+                        DeviceId = deviceId,
+                        Timestamp = DateTime.Now,
+                        StatusId = 1024
+                    });
+                    session.SaveChanges();
+                }
+            }
+
+
+        }
+    }
+}

@@ -1,0 +1,37 @@
+@use "Content/scss/colors";
+@use "Content/scss/sizes";
+
+//TODO move to utils?
+.popover {
+    &.rounded {
+        background-color: transparent;
+        border: none;
+        border-radius: sizes.$gutter-xs;
+        box-shadow: 0 2px 20px -6px rgba(colors.$black, 0.5);
+        padding: 0;
+
+        .popover-content {
+            border-radius: sizes.$gutter-xs;
+            padding: 0;
+            overflow: hidden;
+        }
+    }
+}
+
+.indexes {
+    .indexes-list {
+        .index-properties {
+            .properties-value {
+                margin-right: sizes.$gutter-sm;
+
+                .dropdown-toggle {
+                    color: colors.$color-4;
+                }
+            }
+        }
+
+        .index-sidebyside {
+            border-left: sizes.$gutter solid colors.$warning-var;
+        }
+    }
+}

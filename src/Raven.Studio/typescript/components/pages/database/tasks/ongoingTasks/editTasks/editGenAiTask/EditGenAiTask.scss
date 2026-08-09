@@ -1,0 +1,118 @@
+@use "Content/scss/sizes";
+@use "Content/scss/colors";
+
+.edit-gen-ai-task {
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(12, 1fr);
+    grid-column-gap: 0px;
+    grid-row-gap: 0px;
+
+    .main-container {
+        grid-area: 1 / 1 / 12 / 4;
+        padding: sizes.$gutter;
+        overflow-y: auto;
+    }
+    .footer {
+        grid-area: 12 / 1 / 13 / 4;
+        display: flex;
+        flex-direction: column;
+        justify-content: end;
+
+        .footer-content {
+            border-top: 1px solid colors.$border-color-light;
+            padding: sizes.$gutter-sm sizes.$gutter;
+        }
+    }
+
+    .sidebar {
+        grid-area: 1 / 4 / 13 / 6;
+        padding: sizes.$gutter;
+        background-color: colors.$panel-bg-1-var;
+    }
+
+    .nav-item {
+        .nav-link {
+            color: inherit;
+            border-radius: sizes.$border-radius;
+            padding: 3px 6px;
+
+            &.active {
+                background-color: colors.$panel-bg-3-var;
+            }
+
+            &:hover {
+                opacity: 0.8;
+                background-image: none !important;
+            }
+
+            &:focus {
+                background-image: none !important;
+            }
+        }
+    }
+
+    .playground {
+        margin-top: sizes.$gutter;
+
+        .playground-line {
+            height: 1px;
+            border-top: 1px dashed colors.$border-color-light;
+            margin: 0 sizes.$gutter-xs;
+            flex-grow: 1;
+        }
+    }
+
+    .test-results {
+        height: 100%;
+
+        .update-script-result {
+            .ace-editor {
+                border: none;
+            }
+
+            .diff-wrapper {
+                border: 1px solid colors.$border-color-light-var;
+                border-radius: sizes.$border-radius;
+
+                .diff-header {
+                    text-align: center;
+                    border-bottom: 1px solid colors.$border-color-light-var;
+                    border-top-left-radius: sizes.$border-radius;
+                    border-top-right-radius: sizes.$border-radius;
+                    background-color: colors.$panel-bg-2-var;
+                    padding: 2px sizes.$gutter;
+                }
+            }
+        }
+
+        .reasoning {
+            .accordion-collapse {
+                transition: none !important;
+            }
+
+            .dot-list-item-line {
+                background: colors.$ai-gradient !important;
+                opacity: 0.5;
+            }
+
+            .dot-list-item-dot {
+                background: colors.$ai-gradient !important;
+            }
+        }
+    }
+
+    .ace-hover {
+        filter: colors.$hover-filter-var;
+    }
+
+    .tool-icon {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: sizes.$border-radius-sm;
+    }
+}

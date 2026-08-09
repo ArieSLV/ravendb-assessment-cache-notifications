@@ -1,0 +1,362 @@
+using System;
+using System.IO;
+using FastTests.Voron;
+using Sparrow.Utils;
+using Tests.Infrastructure;
+using Voron;
+using Voron.Exceptions;
+using Voron.Global;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Voron
+{
+    public class RecoveryMultipleJournals : StorageTest
+    {
+        public RecoveryMultipleJournals(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        protected override void Configure(StorageEnvironmentOptions options)
+        {
+            options.MaxLogFileSize = 10 * Constants.Storage.PageSize;
+            options.OnRecoveryError += (sender, args) => { }; // just shut it up
+            options.ManualFlushing = true;
+            options.MaxScratchBufferSize = 1 * 1024 * 1024 * 1024;
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CanRecoverAfterRestartWithMultipleFilesInSingleTransaction()
+        {
+
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree");
+
+                tx.Commit();
+            }
+            using (var tx = Env.WriteTransaction())
+            {
+                for (var i = 0; i < 1000; i++)
+                {
+                    tx.CreateTree("tree").Add("a" + i, new MemoryStream(new byte[100]));
+                }
+                tx.Commit();
+            }
+
+
+            RestartDatabase();
+
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree");
+
+                tx.Commit();
+            }
+
+            using (var tx = Env.ReadTransaction())
+            {
+                for (var i = 0; i < 1000; i++)
+                {
+                    Assert.True(tx.CreateTree("tree").TryRead("a" + i, out var reader));
+                    Assert.Equal(100, reader.Length);
+                }
+                tx.Commit();
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CanResetLogInfoAfterBigUncommitedTransaction()
+        {
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree");
+
+                tx.Commit();
+            }
+
+            var currentJournalInfo = Env.Journal.GetCurrentJournalInfo();
+
+            using (var tx = Env.WriteTransaction())
+            {
+                for (var i = 0; i < 1000; i++)
+                {
+                    tx.CreateTree("tree").Add("a" + i, new MemoryStream(new byte[100]));
+                }
+                //tx.Commit(); - not committing here
+            }
+
+            Assert.Equal(currentJournalInfo.CurrentJournal, Env.Journal.GetCurrentJournalInfo().CurrentJournal);
+
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree").Add("a", new MemoryStream(new byte[100]));
+                tx.Commit();
+            }
+
+            Assert.Equal(currentJournalInfo.CurrentJournal, Env.Journal.GetCurrentJournalInfo().CurrentJournal);
+        }
+
+        [RavenMultiplatformFact(RavenTestCategory.Voron, RavenArchitecture.AllX64)]
+        public void CanResetLogInfoAfterBigUncommitedTransaction2()
+        {
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree");
+
+                tx.Commit();
+            }
+
+            using (var tx = Env.WriteTransaction())
+            {
+                for (var i = 0; i < 1000; i++)
+                {
+                    tx.CreateTree("tree").Add("a" + i, new MemoryStream(new byte[100]));
+                }
+                tx.Commit();
+            }
+
+            var currentJournalInfo = Env.Journal.GetCurrentJournalInfo();
+
+            var random = new Random();
+            var buffer = new byte[1000000];
+            random.NextBytes(buffer);
+
+            using (var tx = Env.WriteTransaction())
+            {
+                for (var i = 0; i < 1000; i++)
+                {
+                    tx.CreateTree("tree").Add("b" + i, new MemoryStream(buffer));
+                }
+                //tx.Commit(); - not committing here
+            }
+
+            Assert.Equal(currentJournalInfo.CurrentJournal, Env.Journal.GetCurrentJournalInfo().CurrentJournal);
+
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree").Add("b", new MemoryStream(buffer));
+                tx.Commit();
+            }
+
+            Assert.Equal(currentJournalInfo.CurrentJournal + 1, Env.Journal.GetCurrentJournalInfo().CurrentJournal);
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CanResetLogInfoAfterBigUncommitedTransactionWithRestart()
+        {
+            RequireFileBasedPager();
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree").Add("exists", new MemoryStream(new byte[100]));
+
+                tx.Commit();
+            }
+
+            using (var tx = Env.WriteTransaction())
+            {
+                var random = new Random();
+                for (var i = 0; i < 1000; i++)
+                {
+                    var buffer = new byte[100];
+                    random.NextBytes(buffer);
+                    tx.CreateTree("tree").Add("a" + i, new MemoryStream(buffer));
+                }
+                tx.Commit();
+            }
+
+            var lastJournal = Env.Journal.GetCurrentJournalInfo().CurrentJournal;
+
+            StopDatabase();
+
+            CorruptJournal(lastJournal, posOf4KbInJrnl: 6);
+
+            StartDatabase();
+            using (var tx = Env.WriteTransaction())
+            {
+                var tree = tx.CreateTree("tree");
+                
+                Assert.True(tree.TryRead("exists", out _));
+                Assert.False(tree.TryRead("a1", out _));
+                Assert.False(tree.TryRead("a100", out _));
+                Assert.False(tree.TryRead("a500", out _));
+                Assert.False(tree.TryRead("a1000", out _));
+
+                tx.Commit();
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CorruptingOneTransactionWillThrow()
+        {
+            RequireFileBasedPager();
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree");
+
+                tx.Commit();
+            }
+
+            for (int i = 0; i < 1001; i++)
+            {
+
+                var buffer = new byte[100];
+                new Random().NextBytes(buffer);
+                using (var tx = Env.WriteTransaction())
+                {
+                    tx.CreateTree("tree").Add("a" + i, new MemoryStream(buffer));
+                    tx.Commit();
+                }
+            }
+
+            var lastJournal = Env.Journal.GetCurrentJournalInfo().CurrentJournal;
+            var lastJournalPosition = Env.Journal.CurrentFile.WritePosIn4KbPosition;
+
+            StopDatabase();
+
+            CorruptJournal(lastJournal - 3, lastJournalPosition + 1);
+
+            Assert.Throws<InvalidJournalException>(() => StartDatabase());
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CorruptingAllLastTransactionsConsideredAsEndOfJournal()
+        {
+            RequireFileBasedPager();
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree");
+
+                tx.Commit();
+            }
+
+            for (int i = 0; i < 991; i++)
+            {
+
+                var buffer = new byte[100];
+                new Random(i).NextBytes(buffer);
+                using (var tx = Env.WriteTransaction())
+                {
+                    tx.CreateTree("tree").Add("a" + i, new MemoryStream(buffer));
+                    tx.Commit();
+                }
+            }
+
+            var lastJournal = Env.Journal.GetCurrentJournalInfo().CurrentJournal;
+            var lastJournalPosition = Env.Journal.CurrentFile.WritePosIn4KbPosition;
+
+
+            StopDatabase();
+
+            Assert.True(Env.Journal.CurrentFile.Available4Kbs - lastJournalPosition > 0);
+
+            for (var pos = lastJournalPosition - 2;
+                pos < lastJournalPosition + 1;
+                pos++)
+            {
+                CorruptJournal(lastJournal, pos);
+            }
+
+            StartDatabase();
+
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree");
+
+                tx.Commit();
+            }
+
+            using (var tx = Env.ReadTransaction())
+            {
+                Assert.False(tx.CreateTree("tree").TryRead("a1001", out _));
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CorruptingLastTransactionsInNotLastJournalShouldThrow()
+        {
+            RequireFileBasedPager();
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("tree");
+
+                tx.Commit();
+            }
+
+            for (int i = 0; i < 1002; i++)
+            {
+
+                var buffer = new byte[100];
+                new Random().NextBytes(buffer);
+                using (var tx = Env.WriteTransaction())
+                {
+                    tx.CreateTree("tree").Add("a" + i, new MemoryStream(buffer));
+                    tx.Commit();
+                }
+            }
+
+            var middleJournal = Env.Journal.GetCurrentJournalInfo().CurrentJournal/2;
+            var lastJournalPosition = Env.Journal.CurrentFile.WritePosIn4KbPosition;
+
+
+            StopDatabase();
+
+            for (var pos = lastJournalPosition - 3;
+                pos < lastJournalPosition + Env.Journal.CurrentFile.Available4Kbs; // the current journal info applies also for a middle one
+                pos++)
+            {
+                CorruptJournal(middleJournal, pos);
+            }
+
+            Assert.Throws<InvalidJournalException>(() => StartDatabase());
+        }
+
+        private void CorruptJournal(long journal, long posOf4KbInJrnl)
+        {
+            Options.Dispose();
+            Options = StorageEnvironmentOptions.ForPathForTests(DataDir);
+            Configure(Options);
+            using (var fileStream = SafeFileStream.Create(Options.GetJournalPath(journal).FullPath,
+                FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.ReadWrite | FileShare.Delete))
+            {
+                fileStream.Position = posOf4KbInJrnl * Constants.Size.Kilobyte * 4;
+
+                var buffer = new byte[Constants.Size.Kilobyte * 4];
+
+                var remaining = buffer.Length;
+                var start = 0;
+                while (remaining > 0)
+                {
+                    var read = fileStream.Read(buffer, start, remaining);
+                    if (read == 0)
+                        break;
+                    start += read;
+                    remaining -= read;
+                }
+
+                for (int i = 0; i < buffer.Length; i++)
+                {
+                    buffer[i] = 42;
+                }
+                fileStream.Position = posOf4KbInJrnl * Constants.Size.Kilobyte * 4;
+                fileStream.Write(buffer, 0, buffer.Length);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void ShouldThrowIfFirstTransactionIsCorruptedBecauseWeCannotAccessMetadataThen()
+        {
+            RequireFileBasedPager();
+
+            var currentJournal = Env.Journal.GetCurrentJournalInfo().CurrentJournal;
+
+            StopDatabase();
+
+            CorruptJournal(currentJournal, posOf4KbInJrnl: 0);
+
+            Assert.Throws<VoronUnrecoverableErrorException>(() => StartDatabase());
+        }
+    }
+}

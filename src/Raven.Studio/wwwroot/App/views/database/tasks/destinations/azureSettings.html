@@ -1,0 +1,34 @@
+<div class="row margin-bottom" data-bind="validationElement: storageContainer">
+    <label class="control-label col-xs-12 col-sm-6 col-lg-4">
+        Storage container <i class="required"></i> <small><i class="storage-container-info icon-info text-info"></i></small>
+    </label>
+    <div class="col-xs-12 col-sm-6 col-lg-8">
+        <input data-bind="textInput: storageContainer" type="text" class="form-control" />
+    </div>
+</div>
+<div class="row margin-bottom" data-bind="validationElement: remoteFolderName">
+    <label class="control-label col-xs-12 col-sm-6 col-lg-4">Remote folder name</label>
+    <div class="col-xs-12 col-sm-6 col-lg-8">
+        <input data-bind="textInput: remoteFolderName" type="text" class="form-control" />
+    </div>
+</div>
+<div class="row margin-bottom" data-bind="validationElement: accountName">
+    <label class="control-label col-xs-12 col-sm-6 col-lg-4">Account name <i class="required"></i></label>
+    <div class="col-xs-12 col-sm-6 col-lg-8">
+        <input data-bind="textInput: accountName" class="form-control" />
+    </div>
+</div>
+<div class="row margin-bottom" data-bind="validationElement: accountKey">
+    <label class="control-label col-xs-12 col-sm-6 col-lg-4">Account key <i class="required"></i></label>
+    <div class="col-xs-12 col-sm-6 col-lg-8" >
+        <div class="input-group flex-grow">
+            <input data-bind="textInput: accountKey, attr: { type: isKeyHidden() ? 'password' : 'text' }" class="form-control" />
+            <button type="button" class="btn btn-default" data-bind="click: toggleIsKeyHidden, visible: isKeyHidden()" title="View hidden characters">
+                <i class="icon-preview"></i>
+            </button>
+            <button type="button" class="btn btn-info" data-bind="click: toggleIsKeyHidden, visible: !isKeyHidden()" title="Hide characters">
+                <i class="icon-preview-off"></i>
+            </button>
+        </div>
+    </div>
+</div>

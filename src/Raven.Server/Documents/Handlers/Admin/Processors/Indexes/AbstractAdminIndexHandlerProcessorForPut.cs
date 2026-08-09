@@ -1,0 +1,124 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Net;
+using System.Threading.Tasks;
+using JetBrains.Annotations;
+using Raven.Client;
+using Raven.Client.Documents.Changes;
+using Raven.Client.Documents.Indexes;
+using Raven.Server.Documents.Handlers.Processors;
+using Raven.Server.Documents.Indexes;
+using Raven.Server.Json;
+using Raven.Server.TrafficWatch;
+using Sparrow.Json;
+using Sparrow.Logging;
+
+namespace Raven.Server.Documents.Handlers.Admin.Processors.Indexes;
+
+internal abstract class AbstractAdminIndexHandlerProcessorForPut<TRequestHandler, TOperationContext> : AbstractDatabaseHandlerProcessor<TRequestHandler, TOperationContext>
+    where TOperationContext : JsonOperationContext
+    where TRequestHandler : AbstractDatabaseRequestHandler<TOperationContext>
+{
+    private readonly bool _validatedAsAdmin;
+
+    protected AbstractAdminIndexHandlerProcessorForPut([NotNull] TRequestHandler requestHandler, bool validatedAsAdmin)
+        : base(requestHandler)
+    {
+        _validatedAsAdmin = validatedAsAdmin;
+    }
+
+    protected abstract AbstractIndexCreateController GetIndexCreateProcessor();
+
+    public override async ValueTask ExecuteAsync()
+    {
+        using (ContextPool.AllocateOperationContext(out JsonOperationContext context))
+        {
+            var createdIndexes = new List<PutIndexResult>();
+
+            var input = await context.ReadForMemoryAsync(RequestHandler.RequestBodyStream(), "Indexes");
+            if (input.TryGet("Indexes", out BlittableJsonReaderArray indexes) == false)
+                Web.RequestHandler.ThrowRequiredPropertyNameInRequest("Indexes");
+
+            var clientCert = RequestHandler.GetCurrentCertificate();
+            string source = clientCert != null
+                ? $"{RequestHandler.RequestIp} | {clientCert.Subject} [{clientCert.Thumbprint}]"
+                : $"{RequestHandler.RequestIp}";
+
+            var raftRequestId = RequestHandler.GetRaftRequestIdFromQuery();
+            var processor = GetIndexCreateProcessor();
+
+            AbstractIndexCreateController.IndexBatchScope batch = null;
+            if (processor.CanUseIndexBatch())
+            {
+                batch = processor.CreateIndexBatch(onBatchSaved: tuple =>
+                {
+                    foreach (var indexDefinition in tuple.SavedCommand.Static)
+                    {
+                        createdIndexes.Add(new PutIndexResult
+                        {
+                            Index = indexDefinition.Name,
+                            RaftCommandIndex = tuple.Index
+                        });
+                    }
+                });
+            }
+
+            foreach (BlittableJsonReaderObject indexToAdd in indexes)
+            {
+                var indexDefinition = JsonDeserializationServer.IndexDefinition(indexToAdd);
+                indexDefinition.Name = indexDefinition.Name?.Trim();
+
+                if (RavenLogManager.Instance.IsAuditEnabled)
+                {
+                    RequestHandler.LogAuditForDatabase("PUT", $"Index '{indexDefinition.Name}' with definition: {indexToAdd}");
+                }
+
+                if (indexDefinition.Maps == null || indexDefinition.Maps.Count == 0)
+                    throw new ArgumentException("Index must have a 'Maps' fields");
+
+                indexDefinition.Type = indexDefinition.DetectStaticIndexType();
+
+                // C# index using a non-admin endpoint
+                if (indexDefinition.Type.IsJavaScript() == false && _validatedAsAdmin == false)
+                {
+                    throw new UnauthorizedAccessException($"Index {indexDefinition.Name} is a C# index but was sent through a non-admin endpoint using REST api, this is not allowed.");
+                }
+
+                if (indexDefinition.Name.StartsWith(Constants.Documents.Indexing.SideBySideIndexNamePrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ArgumentException(
+                        $"Index name must not start with '{Constants.Documents.Indexing.SideBySideIndexNamePrefix}'. Provided index name: '{indexDefinition.Name}'");
+                }
+
+                if (batch != null)
+                {
+                    await batch.AddIndexAsync(indexDefinition, source, processor.GetDatabaseTime().GetUtcNow(), $"{raftRequestId}/{indexDefinition.Name}");
+                    await batch.SaveIfNeeded();
+                }
+                else
+                {
+                    var index = await processor.CreateIndexAsync(indexDefinition, $"{raftRequestId}/{indexDefinition.Name}", source);
+
+                    createdIndexes.Add(new PutIndexResult
+                    {
+                        Index = indexDefinition.Name,
+                        RaftCommandIndex = index
+                    });
+                }
+            }
+
+            if (batch != null)
+                await batch.SaveAsync();
+
+            if (TrafficWatchManager.HasRegisteredClients)
+                RequestHandler.AddStringToHttpContext(indexes.ToString(), TrafficWatchChangeType.Index);
+
+            RequestHandler.HttpContext.Response.StatusCode = (int)HttpStatusCode.Created;
+
+            await using (var writer = new AsyncBlittableJsonTextWriter(context, RequestHandler.ResponseBodyStream()))
+            {
+                writer.WritePutIndexResponse(context, createdIndexes);
+            }
+        }
+    }
+}

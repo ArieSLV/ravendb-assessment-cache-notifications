@@ -1,0 +1,105 @@
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
+using FastTests;
+using Raven.Client;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Indexes;
+using Raven.Client.Documents.Operations.Indexes;
+using Raven.Tests.Core.Utils.Entities;
+using Sparrow.LowMemory;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Issues
+{
+    public class RavenDB_12269 : RavenTestBase
+    {
+        public RavenDB_12269(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        [RavenFact(RavenTestCategory.Indexes)]
+        public async Task Changing_index_def_must_not_error_index()
+        {
+            using (var store = GetDocumentStore(new Options
+            {
+                Path = NewDataPath()
+            }))
+            {
+                using (var session = store.OpenAsyncSession())
+                {
+                    await session.StoreAsync(new User { Name = "Joe" });
+                    await session.StoreAsync(new User { Name = "Doe" });
+
+                    await session.SaveChangesAsync();
+                }
+
+                store.Maintenance.Send(new PutIndexesOperation(new IndexDefinition
+                {
+                    Maps = { "from user in docs.Users select new { user.Name }" },
+                    Type = IndexType.Map,
+                    Name = "Users_ByName"
+                }));
+
+                await Indexes.WaitForIndexingAsync(store);
+
+                var db = await GetDatabase(store.Database);
+
+                db.IndexStore.StopIndexing();
+
+                store.Maintenance.Send(new PutIndexesOperation(new IndexDefinition
+                {
+                    Maps =
+                    {
+                        "from user in docs.Users select new { DifferentName = user.Name }"
+                    },
+                    Type = IndexType.Map,
+                    Name = "Users_ByName"
+                }));
+
+                
+                var replacementIndex = db.IndexStore.GetIndex($"{Constants.Documents.Indexing.SideBySideIndexNamePrefix}Users_ByName");
+
+                // let's try to force calling storageEnvironment.Cleanup() inside ExecuteIndexing method
+                replacementIndex.LowMemory(LowMemorySeverity.ExtremelyLow);
+                var envOfReplacementIndex = replacementIndex._indexStorage.Environment();
+                envOfReplacementIndex.LogsApplied();
+
+                db.IndexStore.StartIndexing();
+
+                await Indexes.WaitForIndexingAsync(store);
+
+                // let's try to force calling storageEnvironment.Cleanup() inside ExecuteIndexing method
+                replacementIndex.LowMemory(LowMemorySeverity.ExtremelyLow);
+                envOfReplacementIndex.LogsApplied();
+
+                using (var session = store.OpenAsyncSession())
+                {
+                    await session.StoreAsync(new User { Name = "Foo" });
+
+                    await session.SaveChangesAsync();
+
+                    await Indexes.WaitForIndexingAsync(store);
+
+                    // this will ensure that index isn't in error state
+                    try
+                    {
+                        var count = await session.Query<User>("Users_ByName").Customize(x => x.WaitForNonStaleResults()).CountAsync();
+                        Assert.Equal(3, count);
+                    }
+                    catch (TimeoutException e)
+                    {
+                        var errors = Indexes.WaitForIndexingErrors(store, new[] {"Users_ByName"}, errorsShouldExists: true);
+
+                        if (errors != null && errors.Length > 0 && errors[0].Errors.Length > 0)
+                            throw new AggregateException($"Got the following index errors: {(string.Join(',', errors[0].Errors.SelectMany(x => x.Error)))}", e);
+
+                        throw;
+                    }
+                }
+            }
+        }
+    }
+}

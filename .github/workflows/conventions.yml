@@ -1,0 +1,39 @@
+name: conventions
+
+on:
+  pull_request
+
+jobs:
+
+  claSigned:
+    name: CLA Signed
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: CLA Signed test
+        env:
+          CLA_SIGNED_URL: http://api.web.ravendb.net/api/v1/contributors/cla/signed?pullRequestId=
+          ghprNumber: ${{ github.event.pull_request.number }}
+        if: github.event.pull_request.base.repo.owner.login == 'ravendb' && github.event.repository.name == 'ravendb'
+        run: ./scripts/githubActions/claSigned.ps1
+
+  conventions:
+    name: Commit Conventions
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+    env:
+      githubOwner: ${{github.event.pull_request.base.repo.owner.login}}
+      repoName: ${{github.event.repository.name}}
+      label: ${{github.event.pull_request.base.ref}}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      ghprNumber: ${{ github.event.pull_request.number }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Commit Message Conventions
+        run: ./scripts/githubActions/commitMessageConventions.ps1
+
+      - name: Commit Whitespace Conventions
+        if: always()
+        run: ./scripts/githubActions/commitWhitespaceConventions.ps1

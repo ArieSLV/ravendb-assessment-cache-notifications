@@ -1,0 +1,51 @@
+import commandBase = require("commands/commandBase");
+import database = require("models/resources/database");
+import endpoints = require("endpoints");
+import connectionStringRavenEtlModel = require("models/database/settings/connectionStringRavenEtlModel");
+import connectionStringSqlEtlModel = require("models/database/settings/connectionStringSqlEtlModel");
+import connectionStringSnowflakeEtlModel = require("models/database/settings/connectionStringSnowflakeEtlModel");
+import connectionStringOlapEtlModel = require("models/database/settings/connectionStringOlapEtlModel");
+import connectionStringElasticSearchEtlModel = require("models/database/settings/connectionStringElasticSearchEtlModel");
+import connectionStringKafkaModel = require("models/database/settings/connectionStringKafkaModel");
+import connectionStringRabbitMqModel = require("models/database/settings/connectionStringRabbitMqModel");
+import connectionStringAzureQueueStorageModel = require("models/database/settings/connectionStringAzureQueueStorageModel");
+import connectionStringAmazonSqsModel = require("models/database/settings/connectionStringAmazonSqsModel");
+
+class saveConnectionStringCommand_OLD extends commandBase {
+
+    constructor(private db: database, private connectionString: connectionStringRavenEtlModel |
+        connectionStringSqlEtlModel |
+        connectionStringSnowflakeEtlModel |
+        connectionStringOlapEtlModel |
+        connectionStringElasticSearchEtlModel |
+        connectionStringKafkaModel |
+        connectionStringRabbitMqModel |
+        connectionStringAzureQueueStorageModel |
+        connectionStringAmazonSqsModel) {
+        super();
+    }
+ 
+    execute(): JQueryPromise<void> { 
+        return this.saveConnectionString()
+            .fail((response: JQueryXHR) => this.reportError("Failed to save connection string", response.responseText, response.statusText))
+            .done(() => this.reportSuccess(`Connection string was saved successfully`));
+    }
+
+    private saveConnectionString(): JQueryPromise<void> { 
+        
+        const url = endpoints.databases.ongoingTasks.adminConnectionStrings;
+        
+        const saveConnectionStringTask = $.Deferred<void>();
+        
+        const payload = this.connectionString.toDto();
+
+        this.put(url, JSON.stringify(payload), this.db)
+            .done(() => saveConnectionStringTask.resolve())
+            .fail(response => saveConnectionStringTask.reject(response));
+
+        return saveConnectionStringTask;
+    }
+}
+
+export = saveConnectionStringCommand_OLD; 
+

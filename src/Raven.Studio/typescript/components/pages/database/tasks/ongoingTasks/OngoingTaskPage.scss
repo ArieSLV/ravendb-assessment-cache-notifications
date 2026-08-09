@@ -1,0 +1,139 @@
+﻿@use "sass:color";
+@use "Content/scss/colors";
+@use "Content/scss/sizes";
+
+.change-vector-popover {
+    .change-vector-grid {
+        display: grid;
+        grid-template-columns: 70px auto;
+        gap: sizes.$gutter-xs;
+        &:not(:first-of-type) {
+            margin-top: sizes.$gutter-xs;
+        }
+    }
+
+    .change-vector-item,
+    .change-vector-label {
+        overflow-wrap: anywhere;
+        line-height: 1rem;
+    }
+}
+.connected-clients-section {
+    .connected-clients-items {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, max-content));
+
+        .connected-client {
+            background: var(--panel-bg-2);
+            border-radius: sizes.$gutter-xs;
+            font-size: 12px;
+            margin: sizes.$gutter-xs * 0.5;
+            &:first-of-type {
+                margin-left: 0;
+            }
+            div + div {
+                border-top: 1px solid var(--border-color-light);
+            }
+        }
+    }
+}
+
+.destination-modal {
+    .task-item {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        padding: sizes.$gutter-sm;
+        border-radius: sizes.$gutter-xxs;
+        height: 100%;
+        text-align: center;
+        position: relative;
+        transition:
+            background-color 0.5s sizes.$global-easing,
+            color 0.1s !important;
+
+        h4 {
+            color: inherit;
+        }
+
+        .license-restricted-badge {
+            position: absolute;
+            top: sizes.$gutter-xxs;
+            right: sizes.$gutter-xxs;
+        }
+
+        .counter-badge {
+            position: absolute;
+            top: sizes.$gutter-xxs;
+            left: sizes.$gutter-xxs;
+        }
+
+        i {
+            font-size: 36px;
+            line-height: 1em;
+        }
+
+        &:hover {
+            transition:
+                background-color 0.05s sizes.$global-easing,
+                color 0.05s !important;
+            color: colors.$text-emphasis-var;
+        }
+
+        &.ai-etl {
+            position: relative;
+            overflow: hidden;
+
+            h4 {
+                z-index: 1;
+            }
+
+            &::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: colors.$ai-gradient;
+                background-size: 500%;
+                animation: ai-gradient-flow 15s linear infinite;
+                opacity: 0;
+                transition:
+                    opacity 0.4s ease-in-out,
+                    background 0.6s ease-in-out;
+                z-index: 0;
+            }
+
+            &:hover::before {
+                opacity: 1;
+            }
+
+            &:hover {
+                transition:
+                    background-color 0.05s sizes.$global-easing,
+                    color 0.05s !important;
+                color: colors.$white;
+            }
+        }
+    }
+
+    @each $name, $color in colors.$task-colors {
+        .#{$name} {
+            background-color: color.scale($color, $alpha: -90%);
+            color: colors.$text-emphasis-var;
+
+            i {
+                color: $color;
+            }
+
+            &:hover {
+                background-color: color.scale($color, $alpha: -10%);
+                i {
+                    color: colors.$text-emphasis-var;
+                }
+            }
+        }
+    }
+}

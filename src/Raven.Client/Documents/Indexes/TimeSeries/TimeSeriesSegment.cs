@@ -1,0 +1,26 @@
+﻿using System;
+using Raven.Client.Documents.Session.TimeSeries;
+
+namespace Raven.Client.Documents.Indexes.TimeSeries
+{
+    public sealed class TimeSeriesSegment
+    {
+        public string DocumentId { get; set; }
+
+        public string Name { get; set; }
+
+        public double[] Min { get; set; }
+
+        public double[] Max { get; set; }
+
+        public double[] Sum { get; set; }
+
+        public int Count { get; set; }
+
+        public DateTime Start { get; set; }
+
+        public DateTime End { get; set; }
+
+        public TimeSeriesEntry[] Entries { get; set; }
+    }
+}

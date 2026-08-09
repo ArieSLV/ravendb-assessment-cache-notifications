@@ -1,0 +1,173 @@
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
+using FastTests;
+using Raven.Client.Documents.Indexes;
+using Raven.Client.Documents.Operations;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Issues
+{
+    public class RavenDB_3987 : RavenTestBase
+    {
+        public RavenDB_3987(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class Person
+        {
+            public string Name;
+            public int Age;
+        }
+
+        private class Person_ByName : AbstractIndexCreationTask<Person>
+        {
+            public Person_ByName()
+            {
+                Map = persons => from person in persons
+                                 select new
+                                 {
+                                     Name = person.Name
+                                 };
+            }
+        }
+
+        private class Person_ByAge : AbstractIndexCreationTask<Person>
+        {
+            public Person_ByAge()
+            {
+                Map = persons => from person in persons
+                                 select new
+                                 {
+                                     Age = person.Age
+                                 };
+            }
+        }
+
+        private static Person[] GetNewPersons()
+        {
+            return new Person[]
+            {
+                new Person()
+                {
+                    Name = "Bob",
+                    Age = 40
+                },
+                new Person()
+                {
+                    Name = "Bob",
+                    Age = 25
+                },
+                new Person()
+                {
+                    Name = "Bob",
+                    Age = 42
+                },
+                new Person()
+                {
+                    Name = "Bob",
+                    Age = 40
+                },
+                new Person()
+                {
+                    Name = "Bobina",
+                    Age = 30
+                },
+                new Person()
+                {
+                    Name = "Bob",
+                    Age = 43
+                },
+                new Person()
+                {
+                    Name = "Adi",
+                    Age = 40
+                },
+                new Person()
+                {
+                    Name = "Adina",
+                    Age = 20
+                }
+            };
+        }
+
+        [RavenTheory(RavenTestCategory.ClientApi | RavenTestCategory.Patching)]
+        [RavenData(DatabaseMode = RavenDatabaseMode.All)]
+        public async Task DeleteByQueryAsync(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                using (var session = store.OpenAsyncSession())
+                {
+                    var persons = GetNewPersons();
+                    foreach (var person in persons)
+                        await session.StoreAsync(person);
+
+                    await session.SaveChangesAsync();
+                }
+
+                await new Person_ByName().ExecuteAsync(store);
+                await new Person_ByAge().ExecuteAsync(store);
+
+                await Indexes.WaitForIndexingAsync(store);
+
+                var operation1 = await store.Operations.SendAsync(new DeleteByQueryOperation<Person>("Person/ByName", x => x.Name == "Bob"));
+                await operation1.WaitForCompletionAsync(TimeSpan.FromMinutes(5));
+
+                await Indexes.WaitForIndexingAsync(store);
+
+                var operation2 = await store.Operations.SendAsync(new DeleteByQueryOperation<Person, Person_ByAge>(x => x.Age < 35));
+                await operation2.WaitForCompletionAsync(TimeSpan.FromMinutes(5));
+
+                using (var session = store.OpenAsyncSession())
+                {
+                    var persons = await session.Advanced.AsyncDocumentQuery<Person>().ToListAsync();
+
+                    Assert.Equal(1, persons.Count);
+                    Assert.Equal("Adi", persons[0].Name);
+                }
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Querying | RavenTestCategory.Indexes)]
+        [RavenData(DatabaseMode = RavenDatabaseMode.All, SearchEngineMode = RavenSearchEngineMode.All)]
+        public void DeleteByQuery(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                using (var session = store.OpenSession())
+                {
+                    var persons = GetNewPersons();
+                    foreach (var person in persons)
+                        session.Store(person);
+
+                    session.SaveChanges();
+                }
+
+                new Person_ByName().Execute(store);
+                new Person_ByAge().Execute(store);
+
+                Indexes.WaitForIndexing(store);
+
+                var operation1 = store.Operations.Send(new DeleteByQueryOperation<Person>("Person/ByName", x => x.Name == "Bob"));
+                operation1.WaitForCompletion(TimeSpan.FromSeconds(15));
+
+                Indexes.WaitForIndexing(store);
+
+                var operation2 = store.Operations.Send(new DeleteByQueryOperation<Person, Person_ByAge>(x => x.Age < 35));
+                operation2.WaitForCompletion(TimeSpan.FromSeconds(15));
+
+                using (var session = store.OpenSession())
+                {
+                    var persons = session.Query<Person>().ToList();
+
+                    Assert.Equal(1, persons.Count);
+                    Assert.Equal(persons[0].Name, "Adi");
+                }
+            }
+        }
+    }
+}
+

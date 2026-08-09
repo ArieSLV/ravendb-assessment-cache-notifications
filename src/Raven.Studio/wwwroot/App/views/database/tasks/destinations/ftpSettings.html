@@ -1,0 +1,44 @@
+<div class="row margin-bottom" data-bind="validationElement: url">
+    <label class="control-label col-xs-12 col-sm-6 col-lg-4">
+        Host <i class="required"></i> <small><i class="ftp-host-info icon-info text-info"></i></small>
+    </label>
+    <div class="col-xs-12 col-sm-6 col-lg-8">
+        <input data-bind="textInput: url" type="text" class="form-control" />
+    </div>
+</div>
+<div class="row margin-bottom" data-bind="validationElement: userName">
+    <label class="control-label col-xs-12 col-sm-6 col-lg-4">User name <i class="required"></i></label>
+    <div class="col-xs-12 col-sm-6 col-lg-8">
+        <input data-bind="textInput: userName" type="text" class="form-control" />
+    </div>
+</div>
+<div class="row margin-bottom" data-bind="validationElement: password">
+    <label class="control-label col-xs-12 col-sm-6 col-lg-4">Password <i class="required"></i></label>
+    <div class="col-xs-12 col-sm-6 col-lg-8">
+        <div class="input-group flex-grow">
+            <input data-bind="textInput: password, attr: { type: isPasswordHidden() ? 'password' : 'text' }" class="form-control" />
+            <button type="button" class="btn btn-default" data-bind="click: toggleIsPasswordHidden, visible: isPasswordHidden()" title="View hidden characters">
+                <i class="icon-preview"></i>
+            </button>
+            <button type="button" class="btn btn-info" data-bind="click: toggleIsPasswordHidden, visible: !isPasswordHidden()" title="Hide characters">
+                <i class="icon-preview-off"></i>
+            </button>
+        </div>
+    </div>
+</div>
+<div class="row margin-bottom" data-bind="visible: isFtps, validationElement: certificateAsBase64">
+    <label class="control-label col-xs-12 col-sm-6 col-lg-4">Certificate</label>
+    <div class="col-xs-12 col-sm-6 col-lg-8" >
+        <div class="input-group file-input">
+            <input type="file" id="filePicker" data-bind="event: { change: _.partial(fileSelected, $element) }, disable: isLoadingFile" tabindex="-1" disabled>
+            <span class="static-name form-control" data-bind="text: certificateAsBase64() ? '<certificate>' : 'Select file...'"></span>
+            <span class="input-group-btn">
+                <label for="filePicker" class="btn btn-default">
+                    <i class="icon-document"></i>
+                    <span>Browse</span>
+                </label>
+            </span>
+            <p class="help-block" data-bind="validationMessage: certificateAsBase64"></p>
+        </div>
+    </div>
+</div>

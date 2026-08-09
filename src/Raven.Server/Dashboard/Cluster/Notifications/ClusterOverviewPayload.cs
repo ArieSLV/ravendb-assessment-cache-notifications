@@ -1,0 +1,49 @@
+﻿using System;
+using Raven.Client.ServerWide;
+using Raven.Client.ServerWide.Operations;
+using Sparrow.Json.Parsing;
+
+namespace Raven.Server.Dashboard.Cluster.Notifications
+{
+    public sealed class ClusterOverviewPayload : AbstractClusterDashboardNotification
+    {
+        public string NodeTag { get; set; }
+        public string NodeUrl { get; set; }
+        
+        public string NodeType { get; set; }
+        public RachisState NodeState { get; set; }
+        
+        public DateTime StartTime { get; set; }
+        
+        public string ServerVersion { get; set; }
+        public string OsName { get; set; }
+        public OSType OsType { get; set; }
+
+        public TimeSpan? UpTime { get; set; }
+        public override ClusterDashboardNotificationType Type => ClusterDashboardNotificationType.ClusterOverview;
+        
+        public override DynamicJsonValue ToJson()
+        {
+            var json = base.ToJson();
+
+            json[nameof(NodeTag)] = NodeTag;
+            json[nameof(NodeUrl)] = NodeUrl;
+            json[nameof(NodeType)] = NodeType;
+            json[nameof(NodeState)] = NodeState;
+            json[nameof(StartTime)] = StartTime;
+            json[nameof(ServerVersion)] = ServerVersion;
+            json[nameof(OsName)] = OsName;
+            json[nameof(OsType)] = OsType;
+
+            if (UpTime != null)
+                json[nameof(UpTime)] = UpTime;
+            
+            return json;
+        }
+        
+        public override DynamicJsonValue ToJsonWithFilter(CanAccessDatabase filter)
+        {
+            return ToJson();
+        }
+    }
+}

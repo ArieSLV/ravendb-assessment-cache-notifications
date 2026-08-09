@@ -1,0 +1,350 @@
+﻿// Mix-ins
+
+.toastVariant(@color) {
+    background-color: @color;
+
+    &:before {
+        color: lighten(@color, 15%);
+    }
+}
+
+.borderRadius(@radius) {
+    -moz-border-radius: @radius;
+    -webkit-border-radius: @radius;
+    border-radius: @radius;
+}
+
+.boxShadow(@boxShadow) {
+    -moz-box-shadow: @boxShadow;
+    -webkit-box-shadow: @boxShadow;
+    box-shadow: @boxShadow;
+}
+
+.opacity(@opacity) {
+    @opacityPercent: (@opacity * 100);
+    opacity: @opacity;
+    -ms-filter: ~"progid:DXImageTransform.Microsoft.Alpha(Opacity=@{opacityPercent})";
+    filter: ~"alpha(opacity=@{opacityPercent})";
+}
+
+.wordWrap(@wordWrap: break-word) {
+    -ms-word-wrap: @wordWrap;
+    word-wrap: @wordWrap;
+}
+
+// Variables
+@black: @gray-darker;
+@grey: @gray;
+@light-grey: @gray-light;
+//@white: @gray-lighter; @white is already defined
+@near-black: @gray-dark;
+@green: @brand-success-dark;
+@red: @brand-danger-dark;
+@blue: @brand-info-dark;
+@orange: @brand-warning-dark;
+@default-container-opacity: 1;
+
+@padding: @grid-gutter-width/2 @grid-gutter-width/2 @grid-gutter-width/4*3;
+// Styles
+
+.toast-message {
+    .wordWrap();
+
+    a,
+    label {
+        color: @text-color;
+    }
+
+    a:hover {
+        color: @light-grey;
+        text-decoration: none;
+    }
+}
+
+.toast-close-button {
+    position: absolute;
+    right: 4px;
+    top: 0;
+    float: right;
+    font-size: 20px;
+    font-weight: bold;
+    color: @gray-lighter;
+    .opacity(0.8);
+    line-height: 1;
+
+    &:hover,
+    &:focus {
+        color: @black;
+        text-decoration: none;
+        cursor: pointer;
+        .opacity(0.4);
+    }
+}
+
+.rtl .toast-close-button {
+    right: @grid-gutter-width/4;
+    top: 0;
+    float: left;
+}
+
+/*Additional properties for button version
+ iOS requires the button element instead of an anchor tag.
+ If you want the anchor version, it requires `href="#"`.*/
+button.toast-close-button {
+    padding: 0;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    -webkit-appearance: none;
+}
+
+//#endregion
+
+.toast-top-center {
+    top: 0;
+    right: 0;
+    width: 100%;
+}
+
+.toast-bottom-center {
+    bottom: 0;
+    right: 0;
+    width: 100%;
+}
+
+.toast-top-full-width {
+    top: 0;
+    right: 0;
+    width: 100%;
+}
+
+.toast-bottom-full-width {
+    bottom: 0;
+    right: 0;
+    width: 100%;
+}
+
+.toast-top-left {
+    top: 12px;
+    left: 12px;
+}
+
+.toast-top-right {
+    top: 12px;
+    right: 12px;
+}
+
+.toast-bottom-right {
+    right: @grid-gutter-width;
+    bottom: @grid-gutter-width*2;
+}
+
+.toast-bottom-left {
+    bottom: 12px;
+    left: 12px;
+}
+
+#toast-container {
+    position: fixed;
+    z-index: 999999;
+    // The container should not be clickable.
+    pointer-events: none;
+
+    * {
+        -moz-box-sizing: border-box;
+        -webkit-box-sizing: border-box;
+        box-sizing: border-box;
+    }
+
+    > div {
+        position: relative;
+        // The toast itself should be clickable.
+        pointer-events: auto;
+        overflow: hidden;
+        margin: 0 0 6px;
+        padding: @padding;
+        width: 300px;
+        .borderRadius(0);
+        .boxShadow( 0 6px 12px rgba(0, 0, 0, 0.175) );
+        color: @white;
+        .opacity(@default-container-opacity);
+    }
+
+    > div.rtl {
+        direction: rtl;
+        padding: @padding;
+    }
+
+    > div:hover {
+        .boxShadow( 0 6px 12px rgba(0, 0, 0, 0.175) );
+        .opacity(1);
+        cursor: pointer;
+    }
+
+
+    .toast {
+        opacity: 1 !important;
+        background-color: @near-black;
+        line-height: 16px;
+        border-radius: var(--bs-border-radius);
+        .slideup-style;
+
+        .toast-progress {
+            position: absolute;
+            left: @grid-gutter-width/2;
+            bottom: @grid-gutter-width/3;
+            max-width: 300px - @grid-gutter-width;
+            height: 1px;
+            background-color: @gray-lighter;
+            opacity: .5;
+        }
+
+        &:hover .toast-progress {
+            transition: width .05s linear;
+            width: 100% !important;
+        }
+
+        .toast-title {
+            padding-left: 30px;
+            position: relative;
+            word-break: break-word;
+
+            &::before {
+                .icon-style;
+                width: 30px;
+                display: block;
+                font-size: 24px;
+                left: 0;
+                top: -3px;
+                position: absolute;
+            }
+        }
+
+        .toast-message {
+            padding-left: 30px;
+            margin-top: 10px;
+            font-size: 13px;
+            opacity: 0.7;
+        }
+
+        &.toast-success {
+            .toastVariant(@green);
+        }
+
+        &.toast-error {
+            .toastVariant(@red);
+        }
+
+        &.toast-info {
+            .toastVariant(@blue);
+        }
+
+        &.toast-warning {
+            .toastVariant(@orange);
+        }
+    }
+
+
+
+    > .toast-info {
+        .toast-title:before {
+            content: @icon-info;
+        }
+    }
+
+    > .toast-error {
+        .toast-title:before {
+            content: @icon-danger;
+        }
+    }
+
+    > .toast-success {
+        .toast-title:before {
+            content: @tick-character;
+        }
+    }
+
+    > .toast-warning {
+        .toast-title:before {
+            content: @icon-warning;
+        }
+    }
+    /*overrides*/
+    &.toast-top-center > div,
+    &.toast-bottom-center > div {
+        width: 300px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    &.toast-top-full-width > div,
+    &.toast-bottom-full-width > div {
+        width: 96%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+}
+
+
+
+/*Responsive Design*/
+
+@media all and (max-width: 240px) {
+    #toast-container {
+
+        > div {
+            padding: @padding;
+            width: 11em;
+        }
+
+        > div.rtl {
+            padding: @padding;
+        }
+
+        & .toast-close-button {
+            right: @grid-gutter-width/4;
+            top: 0;
+        }
+
+        & .rtl .toast-close-button {
+            right: @grid-gutter-width/4;
+            top: 0;
+        }
+    }
+}
+
+@media all and (min-width: 241px) and (max-width: 480px) {
+    #toast-container {
+        > div {
+            padding: @padding;
+            width: 18em;
+        }
+
+        > div.rtl {
+            padding: @padding;
+        }
+
+        & .toast-close-button {
+            right: @grid-gutter-width/4;
+            top: 0;
+        }
+
+        & .rtl .toast-close-button {
+            right: @grid-gutter-width/4;
+            top: 0;
+        }
+    }
+}
+
+@media all and (min-width: 481px) and (max-width: 768px) {
+    #toast-container {
+        > div {
+            padding: @padding;
+            width: 25em;
+        }
+
+        > div.rtl {
+            padding: @padding;
+        }
+    }
+}

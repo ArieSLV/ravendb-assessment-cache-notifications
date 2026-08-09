@@ -1,0 +1,56 @@
+import certificateUtils from "common/certificateUtils";
+import { Icon } from "components/common/Icon";
+import moment from "moment";
+import React from "react";
+import Card from "react-bootstrap/Card";
+import IconName from "typings/server/icons";
+import Button from "react-bootstrap/Button";
+
+interface ElasticSearchCertificateProps {
+    certBase64: string;
+    onDelete: () => void;
+}
+
+export default function ElasticSearchCertificate({ certBase64, onDelete }: ElasticSearchCertificateProps) {
+    const certInfo = certificateUtils.extractCertificateInfo(certBase64);
+
+    const expirationMoment = moment.utc(certInfo.expiration);
+    const dateFormatted = expirationMoment.format("YYYY-MM-DD");
+
+    const expirationText = (expirationMoment.isBefore() ? "Expired " : "") + dateFormatted;
+    const expirationIcon: IconName = expirationMoment.isBefore() ? "danger" : "expiration";
+    const expirationClass = expirationMoment.isBefore() ? "text-danger" : "";
+
+    const notBeforeMoment = moment.utc(certInfo.notBefore);
+    const validFromText = notBeforeMoment.format("YYYY-MM-DD");
+
+    return (
+        <Card className="well">
+            <Card.Header className="d-flex p-1 justify-content-between align-items-center">
+                <div>
+                    <Icon icon="certificate" />
+                    {certInfo.thumbprint}
+                </div>
+                <Button onClick={onDelete} variant="danger">
+                    <Icon icon="trash" margin="m-0" />
+                </Button>
+            </Card.Header>
+            <Card.Body className="d-flex p-1 justify-content-around">
+                <div className="d-flex gap-1">
+                    <div>
+                        <Icon icon="clock" />
+                        Valid From
+                    </div>
+                    <strong>{validFromText}</strong>
+                </div>
+                <div className="d-flex gap-1">
+                    <div>
+                        <Icon icon={expirationIcon} />
+                        Expiration
+                    </div>
+                    <strong className={expirationClass}>{expirationText}</strong>
+                </div>
+            </Card.Body>
+        </Card>
+    );
+}

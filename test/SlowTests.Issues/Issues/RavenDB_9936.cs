@@ -1,0 +1,92 @@
+﻿using System.Collections.Generic;
+using FastTests;
+using Orders;
+using Raven.Client.Documents.Indexes;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Issues
+{
+    public class RavenDB_9936 : RavenTestBase
+    {
+        public RavenDB_9936(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class MixedSyntaxIndex : AbstractIndexCreationTask
+        {
+            public override IndexDefinition CreateIndexDefinition()
+            {
+                return new IndexDefinition
+                {
+                    Name = "MixedSyntaxIndex",
+                    Maps =
+                    {
+                        "from o in docs.Orders.SelectMany(x => x.Lines) select new { ProductName = o.ProductName }"
+                    }
+                };
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Indexes)]
+        public void CanMixSyntaxInIndex()
+        {
+            using (var store = GetDocumentStore())
+            {
+                new MixedSyntaxIndex().Execute(store);
+
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new Order
+                    {
+                        Company = "HR",
+                        Lines = new List<OrderLine>
+                        {
+                            new OrderLine
+                            {
+                                ProductName = "ABC"
+                            }
+                        }
+                    });
+
+                    session.Store(new Order
+                    {
+                        Company = "CF",
+                        Lines = new List<OrderLine>
+                        {
+                            new OrderLine
+                            {
+                                ProductName = "CBA"
+                            }
+                        }
+                    });
+
+                    session.SaveChanges();
+                }
+
+                Indexes.WaitForIndexing(store);
+
+                using (var session = store.OpenSession())
+                {
+                    var orders = session
+                        .Advanced
+                        .DocumentQuery<Order, MixedSyntaxIndex>()
+                        .WhereEquals("ProductName", "ABC")
+                        .ToList();
+
+                    Assert.Equal(1, orders.Count);
+                    Assert.Equal("HR", orders[0].Company);
+
+                    orders = session
+                        .Advanced
+                        .DocumentQuery<Order, MixedSyntaxIndex>()
+                        .WhereEquals("ProductName", "A")
+                        .ToList();
+
+                    Assert.Equal(0, orders.Count);
+                }
+            }
+        }
+    }
+}

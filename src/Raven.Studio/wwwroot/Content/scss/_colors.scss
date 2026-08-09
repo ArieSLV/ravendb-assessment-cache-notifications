@@ -1,0 +1,576 @@
+@use "sass:color";
+//== Colors
+//
+// AVAILABLE: default, blue, light
+$theme: "default" !default;
+
+// Dark Theme
+$white: #f7f5fa;
+$gray-100: #e1dfe8;
+$gray-200: #c0becc;
+$gray-300: #a2a0b0;
+$gray-400: #79788c;
+$gray-500: #626278;
+$gray-600: #4c4c63;
+$gray-700: #3a3a4f;
+$gray-800: #2a2b3d;
+$gray-900: #1c1d2b;
+$black: #141621;
+
+$gray-base: $black;
+$gray-base-light: $gray-900;
+$gray-darker: $gray-800;
+$gray-dark: $gray-600;
+$gray: $gray-400;
+$gray-light: $gray-200;
+$gray-lighter: $white;
+
+$color-1: #f75e71;
+$color-1-1: #f57564;
+$color-1-2: #f38861;
+$color-1-3: #ee9d5f;
+$color-2: #f0ae5e;
+$color-2-1: #f0bf54;
+$color-2-2: #edcd51;
+$color-2-3: #c4d451;
+$color-3: #7bd85d;
+$color-3-1: #51d27a;
+$color-3-2: #44beaa;
+$color-3-3: #2fb7d2;
+$color-4: #2f9ef3;
+$color-4-1: #518bee;
+$color-4-2: #7069ee;
+$color-4-3: #8361d4;
+$color-5: #945ab5;
+$color-5-1: #ba50a1;
+$color-5-2: #d8559d;
+$color-5-3: #ed5580;
+
+$brand-ravendb: #cf1f5d;
+$brand-cloud: #63ffa6 !default;
+$brand-hr: #f78831 !default;
+$brand-ai: #388ee9 !default;
+
+$secondary: $gray-600;
+$secondary-outline: $gray-300; //fix outline button contrast
+$body-bg: $black;
+$border-color: $gray-300;
+$border-color-light: $gray-600;
+$border-color-disabled: var(--border-color-light);
+
+$text-color: $gray-200;
+$text-muted-color: $gray-300;
+$text-emphasis-color: $gray-100;
+
+$base-text-color: $gray-100;
+$base-text-muted-color: $gray-200;
+$base-text-emphasis-color: $white;
+
+$panel-header-bg: $gray-800;
+$panel-bg-1: $gray-900;
+$panel-bg-2: $gray-800;
+$panel-bg-3: $gray-700;
+$base-panel-header-bg: $panel-header-bg;
+$base-panel-bg-1: $panel-bg-1;
+$base-panel-bg-2: $panel-bg-2;
+$base-panel-bg-3: $panel-bg-3;
+
+$well-bg: $body-bg;
+$base-well-bg: $body-bg;
+$pre-bg: $well-bg;
+$ace-gutter-bg: $panel-header-bg;
+$input-bg: #0a0d1d;
+$tooltip-bg: #0f0f19;
+
+$primary: $color-5;
+$success: $color-3;
+$info: $color-4;
+$warning: $color-2;
+$danger: $color-1;
+$light: $gray-100;
+$dark: $gray-900;
+
+$link-color: #c072ee;
+$shadow-color: $black;
+
+$hover-filter: brightness(1.2) saturate(1.1);
+
+$row-bg: $body-bg;
+$row-even-bg: $gray-900;
+$token-string: $color-3-1;
+$token-number: $color-2-1;
+$token-boolean: $color-3-3;
+$token-operator: $color-2;
+$token-keyword: $color-5;
+$token-deleted: $color-1;
+$token-important: $color-2-2;
+
+$developer: #c7ff6b;
+$community: #2e9ef4;
+$experimental: #525fff;
+
+$twofactor: #5537c4;
+
+// Blue Theme
+@if $theme == "blue" {
+    $black: #172138;
+    $gray-900: #232e45;
+    $gray-800: #2f3a52;
+    $gray-700: #3d4867;
+    $gray-600: #4a567c;
+    $gray-500: #586491;
+    $gray-400: #6d779f;
+    $gray-300: #a9b0c6;
+    $gray-200: #c8ccdf;
+    $gray-100: #e1e3ef;
+    $white: #f4f5fb;
+
+    $primary: $color-5;
+    $secondary: $gray-400;
+    $secondary-outline: $gray-600; //fix outline button contrast
+
+    $body-bg: $black;
+    $border-color: $gray-600;
+    $border-color-light: $gray-400;
+    $border-color-disabled: var(--border-color-light);
+
+    $text-color: $gray-900;
+    $text-muted-color: $gray-800;
+    $text-emphasis-color: $black;
+
+    $base-text-color: $gray-100;
+    $base-text-muted-color: $gray-200;
+    $base-text-emphasis-color: $white;
+
+    $panel-header-bg: $white;
+    $panel-bg-1: $gray-100;
+    $panel-bg-2: $gray-200;
+    $panel-bg-3: $gray-300;
+    $base-panel-header-bg: $gray-800;
+    $base-panel-bg-1: $gray-900;
+    $base-panel-bg-2: $gray-800;
+    $base-panel-bg-3: $gray-700;
+
+    $well-bg: $gray-200;
+    $base-well-bg: $black;
+    $pre-bg: $white;
+    $ace-gutter-bg: $panel-bg-2;
+    $input-bg: #f5f6ff;
+    $tooltip-bg: #141728;
+
+    $link-color: #c072ee;
+    $shadow-color: $gray-500;
+
+    $hover-filter: brightness(1.03) saturate(1.3);
+
+    $row-bg: $body-bg;
+    $row-even-bg: $gray-900;
+
+    $token-string: $color-3-1;
+    $token-number: $color-2-1;
+    $token-boolean: $color-3-3;
+    $token-operator: $color-2;
+    $token-keyword: $color-5;
+    $token-deleted: $color-1;
+    $token-important: $color-2-2;
+
+    $ace-number: $color-1;
+    $ace-keyword: $token-string;
+    $ace-comment: $token-important;
+    $ace-string: $token-string;
+    $ace-regexp: $ace-string;
+    $ace-function: $token-operator;
+    $ace-language: $token-boolean;
+    $ace-character: $token-important;
+    $ace-name: $token-keyword;
+    $ace-constant: $token-operator;
+
+    $developer: darken(#c7ff6b, 33%);
+}
+
+// Light Theme
+@if $theme == "light" {
+    $black: #292d3d;
+    $gray-900: #484d63;
+    $gray-800: #666d8a;
+    $gray-700: #8085a1;
+    $gray-600: #999db7;
+    $gray-500: #afb2c6;
+    $gray-400: #c5c8d4;
+    $gray-300: #dbdde3;
+    $gray-200: #e5e6ea;
+    $gray-100: #f0f1f6;
+    $white: #ffffff;
+
+    $color-1: color.adjust(#f06582, $lightness: 0%);
+    $color-1-1: color.adjust(#f3766e, $lightness: -2%);
+    $color-1-2: color.adjust(#f38a66, $lightness: -4%);
+    $color-1-3: color.adjust(#eea361, $lightness: -6%);
+    $color-2: color.adjust(#f0b362, $lightness: -8%);
+    $color-2-1: color.adjust(#f0c254, $lightness: -9%);
+    $color-2-2: color.adjust(#edcd51, $lightness: -12%);
+    $color-2-3: color.adjust(#c4d451, $lightness: -12%);
+    $color-3: color.adjust(#7bd85d, $lightness: -15%);
+    $color-3-1: color.adjust(#51d27a, $lightness: -10%);
+    $color-3-2: color.adjust(#37c4ac, $lightness: -8%);
+    $color-3-3: color.adjust(#2fb7d2, $lightness: -7%);
+    $color-4: color.adjust(#2f9ef3, $lightness: -5%);
+    $color-4-1: color.adjust(#5186ee, $lightness: -5%);
+    $color-4-2: color.adjust(#7069ee, $lightness: -5%);
+    $color-4-3: color.adjust(#8361d4, $lightness: -5%);
+    $color-5: color.adjust(#945ab5, $lightness: -5%);
+    $color-5-1: color.adjust(#bf569f, $lightness: -5%);
+    $color-5-2: color.adjust(#d85b9a, $lightness: -5%);
+    $color-5-3: color.adjust(#ed558c, $lightness: -5%);
+
+    $primary: $color-5;
+    $secondary: $gray-400;
+    $secondary-outline: $gray-600; //fix outline button contrast
+    $success: $color-3;
+    $info: $color-4;
+    $warning: $color-2;
+    $danger: $color-1;
+    $light: $gray-100;
+    $dark: $gray-900;
+
+    $body-bg: $gray-300;
+    $border-color: $gray-500;
+    $border-color-light: $gray-400;
+    $border-color-disabled: var(--border-color-light);
+
+    $text-color: $gray-800;
+    $text-muted-color: $gray-700;
+    $text-emphasis-color: $gray-900;
+
+    $base-text-color: $gray-900;
+    $base-text-muted-color: $gray-800;
+    $base-text-emphasis-color: $black;
+
+    $panel-header-bg: $gray-100;
+    $panel-bg-1: $gray-200;
+    $panel-bg-2: $gray-300;
+    $panel-bg-3: $gray-400;
+    $base-panel-header-bg: $panel-header-bg;
+    $base-panel-bg-1: $gray-100;
+    $base-panel-bg-2: $gray-200;
+    $base-panel-bg-3: $panel-bg-3;
+
+    $well-bg: $gray-300;
+    $base-well-bg: $body-bg;
+    $pre-bg: $white;
+    $ace-gutter-bg: $panel-header-bg;
+    $input-bg: #f2f3f7;
+    $tooltip-bg: #1e1e23;
+
+    $link-color: #c072ee;
+    $shadow-color: $gray-600;
+
+    $hover-filter: brightness(1.03) saturate(1.4);
+
+    $row-bg: $white;
+    $row-even-bg: $gray-100;
+
+    $developer: darken(#c7ff6b, 33%);
+}
+
+// Classic Theme
+@if $theme == "classic" {
+    $white: #f0f4f6;
+    $gray-100: #c4ced7;
+    $gray-200: #98a7b7;
+    $gray-300: #7e8c9e;
+    $gray-400: #637085;
+    $gray-500: #4f5b6d;
+    $gray-600: #3b4654;
+    $gray-700: #333d48;
+    $gray-800: #2b333b;
+    $gray-900: #252b32;
+    $black: #22252b;
+
+    $gray-base: $black;
+    $gray-base-light: $gray-900;
+    $gray-darker: $gray-800;
+    $gray-dark: $gray-600;
+    $gray: $gray-400;
+    $gray-light: $gray-200;
+    $gray-lighter: $white;
+
+    $color-1: #f06582;
+    $color-1-1: #f3766e;
+    $color-1-2: #f38a66;
+    $color-1-3: #eea361;
+    $color-2: #f0b362;
+    $color-2-1: #f0c254;
+    $color-2-2: #edcd51;
+    $color-2-3: #c4d451;
+    $color-3: #7bd85d;
+    $color-3-1: #51d27a;
+    $color-3-2: #37c4ac;
+    $color-3-3: #2fb7d2;
+    $color-4: #2f9ef3;
+    $color-4-1: #5186ee;
+    $color-4-2: #7069ee;
+    $color-4-3: #8361d4;
+    $color-5: #945ab5;
+    $color-5-1: #bf569f;
+    $color-5-2: #d85b9a;
+    $color-5-3: #ed558c;
+
+    $primary: #cf1f5d;
+    $secondary: $gray-600;
+    $secondary-outline: $gray-300; //fix outline button contrast
+
+    $body-bg: $black;
+    $border-color: $gray-300;
+    $border-color-light: $gray-600;
+    $border-color-disabled: var(--border-color-light);
+
+    $text-color: $gray-200;
+    $text-muted-color: $gray-300;
+    $text-emphasis-color: $gray-100;
+
+    $base-text-color: $gray-100;
+    $base-text-muted-color: $gray-200;
+    $base-text-emphasis-color: $white;
+
+    $panel-header-bg: $gray-800;
+    $panel-bg-1: $gray-900;
+    $panel-bg-2: $gray-800;
+    $panel-bg-3: $gray-700;
+    $base-panel-header-bg: $panel-header-bg;
+    $base-panel-bg-1: $panel-bg-1;
+    $base-panel-bg-2: $panel-bg-2;
+    $base-panel-bg-3: $panel-bg-3;
+
+    $well-bg: $body-bg;
+    $base-well-bg: $body-bg;
+    $pre-bg: $well-bg;
+    $ace-gutter-bg: $panel-header-bg;
+    $input-bg: #17191f;
+    $tooltip-bg: #1e1e23;
+
+    $success: $color-3;
+    $info: $color-4;
+    $warning: $color-2;
+    $danger: $color-1;
+    $light: $gray-100;
+    $dark: $gray-900;
+
+    $link-color: $primary;
+
+    $hover-filter: brightness(1.2) saturate(1.1);
+
+    $row-bg: $well-bg;
+    $row-even-bg: $gray-900;
+}
+
+$table-bg-scale: 30% !default;
+
+@function background-color-mix($color, $weight) {
+    @return color.mix(color.scale(color.scale($color, $lightness: -40%), $saturation: 30%), $panel-bg-1, $weight);
+}
+
+$free: $color-4;
+$professional: $color-4-2;
+$enterprise: $color-5;
+
+$color-support-free: $community;
+$color-support-professional: $professional;
+$color-support-production: $enterprise;
+
+$node-color: $color-3-1;
+$shard-color: $color-4-1;
+$orchestrator-color: $color-2-1;
+$progress-color: $color-2-3;
+
+// Color system
+// scss-docs-end gray-color-variables
+
+// fusv-disable
+// scss-docs-start gray-colors-map
+$grays: (
+    "100": $gray-100,
+    "200": $gray-200,
+    "300": $gray-300,
+    "400": $gray-400,
+    "500": $gray-500,
+    "600": $gray-600,
+    "700": $gray-700,
+    "800": $gray-800,
+    "900": $gray-900,
+) !default;
+// scss-docs-end gray-colors-map
+// fusv-enable
+
+// scss-docs-start color-variables
+$blue: $color-4 !default;
+$indigo: $color-4-2 !default;
+$purple: $color-5 !default;
+$pink: $color-5-2 !default;
+$red: $color-1 !default;
+$orange: $color-1-2 !default;
+$yellow: $color-2 !default;
+$green: $color-3 !default;
+$teal: $color-3-2 !default;
+$cyan: $color-3-1 !default;
+// scss-docs-end color-variables
+
+// scss-docs-start colors-map
+$colors: (
+    "blue": $blue,
+    "indigo": $indigo,
+    "purple": $purple,
+    "pink": $pink,
+    "red": $red,
+    "orange": $orange,
+    "yellow": $yellow,
+    "green": $green,
+    "teal": $teal,
+    "cyan": $cyan,
+    "white": $white,
+    "gray": $gray-600,
+    "gray-dark": $gray-800,
+) !default;
+// scss-docs-end colors-map
+
+// scss-docs-start theme-colors-map
+$theme-colors: (
+    "primary": $primary,
+    "secondary": $secondary,
+    "success": $success,
+    "info": $info,
+    "warning": $warning,
+    "danger": $danger,
+    "light": $light,
+    "dark": $dark,
+    "muted": $text-muted-color,
+    "node": $node-color,
+    "shard": $shard-color,
+    "orchestrator": $orchestrator-color,
+    "progress": $progress-color,
+    "community": $community,
+    "professional": $professional,
+    "enterprise": $enterprise,
+    "enterprise-ai": $brand-ai,
+    "developer": $developer,
+    "cloud": $brand-cloud,
+    "2fa": $twofactor,
+    "experimental": $experimental,
+) !default;
+
+// scss-docs-end theme-colors-map
+
+//Bootstrap 5.3 color variants
+// scss-docs-start theme-text-variables
+$primary-text-emphasis: shade-color($primary, 60%) !default;
+$secondary-text-emphasis: shade-color($secondary, 60%) !default;
+$success-text-emphasis: shade-color($success, 60%) !default;
+$info-text-emphasis: shade-color($info, 60%) !default;
+$warning-text-emphasis: shade-color($warning, 60%) !default;
+$danger-text-emphasis: shade-color($danger, 60%) !default;
+$light-text-emphasis: $gray-700 !default;
+$dark-text-emphasis: $gray-700 !default;
+// scss-docs-end theme-text-variables
+
+// scss-docs-start theme-bg-subtle-variables
+$primary-bg-subtle: tint-color($primary, 80%) !default;
+$secondary-bg-subtle: tint-color($secondary, 80%) !default;
+$success-bg-subtle: tint-color($success, 80%) !default;
+$info-bg-subtle: tint-color($info, 80%) !default;
+$warning-bg-subtle: tint-color($warning, 80%) !default;
+$danger-bg-subtle: tint-color($danger, 80%) !default;
+$light-bg-subtle: color.mix($gray-100, $white) !default;
+$dark-bg-subtle: $gray-400 !default;
+// scss-docs-end theme-bg-subtle-variables
+
+// scss-docs-start theme-border-subtle-variables
+$primary-border-subtle: tint-color($primary, 60%) !default;
+$secondary-border-subtle: tint-color($secondary, 60%) !default;
+$success-border-subtle: tint-color($success, 60%) !default;
+$info-border-subtle: tint-color($info, 60%) !default;
+$warning-border-subtle: tint-color($warning, 60%) !default;
+$danger-border-subtle: tint-color($danger, 60%) !default;
+$light-border-subtle: $gray-200 !default;
+$dark-border-subtle: $gray-500 !default;
+// scss-docs-end theme-border-subtle-variables
+
+$primary-var: var(--bs-primary);
+$secondary-var: var(--bs-secondary);
+$success-var: var(--bs-success);
+$info-var: var(--bs-info);
+$warning-var: var(--bs-warning);
+$danger-var: var(--bs-danger);
+$node-var: var(--bs-node);
+$shard-var: var(--bs-shard);
+$orchestrator-var: var(--bs-orchestrator);
+$progress-var: var(--bs-progress);
+
+$body-bg-var: var(--bs-body-bg);
+
+$text-color-var: var(--text-color);
+$text-muted-var: var(--text-muted);
+$text-emphasis-var: var(--text-emphasis);
+
+$border-color-var: var(--bs-border-color);
+$border-color-light-var: var(--border-color-light);
+
+$panel-header-bg-var: var(--panel-header-bg);
+$panel-bg-1-var: var(--panel-bg-1);
+$panel-bg-2-var: var(--panel-bg-2);
+$panel-bg-3-var: var(--panel-bg-3);
+
+$well-bg-var: var(--well-bg);
+$pre-bg-var: var(--pre-bg);
+$ace-gutter-bg-var: var(--ace-gutter-bg);
+$shadow-color-var: var(--shadow-color);
+$input-bg-var: var(--input-bg);
+$tooltip-bg-var: var(--tooltip-bg);
+
+$link-color-var: var(--link-color);
+
+$row-bg-var: var(--row-bg);
+$row-even-bg-var: var(--row-even-bg);
+
+$hover-filter-var: var(--hover-filter);
+
+$task-colors: (
+    "ai": $color-4-1,
+    "replication": $link-color,
+    "backups": $color-1-1,
+    "subscriptions": $color-2-1,
+    "etl": $color-4,
+    "sink": $color-3-1,
+) !default;
+
+$tokens: (
+    "string": $color-3-1,
+    "number": $color-1-3,
+    "boolean": $color-3-3,
+    "operator": $color-2,
+    "keyword": $color-5,
+    "deleted": $color-1,
+    "important": $color-2-2,
+) !default;
+
+$flags: (
+    "attachments": $color-3-1,
+    "revisions": $color-1-3,
+    "counters": $color-3-3,
+    "time-series": $color-2-3,
+    "archived": $color-1-1,
+    "deleted-revision": $color-1,
+) !default;
+
+$ai-gradient: linear-gradient(135.89deg, #388ee9 0%, #7b51ff 85.4%);
+
+@keyframes ai-gradient-flow {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}

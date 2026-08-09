@@ -1,0 +1,586 @@
+﻿@chart-data-color: @color-5-2;
+@chart-documents-color: @color-5-1;
+@chart-reserved-color: @color-5;
+@chart-journal-color: @color-4-3;
+@chart-journals-color: @color-4-2;
+@chart-structure-color: @color-4-1;
+@chart-stream-color: @color-4;
+@chart-index-color: @color-3-3;
+@chart-indexes-color: @color-3-2;
+@chart-tables-color: @color-3-1;
+@chart-table_data-color: @color-3;
+@chart-table-color: @color-2;
+@chart-temp-files-color: @color-1-3;
+@chart-subscriptions-color: @color-1-2;
+@chart-trees-color: @color-1-1;
+@chart-tree-color: @color-1;
+@chart-configuration-color: @color-5-3;
+@chart-free-color: @gray-darker;
+
+
+#storage-report {
+
+    .base-path {
+        line-height: 18px;
+        margin-bottom: @grid-gutter-width/4;
+        color: @gray;
+        text-align: right;
+    }
+
+    .chart-tooltip {
+        box-shadow: 0 3px 10px -3px rgba(0, 0, 0, 0.45);
+        position: absolute;
+        text-align: center;
+        border: 0px;
+        padding: 8px 16px;
+        border-radius: 2px;
+        pointer-events: none;
+        opacity: 1;
+        z-index: @zindex-tooltip;
+        background-color: @tooltip-bg;
+
+        &.tooltip-inner {
+            max-width: 400px;
+        }
+
+        span {
+            display: block;
+        }
+
+        .name {
+            word-wrap: break-word;
+            line-height: 18px;
+        }
+    }
+
+
+    #storage-report-container {
+        position: relative;
+        transition: background .2s ease;
+
+        &.processing {
+            pointer-events: none;
+            .global-spinner;
+            background: fadeout(@gray-darker,50%);
+
+            &:before {
+                .vcenter;
+                margin-right: -22px;
+                margin-top: -22px;
+            }
+
+            .chart {
+                opacity: .1;
+            }
+        }
+    }
+
+
+    .chart {
+        transition: opacity .2s ease;
+        width: 100%;
+        height: 40vh;
+        font-size: 12px;
+    }
+
+    rect.parent {
+        cursor: pointer;
+        fill: steelblue;
+    }
+
+    .free text {
+        fill: white;
+    }
+
+    .cell {
+        &.documents {
+            fill: @chart-documents-color;
+            &.grouped {
+                fill: darken(@chart-documents-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-documents-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-documents-color, 10%);
+                }
+            }
+        }
+
+        &.index {
+            fill: @chart-index-color;
+            &.grouped {
+                fill: darken(@chart-index-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-index-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-index-color, 10%);
+                }
+            }
+        }
+
+        &.subscriptions {
+            fill: @chart-subscriptions-color;
+            &.grouped {
+                fill: darken(@chart-subscriptions-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-subscriptions-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-subscriptions-color, 10%);
+                }
+            }
+        }
+
+        &.configuration {
+            fill: @chart-configuration-color;
+            &.grouped {
+                fill: darken(@chart-configuration-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-configuration-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-configuration-color, 10%);
+                }
+            }
+        }
+
+        &.free {
+            fill: @chart-free-color;
+            &.grouped {
+                fill: darken(@chart-free-color, 7%);
+            }
+            
+            &:hover {
+                fill: lighten(@chart-free-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-free-color, 10%);
+                }
+            }
+        }
+
+        &.reserved {
+            fill: @chart-reserved-color;
+            &.grouped {
+                fill: darken(@chart-reserved-color,7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-reserved-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-reserved-color, 10%);
+                }
+            }
+        }
+
+        &.stream {
+            fill: @chart-stream-color;
+            &.grouped {
+                fill: darken(@chart-stream-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-stream-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-stream-color, 10%);
+                }
+            }
+        }
+
+        &.data {
+            fill: @chart-data-color;
+            &.grouped {
+                fill: darken(@chart-data-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-data-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-data-color, 10%);
+                }
+            }
+        }
+
+        &.tables {
+            fill: @chart-tables-color;
+            &.grouped {
+                fill: darken(@chart-tables-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-tables-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-tables-color, 10%);
+                }
+            }
+        }
+
+        &.table_data {
+            fill: @chart-table_data-color;
+            &.grouped {
+                fill: darken(@chart-table_data-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-table_data-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-table_data-color, 10%);
+                }
+            }
+        }
+
+        &.table {
+            fill: @chart-table-color;
+            &.grouped {
+                fill: darken(@chart-table-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-table-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-table-color, 10%);
+                }
+            }
+        }
+
+        &.tree {
+            fill: @chart-tree-color;
+            &.grouped {
+                fill: darken(@chart-tree-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-tree-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-tree-color, 10%);
+                }
+            }
+        }
+
+        &.trees {
+            fill: @chart-trees-color;
+            &.grouped {
+                fill: darken(@chart-trees-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-trees-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-trees-color, 10%);
+                }
+            }
+        }
+
+        &.journal {
+            fill: @chart-journal-color;
+            &.grouped {
+                fill: darken(@chart-journal-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-journal-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-journal-color, 10%);
+                }
+            }
+        }
+
+        &.journals {
+            fill: @chart-journals-color;
+            &.grouped {
+                fill: darken(@chart-journals-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-journals-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-journals-color, 10%);
+                }
+            }
+        }
+
+        &.temp {
+            fill: @chart-temp-files-color;
+            &.grouped {
+                fill: darken(@chart-temp-files-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-temp-files-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-temp-files-color, 10%);
+                }
+            }
+        }
+
+        &.tempFiles {
+            fill: @chart-temp-files-color;
+            &.grouped {
+                fill: darken(@chart-temp-files-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-temp-files-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-temp-files-color, 10%);
+                }
+            }
+        }
+
+        &.indexes {
+            fill: @chart-indexes-color;
+            &.grouped {
+                fill: darken(@chart-indexes-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-indexes-color, 5%);
+                &.grouped {
+                    fill: darken(@chart-indexes-color, 10%);
+                }
+            }
+        }
+
+        &.structure {
+            fill: @chart-structure-color;
+            &.grouped {
+                fill: darken(@chart-structure-color, 7%);
+            }
+
+            &:hover {
+                fill: lighten(@chart-structure-color, 5);
+                &.grouped {
+                    fill: darken(@chart-structure-color, 10%);
+                }
+            }
+        }
+
+        rect {
+            fill-opacity: 1;
+            stroke: transparent;
+            stroke-linejoin: miter;
+        }
+
+        text {
+            font-weight: bold;
+            fill: @gray-lighter;
+            pointer-events: none;
+            font-size: 12px;
+        }
+
+        &:hover {
+            rect {
+            }
+
+            text {
+                fill: @gray-lighter;
+            }
+        }
+    }
+
+    .current-path {
+        margin-top: @grid-gutter-width/4;
+
+        a {
+            padding: 2px 10px;
+            background-color: @brand-primary;
+            color: @gray-lighter;
+            display: inline-block;
+            font-size: 12px;
+            margin-bottom: 0;
+            width: auto;
+            text-shadow: 0 0 1px rgba(0,0,0,.3), 0 0 5px rgba(0,0,0,.5);
+
+            small {
+                display: block;
+                margin-bottom: -6px;
+                color: @gray-lighter;
+                opacity: .8;
+                font-weight: bold;
+                text-transform: uppercase;
+                font-size: 11px;
+            }
+
+            span {
+                display: block;
+            }
+
+            &.documents {
+                background-color: @chart-documents-color;
+
+                &:hover {
+                    background-color: lighten(@chart-documents-color,5%);
+                }
+            }
+
+            &.index {
+                background-color: @chart-index-color;
+
+                &:hover {
+                    background-color: lighten(@chart-index-color,5%);
+                }
+            }
+
+            &.subscriptions {
+                background-color: @chart-subscriptions-color;
+
+                &:hover {
+                    background-color: lighten(@chart-subscriptions-color,5%);
+                }
+            }
+
+            &.configuration {
+                background-color: @chart-configuration-color;
+
+                &:hover {
+                    background-color: lighten(@chart-configuration-color,5%);
+                }
+            }
+
+            &.free {
+                background-color: @chart-free-color;
+
+                &:hover {
+                    background-color: lighten(@chart-free-color,5%);
+                }
+            }
+
+            &.reserved {
+                background-color: @chart-reserved-color;
+
+                &:hover {
+                    background-color: lighten(@chart-reserved-color,5%);
+                }
+            }
+
+            &.stream {
+                background-color: @chart-stream-color;
+
+                &:hover {
+                    background-color: lighten(@chart-stream-color,5%);
+                }
+            }
+
+            &.data {
+                background-color: @chart-data-color;
+
+                &:hover {
+                    background-color: lighten(@chart-data-color,5%);
+                }
+            }
+
+            &.tables {
+                background-color: @chart-tables-color;
+
+                &:hover {
+                    background-color: lighten(@chart-tables-color,5%);
+                }
+            }
+
+            &.table_data {
+                background-color: @chart-table_data-color;
+
+                &:hover {
+                    background-color: lighten(@chart-table_data-color,5%);
+                }
+            }
+
+            &.table {
+                background-color: @chart-table-color;
+
+                &:hover {
+                    background-color: lighten(@chart-table-color,5%);
+                }
+            }
+
+            &.tree {
+                background-color: @chart-tree-color;
+
+                &:hover {
+                    background-color: lighten(@chart-tree-color,5%);
+                }
+            }
+
+            &.trees {
+                background-color: @chart-trees-color;
+
+                &:hover {
+                    background-color: lighten(@chart-trees-color,5%);
+                }
+            }
+
+            &.journal {
+                background-color: @chart-journal-color;
+
+                &:hover {
+                    background-color: lighten(@chart-journal-color,5%);
+                }
+            }
+
+            &.journals {
+                background-color: @chart-journals-color;
+
+                &:hover {
+                    background-color: lighten(@chart-journals-color,5%);
+                }
+            }
+
+            &.tempFiles {
+                background-color: @chart-temp-files-color;
+
+                &:hover {
+                    background-color: lighten(@chart-temp-files-color,5%);
+                }
+            }
+
+            &.indexes {
+                background-color: @chart-indexes-color;
+
+                &:hover {
+                    background-color: lighten(@chart-indexes-color,5%);
+                }
+            }
+
+            &.structure {
+                background-color: @chart-structure-color;
+
+                &:hover {
+                    background-color: lighten(@chart-structure-color,5%);
+                }
+            }
+        }
+
+        i {
+            font-size: 22px;
+            color: @text-muted;
+            width: 20px;
+            display: inline-block;
+            position: relative;
+            top: -1px;
+            margin-left: -4px;
+        }
+    }
+
+    .table {
+
+        .column-min-width {
+            min-width: 200px;
+        }
+
+        .table-items {
+            position: absolute;
+            display: flex;
+            width: 100%;
+            padding-right: 20px;
+        }
+    }
+
+    .table-item-name {
+        display: block;
+        white-space: nowrap;
+    }
+}

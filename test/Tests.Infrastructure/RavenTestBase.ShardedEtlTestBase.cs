@@ -1,0 +1,116 @@
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Raven.Client.Documents;
+using Raven.Client.Util;
+using Raven.Server.Documents.ETL;
+using Sparrow.Server;
+
+namespace FastTests;
+
+public partial class RavenTestBase
+{
+    public class ShardedEtlTestBase
+    {
+        internal readonly RavenTestBase _parent;
+
+        public ShardedEtlTestBase(RavenTestBase parent)
+        {
+            _parent = parent ?? throw new ArgumentNullException(nameof(parent));
+        }
+
+
+        public Task<AsyncManualResetEvent> WaitForEtlAsync(IDocumentStore store, Func<string, EtlProcessStatistics, bool> predicate, int count) => WaitForEtlAsync(store.Database, predicate, count);
+
+        public async Task<AsyncManualResetEvent> WaitForEtlAsync(string database, Func<string, EtlProcessStatistics, bool> predicate, int count)
+        {
+            if (count < 1)
+                throw new ArgumentOutOfRangeException(nameof(count));
+
+            var amre = new AsyncManualResetEvent();
+            var confirmations = new ConcurrentDictionary<int, byte>();
+            var size = 0;
+            var numberOfShards = 0;
+
+            await foreach (var shard in _parent.Sharding.GetShardsDocumentDatabaseInstancesFor(database))
+            {
+                numberOfShards++;
+                shard.EtlLoader.BatchCompleted += x =>
+                {
+                    if (predicate?.Invoke($"{x.ConfigurationName}/{x.TransformationName}", x.Statistics) != false)
+                    {
+                        confirmations.TryAdd(shard.ShardNumber, 0);
+                        if (Interlocked.Increment(ref size) == count)
+                        {
+                            confirmations.Clear();
+                            size = 0;
+                            amre.Set();
+                        }
+                    }
+                };
+            }
+
+            if (numberOfShards < count)
+            {
+                amre.Set();
+                throw new ArgumentOutOfRangeException(nameof(count));
+            }
+
+            return amre;
+        }
+
+        public IEnumerable<ManualResetEventSlim> WaitForEtlOnAllShards(IDocumentStore store, Func<string, EtlProcessStatistics, bool> predicate)
+        {
+            var dbs = _parent.Server.ServerStore.DatabasesLandlord.TryGetOrCreateShardedResourcesStore(store.Database).ToList();
+            var list = new List<ManualResetEventSlim>(dbs.Count);
+            foreach (var task in dbs)
+            {
+                var mre = new ManualResetEventSlim();
+                list.Add(mre);
+
+                var db = task.Result;
+                db.EtlLoader.BatchCompleted += x =>
+                {
+                    if (predicate($"{x.ConfigurationName}/{x.TransformationName}", x.Statistics))
+                        mre.Set();
+                };
+            }
+
+            return list;
+        }
+
+        public IEnumerable<ManualResetEventSlim> WaitForEtlOnAllShardsInCluster(string database, Func<string, EtlProcessStatistics, bool> predicate)
+        {
+            var mresPerShard = new Dictionary<string, ManualResetEventSlim>();
+            foreach (var server in _parent.Servers)
+            {
+                var dbs = server.ServerStore.DatabasesLandlord.TryGetOrCreateShardedResourcesStore(database);
+                foreach (var task in dbs)
+                {
+                    var db = task.Result;
+
+                    if (mresPerShard.TryGetValue(db.Name, out var mre) == false)
+                    {
+                        mresPerShard[db.Name] = mre = new ManualResetEventSlim();
+                    }
+
+                    db.EtlLoader.BatchCompleted += x =>
+                    {
+                        if (predicate($"{x.ConfigurationName}/{x.TransformationName}", x.Statistics))
+                            mre.Set();
+                    };
+                }
+            }
+
+            return mresPerShard.Values;
+        }
+
+        public AsyncManualResetEvent WaitForEtl(IDocumentStore store, Func<string, EtlProcessStatistics, bool> predicate)
+        {
+            return AsyncHelpers.RunSync(() => WaitForEtlAsync(store, predicate, count: 1));
+        }
+    }
+}

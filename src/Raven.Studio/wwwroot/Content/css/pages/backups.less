@@ -1,0 +1,31 @@
+﻿.backups {
+    .manual-backup, .periodic-backups {
+        overflow: auto;
+        min-height: 100px;
+    }
+    
+    .periodic-backups {
+        flex-grow: 1;
+    }
+
+    .backup-now {
+        pointer-events: all;
+    }
+
+    .node {
+        i + span {
+            white-space: nowrap;
+            margin-left: 0;
+            font-weight: bold;
+            font-size: 18px;
+            position: relative;
+            top: 1px;
+        }
+    }
+
+    @media (min-width: @screen-lg) {
+        & > div {
+            max-height: 100%;
+        }
+    }
+}

@@ -1,0 +1,438 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Net.Http;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using FastTests;
+using Newtonsoft.Json;
+using Raven.Client.Documents.AI;
+using Raven.Client.Documents.Conventions;
+using Raven.Client.Documents.Operations.AI;
+using Raven.Client.Documents.Operations.AI.Agents;
+using Raven.Client.Documents.Operations.ConnectionStrings;
+using Raven.Client.Extensions;
+using Raven.Client.Http;
+using Raven.Client.Json;
+using Sparrow.Json;
+using Sparrow.Json.Parsing;
+using Sparrow.Server.Json.Sync;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Server.Documents.AI.AiAgent
+{
+    public class AiAgentBasics : RavenTestBase
+    {
+
+        public class OutputSchema
+        {
+            public static OutputSchema Instance = new();
+
+            public string Answer = "Answer to the user question";
+
+            public bool Relevant = true;
+
+            public List<string> RelevantOrdersId = ["The order ids relevant to the query or response"];
+
+            public List<string> MatchingProductsId = ["All the product ids referenced either by the user or the system"];
+        }
+
+        public AiAgentBasics(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        [RavenTheory(RavenTestCategory.Ai)]
+        [RavenGenAiData(IntegrationType = RavenAiIntegration.OpenAi, DatabaseMode = RavenDatabaseMode.Single)]
+        public async Task CanCreateAiAgent(Options options, GenAiConfiguration config)
+        {
+            using var store = GetDocumentStore(options);
+
+            await store.Maintenance.SendAsync(new PutConnectionStringOperation<AiConnectionString>(config.Connection));
+
+            using var session = store.OpenAsyncSession();
+
+            var agent = new AiAgentConfiguration("shopping-assistant", config.ConnectionStringName,
+                "You are an AI agent of an online shop, helping customers answer queries about that topic only. When talking about orders or products, include the ids as well.");
+            agent.Identifier = "shopping-assistant";
+            agent.Parameters.Add(new AiAgentParameter("company", "The company ID"));
+            agent.Queries =
+            [
+                new AiAgentToolQuery
+                {
+                    Name = "ProductSearch",
+                    Description = "semantic search the store product catalog",
+                    Query = "from Products where vector.search(embedding.text(Name), $query)",
+                    ParametersSampleObject = "{\"query\": [\"term or phrase to search in the catalog\"]}"
+                },
+                new AiAgentToolQuery
+                {
+                    Name = "RecentOrder",
+                    Description = "Get the recent orders of the current user",
+                    Query = "from Orders where Company = $company order by OrderedAt desc limit 10",
+                    ParametersSampleObject = "{}"
+                }
+            ];
+
+            var createResult = await store.AI.CreateAgentAsync(agent, OutputSchema.Instance);
+            var chat = store.AI.Conversation(
+                createResult.Identifier,
+                "chats/",
+                new AiConversationCreationOptions().AddParameter("company", "companies/90-A"));
+
+            chat.SetUserPrompt("what goes well with my cheese?");
+            var r = await chat.RunAsync<OutputSchema>(CancellationToken.None);
+
+            Assert.Equal(AiConversationResult.Done, r.Status);
+            Assert.NotNull(r.Answer);
+            Assert.NotNull(chat.Id);
+
+            var chat1 = await session.LoadAsync<dynamic>(chat.Id);
+            Assert.NotNull(chat1);
+        }
+
+        [RavenTheory(RavenTestCategory.Ai)]
+        [RavenGenAiData(IntegrationType = RavenAiIntegration.OpenAi, DatabaseMode = RavenDatabaseMode.Single)]
+        public async Task CanGetAiAgent(Options options, GenAiConfiguration config)
+        {
+            using var store = GetDocumentStore(options);
+
+            await store.Maintenance.SendAsync(new PutConnectionStringOperation<AiConnectionString>(config.Connection));
+
+            using var session = store.OpenAsyncSession();
+
+            var agent = new AiAgentConfiguration("shopping-assistant", config.ConnectionStringName,
+                "You are an AI agent of an online shop, helping customers answer queries about that topic only. When talking about orders or products, include the ids as well.");
+            agent.Identifier = "shopping-assistant";
+            agent.Parameters.Add(new AiAgentParameter("company"));
+            agent.Queries =
+            [
+                new AiAgentToolQuery
+                {
+                    Name = "ProductSearch",
+                    Description = "semantic search the store product catalog",
+                    Query = "from Products where vector.search(embedding.text(Name), $query)",
+                    ParametersSampleObject = "{\"query\": [\"term or phrase to search in the catalog\"]}"
+                },
+                new AiAgentToolQuery
+                {
+                    Name = "RecentOrder",
+                    Description = "Get the recent orders of the current user",
+                    Query = "from Orders where Company = $company order by OrderedAt desc limit 10",
+                    ParametersSampleObject = "{}"
+                }
+            ];
+            agent.ChatTrimming = null;
+            await store.AI.CreateAgentAsync(agent, OutputSchema.Instance);
+            var r = await store.AI.GetAgentsAsync();
+            using (var context = JsonOperationContext.ShortTermSingleUse())
+            {
+                var converter = DocumentConventions.Default.Serialization.DefaultConverter;
+                var original = converter.ToBlittable(r.AiAgents[0], context);
+                var fromGet = converter.ToBlittable(agent, context);
+                Assert.Equal(original, fromGet);
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Ai)]
+        [RavenGenAiData(IntegrationType = RavenAiIntegration.OpenAi, DatabaseMode = RavenDatabaseMode.Single)]
+        public async Task CanResumeConversation(Options options, GenAiConfiguration config)
+        {
+            using var store = GetDocumentStore(options);
+            await store.Maintenance.SendAsync(new CreateSampleDataOperation());
+
+            await store.Maintenance.SendAsync(new PutConnectionStringOperation<AiConnectionString>(config.Connection));
+
+            using var session = store.OpenAsyncSession();
+
+            var agent = new AiAgentConfiguration("shopping-assistant", config.ConnectionStringName,
+                "You are an AI agent of an online shop, helping customers answer queries about that topic only. When talking about orders or products, include the ids as well.");
+            agent.Identifier = "shopping-assistant";
+            agent.Parameters.Add(new AiAgentParameter("company"));
+            agent.Queries =
+            [
+                new AiAgentToolQuery
+                {
+                    Name = "ProductSearch",
+                    Description = "semantic search the store product catalog",
+                    Query = "from Products where vector.search(embedding.text(Name), $query) limit 3",
+                    ParametersSampleObject = "{\"query\": [\"term or phrase to search in the catalog\"]}"
+                },
+                new AiAgentToolQuery
+                {
+                    Name = "RecentOrder",
+                    Description = "Get the recent orders of the current user",
+                    Query = "from Orders where Company = $company order by OrderedAt desc limit 5",
+                    ParametersSampleObject = "{}"
+                }
+            ];
+
+            var createResult = await store.AI.CreateAgentAsync(agent, OutputSchema.Instance);
+            var chat = store.AI.Conversation(
+                createResult.Identifier,
+                "chats/",
+                new AiConversationCreationOptions().AddParameter("company", "companies/90-A"));
+
+            chat.SetUserPrompt("what goes well with my cheese for recent orders?");
+            var r = await chat.RunAsync<OutputSchema>(CancellationToken.None);
+            Assert.NotNull(r.Answer);
+            Assert.NotNull(chat.Id);
+
+            chat.SetUserPrompt("can you give me a cheaper alternative?");
+            r = await chat.RunAsync<OutputSchema>(CancellationToken.None);
+            Assert.NotNull(r.Answer);
+            Assert.NotNull(chat.Id);
+        }
+
+        [RavenTheory(RavenTestCategory.Ai)]
+        [RavenGenAiData(IntegrationType = RavenAiIntegration.OpenAi, DatabaseMode = RavenDatabaseMode.Single)]
+        public async Task CanRunTest(Options options, GenAiConfiguration config)
+        {
+            using var store = GetDocumentStore(options);
+
+            await store.Maintenance.SendAsync(new PutConnectionStringOperation<AiConnectionString>(config.Connection));
+
+            var agent = new AiAgentConfiguration("shopping-assistant", config.ConnectionStringName,
+                "You are an AI agent of an online shop, helping customers answer queries about that topic only. When talking about orders or products, include the ids as well.");
+            agent.Identifier = "shopping-assistant";
+            agent.SampleObject = JsonConvert.SerializeObject(OutputSchema.Instance);
+            agent.Actions =
+            [
+                new AiAgentToolAction
+                {
+                    Name = "ProductSearch",
+                    Description = "semantic search the store product catalog",
+                    ParametersSampleObject = "{\"query\": [\"term or phrase to search in the catalog\"]}"
+                },
+                new AiAgentToolAction { Name = "RecentOrder", Description = "Get the recent orders of the current user", ParametersSampleObject = "{}" }
+            ];
+
+            var r = await store.Maintenance.SendAsync(new RunTestConversationOperation<OutputSchema>(
+                agent,
+                document: null,
+                "what goes well with my cheese for recent orders?",
+                new AiConversationCreationOptions(new Dictionary<string, object>{ ["company"] = "companies/90-A" }) ,
+                actionResponses: null)) as TestResult<OutputSchema>;
+
+            var responses = new List<AiAgentActionResponse>();
+            foreach (var request in r.ActionRequests)
+            {
+                responses.Add(new AiAgentActionResponse
+                {
+                    ToolId = request.ToolId,
+                    Content = "{}" // Simulating an empty response for the action tool
+                });
+            }
+            r = await store.Maintenance.SendAsync(new RunTestConversationOperation<OutputSchema>(
+                agent,
+                document: r.Document,
+                userPrompt: null, // "what goes well with my cheese for recent orders?",
+                options: null,
+                actionResponses: responses)) as TestResult<OutputSchema>;
+        }
+
+        [RavenTheory(RavenTestCategory.Ai)]
+        [RavenGenAiData(IntegrationType = RavenAiIntegration.OpenAi, DatabaseMode = RavenDatabaseMode.Single)]
+        public async Task CanStreamTest(Options options, GenAiConfiguration config)
+        {
+            using var store = GetDocumentStore(options);
+
+            await store.Maintenance.SendAsync(new PutConnectionStringOperation<AiConnectionString>(config.Connection));
+
+            var agent = new AiAgentConfiguration("shopping-assistant", config.ConnectionStringName,
+                "You are an AI agent of an online shop, helping customers answer queries about that topic only. When talking about orders or products, include the ids as well.");
+            agent.Identifier = "shopping-assistant";
+            agent.SampleObject = JsonConvert.SerializeObject(OutputSchema.Instance);
+            agent.Actions =
+            [
+                new AiAgentToolAction
+                {
+                    Name = "ProductSearch",
+                    Description = "semantic search the store product catalog",
+                    ParametersSampleObject = "{\"query\": [\"term or phrase to search in the catalog\"]}"
+                },
+                new AiAgentToolAction { Name = "RecentOrder", Description = "Get the recent orders of the current user", ParametersSampleObject = "{}" }
+            ];
+
+            var sb = new StringBuilder();
+            var r = await store.Maintenance.SendAsync(new RunTestConversationOperation<OutputSchema>(
+                agent,
+                document: null,
+                userPrompt: "what goes well with my cheese for recent orders?",
+                options: new AiConversationCreationOptions(new Dictionary<string, object> { ["company"] = "companies/90-A" }),
+                actionResponses : null,
+                streamPropertyPath: s => s.Answer,
+                streamedChunksCallback: c =>
+                {
+                    sb.Append(c);
+                    return Task.CompletedTask;
+                })) as TestResult<OutputSchema>;
+
+            Assert.NotNull(r);
+            Assert.Equal(r.ActionRequests.Count, 1);
+            Assert.Empty(sb.ToString());
+
+            var responses = new List<AiAgentActionResponse>();
+            foreach (var request in r.ActionRequests)
+            {
+                responses.Add(new AiAgentActionResponse
+                {
+                    ToolId = request.ToolId,
+                    Content = "{}" // Simulating an empty response for the action tool
+                });
+            }
+
+            r = await store.Maintenance.SendAsync(new RunTestConversationOperation<OutputSchema>(
+                agent,
+                document: r.Document,
+                userPrompt: null, // "what goes well with my cheese for recent orders?",
+                options: null,
+                actionResponses: responses,
+                s => s.Answer,
+                c =>
+                {
+                    sb.Append(c);
+                    return Task.CompletedTask;
+                })) as TestResult<OutputSchema>;
+
+            Assert.NotNull(r);
+            Assert.Equal(r.Response.Answer , sb.ToString());
+        }
+
+        private class RunTestConversationOperation<TSchema> : RunConversationOperation<TSchema>
+        {
+            private readonly AiAgentConfiguration _agent;
+            private readonly string _document;
+            private readonly string _userPrompt;
+            private readonly AiConversationCreationOptions _options;
+            private readonly List<AiAgentActionResponse> _actionResponses;
+#pragma warning disable CS0618 // Type or member is obsolete
+            public RunTestConversationOperation(AiAgentConfiguration agent, string document, string userPrompt, AiConversationCreationOptions options, List<AiAgentActionResponse> actionResponses) : 
+                base(agent.Identifier, conversationId: "test/" + Guid.NewGuid(), userPrompt, actionResponses, options, changeVector: null, streamPropertyPath: null, streamedChunksCallback: null)
+#pragma warning restore CS0618 // Type or member is obsolete
+            {
+                _agent = agent;
+                _document = document;
+                _userPrompt = userPrompt;
+                _options = options;
+                _actionResponses = actionResponses;
+            }
+
+            public RunTestConversationOperation(AiAgentConfiguration agent, string document, string userPrompt, AiConversationCreationOptions options, List<AiAgentActionResponse> actionResponses, Expression<Func<TSchema, string>> streamPropertyPath,
+#pragma warning disable CS0618 // Type or member is obsolete
+                Func<string, Task> streamedChunksCallback) : 
+                base(agent.Identifier, conversationId: "test/" + Guid.NewGuid(), userPrompt, actionResponses: actionResponses, options, changeVector: null, streamPropertyPath.ToPropertyPath(DocumentConventions.Default), streamedChunksCallback)
+#pragma warning restore CS0618 // Type or member is obsolete
+            {
+                _agent = agent;
+                _document = document;
+                _userPrompt = userPrompt;
+                _options = options;
+                _actionResponses = actionResponses;
+            }
+
+            public override RavenCommand<ConversationResult<TSchema>> GetCommand(DocumentConventions conventions, JsonOperationContext context)
+            {
+                return new RunTestConversationOperationCommand(this, _agent, _document, _userPrompt, _options, _actionResponses, conventions);
+            }
+
+            private sealed class RunTestConversationOperationCommand : RunConversationOperationCommand
+            {
+                private readonly AiAgentConfiguration _agent;
+                private readonly string _document;
+                private readonly string _prompt;
+                private readonly AiConversationCreationOptions _options;
+                private readonly List<AiAgentActionResponse> _toolResponses;
+                private readonly DocumentConventions _conventions;
+
+                public RunTestConversationOperationCommand(RunTestConversationOperation<TSchema> parent, AiAgentConfiguration agent, string document, string prompt, AiConversationCreationOptions options,
+                    List<AiAgentActionResponse> toolResponses, DocumentConventions conventions) : base(parent, conventions)
+                {
+                    _agent = agent;
+                    _document = document;
+                    _prompt = prompt;
+                    _options = options;
+                    _toolResponses = toolResponses;
+                    _conventions = conventions;
+                }
+
+                public override HttpRequestMessage CreateRequest(JsonOperationContext ctx, ServerNode node, out string url)
+                {
+                    using var _ = base.CreateRequest(ctx, node, out url);
+                    url = url.Replace("/ai/agent","/ai/agent/test");
+                   
+                    var body = new TestRequestBody
+                    {
+                        Configuration = _agent,
+                        CreationOptions = _options, 
+                        ActionResponses = _toolResponses ?? [], 
+                        UserPrompt = _prompt,
+                    };
+
+                    return new HttpRequestMessage
+                    {
+                        Method = HttpMethod.Post,
+                        Content = new BlittableJsonContent(async stream =>
+                        {
+                            if (_document != null)
+                                body.Document = ctx.Sync.ReadForMemory(_document, "test");
+
+                            await ctx.WriteAsync(stream, ctx.ReadObject(body.ToJson(), "conversation-params")).ConfigureAwait(false);
+                        }, _conventions)
+                    };
+                }
+
+                public override void SetResponse(JsonOperationContext context, BlittableJsonReaderObject response, bool fromCache)
+                {
+                    if (response == null)
+                        ThrowInvalidResponse();
+
+                    response.TryGet(nameof(TestResult<TSchema>.Document), out BlittableJsonReaderObject document);
+                    
+                    var r = TestResult<TSchema>.Convert(response, _conventions);
+                    Result = new TestResult<TSchema>
+                    {
+                        TotalUsage = r.TotalUsage,
+                        Response = r.Response,
+                        ChangeVector = r.ChangeVector,
+                        ActionRequests = r.ActionRequests,
+                        ConversationId = r.ConversationId,
+                        Document = document.ToString()
+                    };
+                }
+            }
+            public class TestRequestBody : IDynamicJson
+            {
+                public string UserPrompt { get; set; }
+                public AiConversationCreationOptions CreationOptions { get; set; }
+                public AiAgentConfiguration Configuration { get; set; }
+                public List<AiAgentActionResponse> ActionResponses { get; set; }
+
+                public BlittableJsonReaderObject Document;
+                public DynamicJsonValue ToJson()
+                {
+                    var json = new DynamicJsonValue
+                    {
+                        [nameof(UserPrompt)] = UserPrompt,
+                        [nameof(CreationOptions)] = (CreationOptions ?? new AiConversationCreationOptions()).ToJson(),
+                        [nameof(Configuration)] = Configuration.ToJson(),
+                        [nameof(ActionResponses)] = new DynamicJsonArray(ActionResponses.Select(x => x.ToJson()))
+                    };
+
+                    if (Document != null)
+                        json[nameof(Document)] = Document;
+
+                    return json;
+                }
+            }
+        }
+
+        public class TestResult<TSchema> : ConversationResult<TSchema>
+        {
+            public string Document;
+        }
+    }
+}

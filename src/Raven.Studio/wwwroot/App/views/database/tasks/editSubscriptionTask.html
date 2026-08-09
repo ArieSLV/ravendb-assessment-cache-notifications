@@ -1,0 +1,258 @@
+    <div class="edit-subscription flex-vertical absolute-fill content-margin edit-subscription-task edit-ongoing-task">
+        <div class="align-items-center justify-content-between d-flex gap-2 margin-bottom-md padding-top-xs">
+            <div class="flex-horizontal gap-2">
+                <i class="icon-subscription"></i>
+                <h2 data-bind="text: $root.isAddingNewSubscriptionTask() ? `New Subscription` : `Edit Subscription`" class="mb-0"></h2>
+            </div>
+            <div class="flex-end margin-right-xs" data-bind="react: $root.infoHubView"></div>
+        </div>
+        <div class="row flex-row flex-grow flex-stretch-items">
+            <div class="col-sm-12 col-lg-6 flex-vertical">
+                <form data-bind="submit: saveSubscription">
+                    <div class="flex-header">
+                        <button type="submit" class="btn btn-primary" data-bind="enable: dirtyFlag().isDirty">
+                            <i class="icon-save"></i>
+                            <span>Save</span>
+                        </button>
+                        <button
+                            class="btn btn-default"
+                            data-bind="
+                                click: cloneSubscription,
+                                visible: !isAddingNewSubscriptionTask(),
+                                disable: $root.databaseLimitStatus() === 'limitReached' || $root.clusterLimitStatus() === 'limitReached',
+                                attr: { title: $root.cloneButtonTitle }"
+                        >
+                            <i class="icon-clone"></i>
+                            <span>Clone</span>
+                        </button>
+                        <button class="btn btn-default" data-bind="click: cancelOperation" title="Return to Ongoing Tasks View">
+                            <i class="icon-cancel"></i>
+                            <span>Cancel</span>
+                        </button>
+                        <button class="btn btn-info pull-right" data-bind="click: toggleTestArea, visible: !enableTestArea()" title="Test this subscription definition">
+                            <i class="icon-rocket"></i>
+                            <span>Test Subscription</span>
+                        </button>
+                        <button class="btn btn-info pull-right" data-bind="click: toggleTestArea, visible: enableTestArea" title="Close the test area">
+                            <i class="icon-rocket"></i>
+                            <span>Close Test Area</span>
+                        </button>
+                    </div>
+                    <div class="flex-grow" data-bind="with: editedSubscription">
+                        <div class="panel padding flex-form">
+                            <div data-bind="if: liveConnection() && !$root.isAddingNewSubscriptionTask()">
+                                <div class="bg-warning inline-block padding padding-xs small" title="Note: Client connection will be disconnected upon Save !">
+                                    <i class="icon-warning"></i>&nbsp;&nbsp;Warning: You are editing a live subscription connection . . .
+                                </div>
+                            </div>
+                            <div class="form-group margin-top" data-bind="validationElement: taskName">
+                                <label class="control-label">Task Name</label>
+                                <input type="text" class="form-control" id="taskName" placeholder="Enter a descriptive name for the subscription task (optional)"
+                                       data-bind="textInput: taskName, enable: $root.isAddingNewSubscriptionTask, 
+                                                  attr: { 'title': $root.isAddingNewSubscriptionTask() ? 'Note: if no name is supplied then server will create one for you' : '' }" autocomplete="off" >
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label">Task State</label>
+                                <div class="flex-grow">
+                                    <button type="button" class="btn btn-block dropdown-toggle text-left" data-toggle="dropdown" aria-expanded="false">
+                                        <span data-bind="text: stateText()"></span>
+                                        <span class="caret"></span>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a href="#" data-bind="click: _.partial($root.setState, 'Enabled')"><span>Enabled</span></a></li>
+                                        <li><a href="#" data-bind="click: _.partial($root.setState, 'Disabled')"><span>Disabled</span></a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="margin-top d-flex justify-content-between">
+                                <label>Subscription RQL:</label>
+                                <a href="#" data-bind="click: $root.syntaxHelp"><small>Syntax <i class="icon-help"></i></small></a>
+                            </div>
+                            <pre class="form-control query-source" placeholder="Enter transform script" 
+                                 data-bind="aceEditor: { code: query, lang:'ace/mode/rql', completer: $root.languageService.complete }, validationOptions: { errorsAsTitle: false }, validationElement: query" style="height: 160px;">
+                            </pre>
+                            <div data-bind="validationOptions: { errorsAsTitle: false }, validationElement: query">
+                                <div class="help-block" data-bind="validationMessage: query"></div>
+                            </div>
+                            <div data-bind="if: !$root.hasRevisionsInSubscriptions" >
+                                <div class="alert alert-warning alert-dismissible show margin-top-sm" role="alert">
+                                    <button type="button" class="close btn-lg" data-dismiss="alert" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                    <small>
+                                        <strong class="text-warning"><i class="icon-license"></i><span>Your current license does not support processing document revisions by this Subscription task</span></strong>.
+                                        <br/>
+                                        Unleash the full potential of <span><i class="icon-subscription"></i> Subscriptions</span>
+                                        by <a href="https://ravendb.net/l/FLDLO4" target="_blank">upgrading</a> your plan.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel padding flex-form">
+                            <div class="flex-horizontal">
+                                <div class="form-group">
+                                    <label class="control-label">Archived Data Processing Behavior</label>
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-default set-size dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+                                            <span data-bind="text: $root.formatArchivedDataProcessingBehavior(archivedDataProcessingBehavior())"></span> <span class="caret"></span>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li>
+                                                <a href="#" data-bind="click: archivedDataProcessingBehavior.bind(archivedDataProcessingBehavior, null)">
+                                                    <span data-bind="text: $root.formatArchivedDataProcessingBehavior(null)"></span>
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a href="#" data-bind="click: archivedDataProcessingBehavior.bind(archivedDataProcessingBehavior, 'ExcludeArchived')">
+                                                    <span data-bind="text: $root.formatArchivedDataProcessingBehavior('ExcludeArchived')"></span>
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a href="#" data-bind="click: archivedDataProcessingBehavior.bind(archivedDataProcessingBehavior, 'IncludeArchived')">
+                                                    <span data-bind="text: $root.formatArchivedDataProcessingBehavior('IncludeArchived')"></span>
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a href="#" data-bind="click: archivedDataProcessingBehavior.bind(archivedDataProcessingBehavior, 'ArchivedOnly')">
+                                                    <span data-bind="text: $root.formatArchivedDataProcessingBehavior('ArchivedOnly')"></span>
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div>
+                                  <span><small><i class="archive-info icon-info text-info"></i></small></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="toggle" data-placement="right" data-toggle="tooltip" title="Toggle on to set starting point from which documents will be sent" data-animation="true">
+                                    <input id="use-starting-point" type="checkbox" data-bind="checked: setStartingPoint">
+                                    <label for="use-starting-point">Use a defined starting point</label>
+                                </div>
+                            </div>
+                            <div data-bind="collapse: setStartingPoint">
+                                <div class="form-group">
+                                    <label class="control-label">Send Documents From:</label>
+                                    <div class="flex-grow">
+                                        <div title="Set the starting point for the subscription task">
+                                            <button class="btn btn-block dropdown-toggle text-left" data-toggle="dropdown">
+                                                <span data-bind="text: startingPointType"></span>
+                                                <span class="caret"></span>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li title="Documents will be sent from the very first document in the collection">
+                                                    <a href="#" data-bind="click: _.partial($root.setStartingPointType, 'Beginning of Time')">Beginning of Time</a>
+                                                </li>
+                                                <li title="Documents will be sent from the latest document in the collection">
+                                                    <a href="#" data-bind="click: _.partial($root.setStartingPointType, 'Latest Document')">Latest Document</a>
+                                                </li>
+                                                <li title="Documents will be sent from the specified change vector related document">
+                                                    <a href="#" data-bind="click: _.partial($root.setStartingPointType, 'Change Vector'), css: { disabled: !$root.canUseChangeVectorAsStartingPoint() }">
+                                                        Change Vector <span class="text-warning" data-bind="visible: !$root.canUseChangeVectorAsStartingPoint()">(not available for sharded database)</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group" data-bind="visible: startingPointChangeVector() && setStartingPoint(), validationElement: startingChangeVector">
+                                <label class="control-label">Change Vector:</label>
+                                <div class="flex-grow" data-bind="validationOptions: { insertMessages: false }">
+                                    <textarea rows="3" class="form-control" placeholder="Enter change vector to start sending documents from" 
+                                              data-bind="textInput: startingChangeVector, enable: setStartingPoint"></textarea>
+                                    <!--<button class="btn btn-default btn-block btn-upcoming"><i class="icon-preview"></i><span>&nbsp;Show related document</span></button>--> <!-- todo: we need end point for this.. -->
+                                    <span class="help-block" data-bind="validationMessage: startingChangeVector"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="toggle" data-placement="right" data-toggle="tooltip" data-bind="attr: { title: $root.db.isSharded() ? 'Not supported in sharded databases' : 'Toggle on to set a responsible node for the task'  }"
+                                     data-animation="true">
+                                    <input id="responsibleNode" type="checkbox" data-bind="checked: manualChooseMentor, disable: $root.possibleMentors().length === 0 || $root.db.isSharded()">
+                                    <label for="responsibleNode">Set responsible node</label>
+                                </div>
+                            </div>
+                            <div data-bind="compose: $root.taskResponsibleNodeSectionView"></div>
+                        </div>
+                        <div data-bind="if: changeVectorForNextBatchStartingPoint() && changeVectorForNextBatchStartingPoint() !== 'DoNotChange' && !setStartingPoint()">
+                            <div class="panel padding" title="This change vector is the starting point for next batch"> 
+                                <label for="latest-change-vector">Next batch starting point is :</label>
+                                <textarea id="latest-change-vector" rows="2" class="form-control" disabled="disabled" data-bind="textInput: changeVectorForNextBatchStartingPoint"></textarea>
+                            </div>
+                        </div>
+
+                        
+                    </div>
+                </form>
+            </div>
+            <div class="col-sm-12 col-lg-6 flex-vertical" id="subscriptionTestArea" data-bind="visible: enableTestArea">
+                <div class="panel padding flex-vertical flex-grow">
+                    <div class="flex-header"> 
+                        <div class="flex-horizontal">
+                            <div class="flex-grow"><h3>Test Subscription</h3></div>
+                            <div><button class="close" data-bind="click: toggleTestArea" title="Close the test area"><i class="icon-cancel"></i></button></div>
+                        </div>
+                        <div class="flex-horizontal margin-bottom margin-bottom-sm">
+                            <div class="flex-grow flex-vertical">
+                                <div class="input-group">
+                                    <div class="input-group-addon">Results limit</div>
+                                    <input type="number" min="1" class="form-control" placeholder="Set number of documents to fetch" title="Set number of documents to fetch" data-bind="textInput: testResultsLimit" />
+                                </div>
+                            </div>
+                            <div>
+                                <button class="btn btn-info" data-bind="click: runTest, css: { 'btn-spinner': spinners.globalToggleDisable }, disable: spinners.globalToggleDisable" title="Run test with current settings">
+                                    <i class="icon-rocket"></i><span>Run Test</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex-horizontal">
+                            <div class="flex-grow flex-vertical">
+                                <div class="input-group">
+                                    <div class="input-group-addon">Time limit</div>
+                                    <div class="input-group flex-grow">
+                                        <input type="number" min="1" class="form-control" placeholder="Set timeout for operation (Default: 15)" title="Set timeout for operation" data-bind="textInput: testTimeLimit" />
+                                        <div class="input-group-addon">
+                                            seconds
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="btn-group dropdown-right open">
+                                    <button class="btn btn-default btn-sm dropdown-toggle" type="button" data-toggle="dropdown">
+                                        <i class="icon-table"></i><span>Display</span>
+                                        <span class="caret"></span>
+                                    </button>
+                                    <div class="dropdown-menu colselect-dropdown slidein-style" role="menu" data-bind="dropdownPanel: true">
+                                        <div data-bind="compose: { model: $root.columnsSelector }"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-grow scroll">
+                        <div class="objects-list-container">
+                            <virtual-grid class="resizable" params="controller: gridController, emptyTemplate: 'empty-test-results-template'"></virtual-grid>
+                        </div>
+                    </div>
+                    <div class="flex-window-head">
+                        <button type="button" class="btn btn-sm" data-bind="css: { active: currentTab() === 'results' }, click: _.partial(goToTab, 'results')">
+                            Results &nbsp; <span class="label label-primary" data-bind="text: resultsCount().toLocaleString()"></span>
+                        </button>
+                        <!-- ko foreach: includesCache -->
+                        <button type="button" class="btn btn-sm" data-bind="click: _.partial($root.goToTab, $data), css: { active: $parent.currentTab() === $data }">
+                            <span data-bind="text: 'Includes (' + name + ')'"></span> &nbsp; <span class="label label-primary" data-bind="text: total().toLocaleString()"></span>
+                        </button>
+                        <!-- /ko -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script type="text/html" id="empty-test-results-template">
+    No results for the defined subscription.
+</script>
+
+<div class="tooltip json-preview lg js-subscription-task-tooltip" style="opacity: 0">
+</div>

@@ -1,0 +1,112 @@
+/// <reference path="../../../../typings/tsd.d.ts" />
+
+import app = require("durandal/app");
+import confirmationDialog = require("viewmodels/common/confirmationDialog");
+import generalUtils = require("common/generalUtils");
+
+class viewHelpers {
+
+    static confirmationMessage(title: string, confirmationMessage: string, options?: confirmationDialogOptions): JQueryPromise<confirmDialogResult> {
+        const viewTask = $.Deferred<confirmDialogResult>();
+        options = Object.assign({
+            defaultOption: null,
+            forceRejectWithResolve: false,
+            html: false,
+            buttons: ["No", "Yes"],
+            wideDialog: false,
+            isCancelHidden: false
+        } as confirmationDialogOptions, options);
+        
+        if (!options.html) {
+            confirmationMessage = generalUtils.escapeHtml(confirmationMessage);
+        }
+
+        app.showBootstrapDialog(new confirmationDialog(confirmationMessage, title, options.buttons, options.wideDialog, options.isCancelHidden))
+            .done((answer) => {
+                const isConfirmed = answer === _.last(options.buttons);
+                if (isConfirmed) {
+                    viewTask.resolve({ can: true });
+                } else if (!options.forceRejectWithResolve) {
+                    viewTask.reject();
+                } else {
+                    // answer is null when user 
+                    if (answer != null) {
+                        viewTask.resolve({ can: false });
+                    } else {
+                        viewTask.resolve({ can: _.last(options.buttons) === options.defaultOption });
+                    }
+                }
+            });
+
+        return viewTask;
+    }
+
+    static isValid(context: KnockoutValidationGroup, showErrors = true): boolean {
+        if (context.isValid()) {
+            return true;
+        } else {
+            if (showErrors) {
+                context.errors.showAllMessages();
+            }
+            return false;
+        }
+    }
+
+    public static asyncValidationCompleted(context: KnockoutValidationGroup, callback?: (...args: any[]) => void) {
+        const cb = (...args: any[]) => {
+            return callback ? callback(...args) : undefined
+        };
+
+        const deferred = $.Deferred<void>();
+
+        const validationGroup = (context as any)();
+        const keys = Object.keys(validationGroup);
+
+        const asyncValidations: Array<KnockoutObservable<boolean>> = [];
+
+        keys.forEach(key => {
+            if ("isValidating" in validationGroup[key]) {
+                asyncValidations.push(validationGroup[key].isValidating);
+            }
+        });
+
+        if (asyncValidations.length === 0 || asyncValidations.every(x => !x())) {
+            cb();
+            deferred.resolve();
+            return deferred.promise();
+        }
+
+        // there are any validations in progress, await them
+
+        let subscriptions: KnockoutSubscription[] = [];
+
+        const onUpdate = () => {
+            if (asyncValidations.every(x => !x())) {
+                // all validators completed its work, clean up and call callback
+                subscriptions.forEach(x => x.dispose());
+                cb();
+                deferred.resolve();
+            }
+        };
+
+        subscriptions = asyncValidations.map(v => v.subscribe(() => onUpdate()));
+
+        return deferred.promise();
+    }
+
+    static getPageHostDimenensions(): [number, number] {
+        const $pageHostRoot = $(".dynamic-container");
+
+        return [$pageHostRoot.innerWidth(), $pageHostRoot.innerHeight()];
+    }
+
+    static animate(selector: JQuery, classToApply: string) {
+        selector.addClass(classToApply);
+
+        selector.one('animationend webkitAnimationEnd oanimationend MSAnimationEnd', () => {
+            selector.removeClass(classToApply);
+        });
+    }
+}
+
+export = viewHelpers;

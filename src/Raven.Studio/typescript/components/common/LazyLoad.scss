@@ -1,0 +1,27 @@
+﻿@use "Content/scss/bs5variables";
+
+@keyframes loadingAnimation {
+    0% {
+        background-position: 150% 0;
+    }
+
+    100% {
+        background-position: -150% 0;
+    }
+}
+
+$loading-animation-duration: 2s;
+
+.lazy-load > * {
+    color: #00000000 !important;
+    background: linear-gradient(45deg, var(--panel-bg-2) 40%, var(--panel-bg-3) 50%, var(--panel-bg-2) 60%),
+        var(--panel-bg-2);
+    background-repeat: no-repeat;
+    background-size: 350% 100%;
+    animation: loadingAnimation $loading-animation-duration linear infinite;
+    border-radius: bs5variables.$border-radius;
+
+    & > * {
+        opacity: 0;
+    }
+}

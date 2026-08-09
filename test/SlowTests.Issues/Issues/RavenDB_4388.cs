@@ -1,0 +1,34 @@
+﻿using System.Threading;
+using FastTests;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Issues
+{
+    public class RavenDB_4388 : RavenTestBase
+    {
+        public RavenDB_4388(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        [RavenFact(RavenTestCategory.ClientApi)]
+        public void ShouldCleanupCache()
+        {
+            using (var store = GetDocumentStore())
+            {
+                using (var commands = store.Commands())
+                {
+                    commands.Put("keys/1", null, new { });
+                    commands.Get("keys/1");
+
+                    Thread.Sleep(1);
+                    var cache = commands.RequestExecutor.Cache;
+                    Assert.True(cache.NumberOfItems > 0);
+                    cache.Clear();
+                    Assert.Equal(0, cache.NumberOfItems);
+                }
+            }
+        }
+    }
+}

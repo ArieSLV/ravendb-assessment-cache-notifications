@@ -1,0 +1,6 @@
+server-data/
+**/bin/
+**/obj/
+*.pid
+*.out.log
+*.err.log

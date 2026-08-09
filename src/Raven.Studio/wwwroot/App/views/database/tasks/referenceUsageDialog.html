@@ -1,0 +1,104 @@
+<div class="modal-dialog modal-lg reference-in-use-modal" role="document">
+    <div class="modal-content">
+        <div class="modal-header">
+            <button type="button" class="close" data-bind="click: close" aria-hidden="true">
+                <i class="icon-cancel"></i>
+            </button>
+            <h4 class="modal-title">Incoming link references for table <strong class="margin-left margin-sm"><i class="icon-table"></i> <span data-bind="text: table.tableName"></span></strong></h4>
+        </div>
+        <div class="modal-body max-height">
+            <table style="width:100%" class="margin-bottom table table-striped">
+                <thead>
+                    <tr>
+                        <th>Reference path</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody data-bind="foreach: $root.references">
+                <tr>
+                    <td>
+                        <div data-bind="template: { name: 'in-use-reference-template' }">
+                        </div>
+                    </td>
+                    <td width="240">
+                        <div class="btn-group link-actions">
+                            <button class="btn btn-sm btn-default"
+                                    data-bind="css: { active: action() === 'skip' }, click: _.partial($root.onActionClicked, $data, 'skip')">
+                                <i class="icon-skip"></i> <span>skip</span>
+                            </button>
+                            <button class="btn btn-sm btn-default"
+                                    data-bind="css: { active: action() === 'link' }, click: _.partial($root.onActionClicked, $data, 'link')">
+                                <i class="icon-link"></i> <span>link</span>
+                            </button>
+                            <button class="btn btn-sm btn-default"
+                                    data-bind="css: { active: action() === 'embed' }, click: _.partial($root.onActionClicked, $data, 'embed')">
+                                <i class="icon-embed"></i> <span>embed</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-bind="click: close">Close</button>
+        </div>
+    </div>
+</div>
+
+
+<script type="text/html" id="in-use-reference-template">
+    <div>
+        <div data-bind="if: sourceTable.parentReference === undefined">
+            <a href="#" data-bind="click: _.partial($root.goToTable, sourceTable)"><i class="icon-table"></i> <strong data-bind="text: sourceTable.tableName"></strong></a>
+        </div>
+        <div data-bind="with: sourceTable.parentReference">
+            <div data-bind="template: { name: 'in-use-reference-template' }"></div>
+        </div>
+        <div class="flex-horizontal" data-bind="visible: type === 'OneToMany'">
+
+            <div class="margin-right" title="primary key">
+                <span class="key-type primary"><i class="icon-key"></i></span>
+                <span data-bind="text: joinColumns.join(', ')"></span>
+            </div>
+
+            <div class="margin-right" title="one-to-many relation">
+                <i data-bind="attr: { class: getTypeClass() }"></i>
+            </div>
+
+            <div class="margin-right" title="foreign key">
+                <span class="text-muted"><span class="key-type foreign"><i class="icon-key"></i></span></span>
+                <span data-bind="text: joinColumns.join(', ')"></span>
+            </div>
+
+            <div>
+                <i class="icon-table"></i>
+                <span data-bind="text: targetTable.tableName"></span>
+            </div>    
+            
+        </div>
+        <div class="flex-horizontal" data-bind="visible: type === 'ManyToOne'">
+            
+            <div class="margin-right">
+                <span class="key-type foreign"><i class="icon-key"></i></span>
+                <span data-bind="text: joinColumns.join(', ')"></span>
+            </div>
+
+            <div class="margin-right" title="one-to-many relation">
+                <i data-bind="attr: { class: getTypeClass() }"></i>
+            </div>
+            
+            <div class="margin-right">
+                <span class="key-type primary"><i class="icon-key"></i></span>
+                <span data-bind="text: targetTable.getPrimaryKeyColumnNames().join(',')"></span>
+            </div>
+
+            <div>
+                <i class="icon-table"></i>
+                <span data-bind="text: targetTable.tableName"></span>
+            </div>
+
+        </div>
+    </div>
+    
+</script>

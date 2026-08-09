@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Raven.Server": {
+      "commandName": "Project",
+      "commandLineArgs": "--Security.UnsecuredAccessAllowed=\"PublicNetwork\" --Features.Availability=\"Experimental\""
+    }
+  }
+}

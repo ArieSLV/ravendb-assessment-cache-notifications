@@ -1,0 +1,34 @@
+﻿using FastTests;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Issues
+{
+    public class GH_6008 : RavenTestBase
+    {
+        public GH_6008(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class Item
+        {
+
+        }
+
+        [RavenFact(RavenTestCategory.ClientApi)]
+        public void CanGetIsLoadedTrueForNewValue()
+        {
+            using (var store = GetDocumentStore())
+            {
+                using (var s = store.OpenSession())
+                {
+                    var item = new Item();
+                    s.Store(item, null, id: "items-one");
+
+                    Assert.True(s.Advanced.IsLoaded("items-one"));
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,281 @@
+﻿using System;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading.Tasks;
+using FastTests;
+using Raven.Client.Documents.Subscriptions;
+using Raven.Client.Exceptions.Documents.Subscriptions;
+using Raven.Tests.Core.Utils.Entities;
+using Sparrow.Server;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Client.Subscriptions
+{
+    public class RavenDB_3484 : RavenTestBase
+    {
+        public RavenDB_3484(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private readonly TimeSpan _reasonableWaitTime = Debugger.IsAttached ? TimeSpan.FromSeconds(60 * 10) : TimeSpan.FromSeconds(50);
+
+        [RavenFact(RavenTestCategory.Subscriptions)]
+        public void OpenIfFree_ShouldBeDefaultStrategy()
+        {
+            Assert.Equal(SubscriptionOpeningStrategy.OpenIfFree, new SubscriptionWorkerOptions("test").Strategy);
+        }
+
+        [RavenTheory(RavenTestCategory.Subscriptions)]
+        [RavenData(DatabaseMode = RavenDatabaseMode.All)]
+        public async Task ShouldRejectWhen_OpenIfFree_StrategyIsUsed(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                var id = await store.Subscriptions.CreateAsync<User>();
+                var subscription = store.Subscriptions.GetSubscriptionWorker(new SubscriptionWorkerOptions(id)
+                {
+                    TimeToWaitBeforeConnectionRetry = TimeSpan.FromSeconds(5)
+                });
+
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new User());
+                    session.SaveChanges();
+                }
+
+                var amre = new AsyncManualResetEvent();
+                var t = subscription.Run(x => amre.Set());
+                GC.KeepAlive(t);
+
+                Assert.True(await amre.WaitAsync(TimeSpan.FromSeconds(60)));
+
+                await Assert.ThrowsAsync<SubscriptionInUseException>(() => store.Subscriptions.GetSubscriptionWorker(new SubscriptionWorkerOptions(id)
+                {
+                    Strategy = SubscriptionOpeningStrategy.OpenIfFree,
+                    TimeToWaitBeforeConnectionRetry = TimeSpan.FromSeconds(5)
+                }).Run(x => { }));
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Subscriptions)]
+        [RavenData(DatabaseMode = RavenDatabaseMode.All)]
+        public async Task ShouldReplaceActiveClientWhen_TakeOver_StrategyIsUsed(Options options)
+        {
+            DoNotReuseServer();
+            using (var store = GetDocumentStore(options))
+            {
+                Cluster.SuspendObserver(Server);
+
+                var id = await store.Subscriptions.CreateAsync<User>();
+
+                const int numberOfClients = 2;
+
+                var subscriptions = new (SubscriptionWorker<User> Subscription, Task Task, BlockingCollection<User> Items)[numberOfClients];
+
+                using (var s = store.OpenSession())
+                {
+                    var usersShouldnotexist = "users/ShouldNotExist";
+                    s.Store(new User(), usersShouldnotexist);
+                    s.SaveChanges();
+                    s.Delete(usersShouldnotexist);
+                    s.SaveChanges();
+                }
+
+                try
+                {
+                    for (int i = 0; i < numberOfClients; i++)
+                    {
+                        var subscriptionOpeningStrategy = i > 0 ? SubscriptionOpeningStrategy.TakeOver : SubscriptionOpeningStrategy.OpenIfFree;
+                        var subscription = store.Subscriptions.GetSubscriptionWorker<User>(new SubscriptionWorkerOptions(id)
+                        {
+                            Strategy = subscriptionOpeningStrategy,
+                            TimeToWaitBeforeConnectionRetry = TimeSpan.FromSeconds(5)
+                        });
+
+                        var items = new BlockingCollection<User>();
+
+                        var batchAcknowledgedMre = new AsyncManualResetEvent();
+
+                        subscription.AfterAcknowledgment += x =>
+                        {
+                            batchAcknowledgedMre.Set();
+                            return Task.CompletedTask;
+                        };
+
+                        var subscriptionRunningTask = subscription.Run(x =>
+                        {
+                            foreach (var item in x.Items)
+                            {
+                                items.Add(item.Result);
+                            }
+                        });
+
+                        if (i > 0)
+                        {
+                            await Assert.ThrowsAsync<SubscriptionInUseException>(() => subscriptions[i - 1].Task.WaitAsync(TimeSpan.FromSeconds(60)));
+                        }
+
+                        using (var s = store.OpenSession())
+                        {
+                            s.Store(new User());
+                            s.Store(new User());
+
+                            s.SaveChanges();
+                        }
+
+                        subscriptions[i] = (subscription, subscriptionRunningTask, items);
+
+                        Assert.True(subscriptions[i].Items.TryTake(out _, _reasonableWaitTime));
+                        Assert.True(subscriptions[i].Items.TryTake(out _, _reasonableWaitTime));
+
+                        Assert.True(await batchAcknowledgedMre.WaitAsync(TimeSpan.FromSeconds(10))); // let it acknowledge the processed batch before we open another subscription
+
+                        if (i > 0)
+                        {
+                            Assert.False(subscriptions[i - 1].Items.TryTake(out _, TimeSpan.FromSeconds(1)));
+                        }
+                    }
+                }
+                finally
+                {
+                    foreach (var valueTuple in subscriptions)
+                    {
+                        valueTuple.Subscription?.Dispose();
+                    }
+                }
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Subscriptions)]
+        [RavenData(DatabaseMode = RavenDatabaseMode.All)]
+        public void ShouldOpenSubscriptionWith_WaitForFree_StrategyWhenItIsNotInUseByAnotherClient(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                var id = store.Subscriptions.Create<User>();
+                var subscription = store.Subscriptions.GetSubscriptionWorker<User>(new SubscriptionWorkerOptions(id)
+                {
+                    Strategy = SubscriptionOpeningStrategy.WaitForFree,
+                    TimeToWaitBeforeConnectionRetry = TimeSpan.FromSeconds(5)
+                });
+
+                var items = new BlockingCollection<User>();
+
+                using (var s = store.OpenSession())
+                {
+                    s.Store(new User());
+                    s.Store(new User());
+
+                    s.SaveChanges();
+                }
+
+                subscription.Run(batch => batch.Items.ForEach(x => items.Add(x.Result)));
+
+                Assert.True(items.TryTake(out _, _reasonableWaitTime));
+                Assert.True(items.TryTake(out _, _reasonableWaitTime));
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Subscriptions)]
+        [RavenData(DatabaseMode = RavenDatabaseMode.All)]
+        public async Task ShouldProcessSubscriptionAfterItGetsReleasedWhen_WaitForFree_StrategyIsSet(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                var id = await store.Subscriptions.CreateAsync<User>();
+
+                var userId = 0;
+
+                foreach (var activeClientStrategy in new[] { SubscriptionOpeningStrategy.OpenIfFree, SubscriptionOpeningStrategy.TakeOver })
+                {
+                    var processedUsers = 0;
+                    var activeSubscriptionMre = new AsyncManualResetEvent();
+                    var activeSubscription = store.Subscriptions.GetSubscriptionWorker<User>(new SubscriptionWorkerOptions(id)
+                    {
+                        Strategy = activeClientStrategy,
+                        TimeToWaitBeforeConnectionRetry = TimeSpan.FromSeconds(5)
+                    });
+
+                    var pendingSubscription = store.Subscriptions.GetSubscriptionWorker<User>(new SubscriptionWorkerOptions(id)
+                    {
+                        Strategy = SubscriptionOpeningStrategy.WaitForFree
+                    });
+
+                    var pendingBatchAcknowledgedMre = new AsyncManualResetEvent();
+                    pendingSubscription.AfterAcknowledgment += x =>
+                    {
+                        processedUsers += x.Items.Count;
+                        if (processedUsers == 2)
+                        {
+                            processedUsers = 0;
+                            pendingBatchAcknowledgedMre.Set();
+                        }
+
+                        return Task.CompletedTask;
+                    };
+
+                    var items = new BlockingCollection<User>();
+
+                    using (var s = store.OpenSession())
+                    {
+                        s.Store(new User(), "users/" + userId++);
+                        s.Store(new User(), "users/" + userId++);
+
+                        s.SaveChanges();
+                    }
+
+                    activeSubscription.AfterAcknowledgment += x =>
+                    {
+                        processedUsers += x.Items.Count;
+                        if (processedUsers == 2)
+                        {
+                            processedUsers = 0;
+                            activeSubscriptionMre.Set();
+                        }
+                        return Task.CompletedTask;
+                    };
+
+                    _ = activeSubscription.Run(x => { });
+                    Assert.True(await activeSubscriptionMre.WaitAsync(_reasonableWaitTime));
+                    _ = pendingSubscription.Run(batch => batch.Items.ForEach(i => items.Add(i.Result)));
+                    activeSubscriptionMre.Reset();
+
+                    using (var s = store.OpenSession())
+                    {
+                        s.Store(new User(), "users/" + userId++);
+                        s.Store(new User(), "users/" + userId++);
+
+                        s.SaveChanges();
+                    }
+
+                    Assert.True(await activeSubscriptionMre.WaitAsync(_reasonableWaitTime));
+
+                    await activeSubscription.DisposeAsync(); // disconnect the active client, the pending one should be notified the the subscription is free and retry to open it
+
+                    using (var s = store.OpenSession())
+                    {
+                        s.Store(new User(), "users/" + userId++);
+                        s.Store(new User(), "users/" + userId++);
+
+                        s.SaveChanges();
+                    }
+                    
+                    await WaitForAssertionAsync(() =>
+                    {
+                        var list = items.Select(x => x.Id).ToList();
+                        Assert.True(list.Contains("users/" + (userId - 2)), $"users/{userId - 2} missing");
+                        Assert.True(list.Contains("users/" + (userId - 1)), $"users/{userId - 1} missing");
+                        return Task.CompletedTask;
+                    }, _reasonableWaitTime);
+                    
+                    Assert.True(await pendingBatchAcknowledgedMre.WaitAsync(_reasonableWaitTime)); // let it acknowledge the processed batch before we open another subscription
+
+                    await pendingSubscription.DisposeAsync();
+                }
+            }
+        }
+    }
+}

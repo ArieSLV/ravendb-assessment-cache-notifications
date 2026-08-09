@@ -1,0 +1,299 @@
+﻿import DetailedDatabaseStatistics = Raven.Client.Documents.Operations.DetailedDatabaseStatistics;
+import genUtils from "common/generalUtils";
+import changeVectorUtils from "common/changeVectorUtils";
+import Table from "react-bootstrap/Table";
+import Card from "react-bootstrap/Card";
+import { LazyLoad } from "components/common/LazyLoad";
+import { useAppSelector } from "components/store";
+import { Icon } from "components/common/Icon";
+import { statisticsViewSelectors } from "components/pages/database/status/statistics/store/statisticsViewSlice";
+import copyToClipboard = require("common/copyToClipboard");
+import Button from "react-bootstrap/Button";
+import PopoverWithHoverWrapper from "components/common/PopoverWithHoverWrapper";
+import { JSX } from "react";
+
+interface DetailsBlockProps {
+    children: (data: DetailedDatabaseStatistics, location: databaseLocationSpecifier) => JSX.Element;
+}
+
+export function DetailedDatabaseStats() {
+    const perNodeStats = useAppSelector(statisticsViewSelectors.allDatabaseDetails);
+    const copyChangeVector = (formattedChangeVector: changeVectorItem[]) => {
+        copyToClipboard.copy(
+            formattedChangeVector.map((cv) => cv.fullFormat).join(", "),
+            "Change Vector has been copied to clipboard"
+        );
+    };
+
+    function DetailsBlock(props: DetailsBlockProps): JSX.Element {
+        const { children } = props;
+
+        return (
+            <>
+                {perNodeStats.map((perNode) => {
+                    const { location, data: stat, status } = perNode;
+
+                    if (status === "failure") {
+                        return (
+                            <td key={genUtils.formatLocation(location)} className="text-danger">
+                                <Icon icon="cancel" title="Load error" margin="m-0" />
+                            </td>
+                        );
+                    }
+
+                    return (
+                        <td key={genUtils.formatLocation(location)}>
+                            {status === "success" || (status === "loading" && stat) ? (
+                                children(stat, location)
+                            ) : (
+                                <LazyLoad active>
+                                    <div>Loading...</div>
+                                </LazyLoad>
+                            )}
+                        </td>
+                    );
+                })}
+            </>
+        );
+    }
+
+    return (
+        <section className="mt-6">
+            <h2 className="on-base-background">Detailed Database Stats</h2>
+            <Card className="panel mt-4">
+                <Table responsive bordered striped>
+                    <thead>
+                        <tr>
+                            <th>&nbsp;</th>
+                            {perNodeStats.map(({ location }) => {
+                                return (
+                                    <th key={genUtils.formatLocation(location)}>{genUtils.formatLocation(location)}</th>
+                                );
+                            })}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <Icon icon="database-id" /> <span>Database ID</span>
+                            </td>
+                            <DetailsBlock>{(data) => <>{data.DatabaseId}</>}</DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="vector" /> <span>Database Change Vector</span>
+                            </td>
+                            <DetailsBlock>
+                                {(data, location) => {
+                                    const id = "js-cv-" + location.nodeTag + "-" + location.shardNumber;
+
+                                    const formattedChangeVector = changeVectorUtils.formatChangeVector(
+                                        data.DatabaseChangeVector,
+                                        changeVectorUtils.shouldUseLongFormat([data.DatabaseChangeVector])
+                                    );
+
+                                    if (formattedChangeVector.length === 0) {
+                                        return <span>not yet defined</span>;
+                                    }
+
+                                    return (
+                                        <PopoverWithHoverWrapper
+                                            message={formattedChangeVector.map((cv) => (
+                                                <div key={cv.fullFormat}>
+                                                    <small>{cv.fullFormat}</small>
+                                                </div>
+                                            ))}
+                                        >
+                                            <div id={id} className="d-inline-flex flex-wrap gap-1">
+                                                <Button
+                                                    variant="primary"
+                                                    size="xs"
+                                                    title="Copy to clipboard"
+                                                    onClick={() => copyChangeVector(formattedChangeVector)}
+                                                >
+                                                    <Icon icon="copy-to-clipboard" margin="m-0" />
+                                                </Button>
+                                                {formattedChangeVector.map((cv) => (
+                                                    <div
+                                                        key={cv.fullFormat}
+                                                        className="badge bg-secondary"
+                                                        id="popoverContainer"
+                                                    >
+                                                        {cv.shortFormat}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </PopoverWithHoverWrapper>
+                                    );
+                                }}
+                            </DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="storage" />
+                                <span>Size On Disk</span>
+                            </td>
+                            <DetailsBlock>
+                                {(data, location) => {
+                                    const id = "js-size-on-disk-" + location.nodeTag + "-" + location.shardNumber;
+                                    return (
+                                        <PopoverWithHoverWrapper
+                                            message={
+                                                <>
+                                                    Data:{" "}
+                                                    <strong>
+                                                        {genUtils.formatBytesToSize(data.SizeOnDisk.SizeInBytes)}
+                                                    </strong>
+                                                    <br />
+                                                    Temp:{" "}
+                                                    <strong>
+                                                        {genUtils.formatBytesToSize(
+                                                            data.TempBuffersSizeOnDisk.SizeInBytes
+                                                        )}
+                                                    </strong>
+                                                    <br />
+                                                    Total:{" "}
+                                                    <strong>
+                                                        {genUtils.formatBytesToSize(
+                                                            data.SizeOnDisk.SizeInBytes +
+                                                                data.TempBuffersSizeOnDisk.SizeInBytes
+                                                        )}
+                                                    </strong>
+                                                </>
+                                            }
+                                        >
+                                            <span id={id}>
+                                                {genUtils.formatBytesToSize(
+                                                    data.SizeOnDisk.SizeInBytes + data.TempBuffersSizeOnDisk.SizeInBytes
+                                                )}
+                                            </span>
+                                        </PopoverWithHoverWrapper>
+                                    );
+                                }}
+                            </DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="etag" />
+                                <span>Last Document ETag</span>
+                            </td>
+                            <DetailsBlock>{(data) => <>{data.LastDocEtag}</>}</DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="etag" />
+                                <span>Last Database ETag</span>
+                            </td>
+                            <DetailsBlock>{(data) => <>{data.LastDatabaseEtag}</>}</DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="server" />
+                                <span>Architecture</span>
+                            </td>
+                            <DetailsBlock>{(data) => <>{data.Is64Bit ? "64 Bit" : "32 Bit"}</>}</DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="documents" />
+                                <span>Documents </span>
+                            </td>
+                            <DetailsBlock>{(data) => <>{data.CountOfDocuments.toLocaleString()}</>}</DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="new-counter" />
+                                <span>Counters</span>
+                            </td>
+                            <DetailsBlock>{(data) => <>{data.CountOfCounterEntries.toLocaleString()}</>}</DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="identities" />
+                                <span>Identities</span>
+                            </td>
+                            <DetailsBlock>{(data) => <>{data.CountOfIdentities.toLocaleString()}</>}</DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="indexing" />
+                                <span>Indexes</span>
+                            </td>
+                            <DetailsBlock>{(data) => <>{data.CountOfIndexes.toLocaleString()}</>}</DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="revisions" />
+                                <span>Revisions</span>
+                            </td>
+                            <DetailsBlock>
+                                {(data) => <>{(data.CountOfRevisionDocuments ?? 0).toLocaleString()}</>}
+                            </DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="conflicts" />
+                                <span>Conflicts</span>
+                            </td>
+                            <DetailsBlock>
+                                {(data) => <>{data.CountOfDocumentsConflicts.toLocaleString()}</>}
+                            </DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="attachment" />
+                                <span>Attachments</span>
+                            </td>
+                            <DetailsBlock>
+                                {(data) => (
+                                    <div>
+                                        <span>{data.CountOfAttachments.toLocaleString()} total</span>
+                                        {data.CountOfAttachments !== data.CountOfUniqueAttachments && (
+                                            <>
+                                                <span className="text-muted">•</span>
+                                                <small>
+                                                    <span className="text-muted">
+                                                        {data.CountOfUniqueAttachments.toLocaleString()} unique (local)
+                                                    </span>
+                                                </small>
+                                                <span className="text-muted">•</span>
+                                                <small>
+                                                    <span className="text-muted">
+                                                        {data.CountOfRemoteAttachments.toLocaleString()} remote
+                                                    </span>
+                                                </small>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="cmp-xchg" />
+                                <span>Compare Exchange</span>
+                            </td>
+                            <DetailsBlock>{(data) => <>{data.CountOfCompareExchange.toLocaleString()}</>}</DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="zombie" />
+                                <span>Tombstones</span>
+                            </td>
+                            <DetailsBlock>{(data) => <>{data.CountOfTombstones.toLocaleString()}</>}</DetailsBlock>
+                        </tr>
+                        <tr>
+                            <td>
+                                <Icon icon="timeseries-settings" />
+                                <span>Time Series Segments</span>
+                            </td>
+                            <DetailsBlock>
+                                {(data) => <>{data.CountOfTimeSeriesSegments.toLocaleString()}</>}
+                            </DetailsBlock>
+                        </tr>
+                    </tbody>
+                </Table>
+            </Card>
+        </section>
+    );
+}

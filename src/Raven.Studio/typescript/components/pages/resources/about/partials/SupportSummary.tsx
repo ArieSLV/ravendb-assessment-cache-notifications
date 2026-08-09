@@ -1,0 +1,99 @@
+﻿import Card from "react-bootstrap/Card";
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
+import Button from "react-bootstrap/Button";
+import { aboutPageUrls, ConnectivityStatus, OverallInfoItem } from "components/pages/resources/about/partials/common";
+import classNames from "classnames";
+import { Icon } from "components/common/Icon";
+import React from "react";
+import { useAppSelector } from "components/store";
+import { licenseSelectors } from "components/common/shell/licenseSlice";
+import licenseModel from "models/auth/licenseModel";
+import { AsyncState } from "react-async-hook";
+import useUniqueId from "components/hooks/useUniqueId";
+
+interface SupportSummaryProps {
+    asyncCheckLicenseServerConnectivity: AsyncState<ConnectivityStatus>;
+}
+
+export function SupportSummary(props: SupportSummaryProps) {
+    const license = useAppSelector(licenseSelectors.status);
+    const licenseId = useAppSelector(licenseSelectors.statusValue("Id"));
+    const isCloud = useAppSelector(licenseSelectors.statusValue("IsCloud"));
+    const support = useAppSelector(licenseSelectors.support);
+    const supportType = licenseModel.supportLabelProvider(license, support);
+    const uniqueId = useUniqueId("supportConnectivityException");
+    const { asyncCheckLicenseServerConnectivity } = props;
+    const isPaidSupport = ["Professional", "Production", "Partial"].includes(supportType);
+
+    const hideSupportStatus =
+        asyncCheckLicenseServerConnectivity.status === "error" ||
+        (asyncCheckLicenseServerConnectivity.status === "success" &&
+            !asyncCheckLicenseServerConnectivity.result.connected);
+
+    return (
+        <Card>
+            <Card.Body>
+                <h4>Support & Community</h4>
+                <div className="vstack gap-4">
+                    <Row>
+                        <OverallInfoItem icon="support" label="Support type">
+                            {hideSupportStatus ? (
+                                <span className="text-warning" id={uniqueId}>
+                                    <Icon icon="warning" />
+                                    <small>
+                                        Unable to reach the RavenDB License Server at <code>api.ravendb.net</code>
+                                    </small>
+                                </span>
+                            ) : (
+                                <span
+                                    className={classNames(
+                                        { "text-professional": supportType === "Professional" },
+                                        { "text-enterprise": supportType === "Production" }
+                                    )}
+                                >
+                                    {isCloud && supportType === "Production" ? "Cloud Support" : supportType}
+                                </span>
+                            )}
+                        </OverallInfoItem>
+                        <Col className="d-flex flex-wrap gap-2 align-items-center justify-content-end">
+                            {isPaidSupport && (
+                                <Button
+                                    href={isCloud ? aboutPageUrls.cloudPortal : aboutPageUrls.supportRequest(licenseId)}
+                                    target="_blank"
+                                    className="rounded-pill"
+                                    variant={isCloud ? "cloud" : "primary"}
+                                >
+                                    <Icon icon="notifications" /> Request support
+                                </Button>
+                            )}
+                            <Button
+                                variant={isPaidSupport ? "outline-secondary" : "primary"}
+                                className="rounded-pill"
+                                href={aboutPageUrls.gitHubDiscussions}
+                                target="_blank"
+                            >
+                                GitHub Discussions <Icon icon="newtab" margin="ms-1" />
+                            </Button>
+                        </Col>
+                    </Row>
+                    <Row>
+                        <OverallInfoItem icon="discord" label="Let's solve it together">
+                            Developers Community
+                        </OverallInfoItem>
+                        <Col className="d-flex flex-wrap gap-2 align-items-center justify-content-end">
+                            <Button
+                                variant="primary"
+                                className="rounded-pill"
+                                href={aboutPageUrls.discordServer}
+                                target="_blank"
+                            >
+                                Join our Discord <Icon icon="newtab" margin="ms-1" />
+                            </Button>
+                        </Col>
+                    </Row>
+                </div>
+            </Card.Body>
+        </Card>
+    );
+}

@@ -1,0 +1,53 @@
+﻿using System.Linq;
+using FastTests;
+using Raven.Client.Documents.Session;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.MailingList
+{
+    public class BadQuery : RavenTestBase
+    {
+        public BadQuery(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class Entity
+        {
+            public string Id { get; set; }
+            public string Number { get; set; }
+        }
+
+        [RavenTheory(RavenTestCategory.Querying)]
+        [RavenData(SearchEngineMode = RavenSearchEngineMode.All, DatabaseMode = RavenDatabaseMode.All)]
+        public void ShouldNotNull(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new Entity { Number = "0373100117415000026" });
+                    session.SaveChanges();
+                }
+
+                using (var session = store.OpenSession())
+                {
+                    var res = session.Query<Entity>().Customize(x => x.WaitForNonStaleResults()).Count();
+                    Assert.Equal(1, res);
+                }
+                using (var session = store.OpenSession())
+                {
+                    QueryStatistics stats;
+                    var item = session.Query<Entity>()
+                            .Customize(x => x.WaitForNonStaleResults())
+                            .Statistics(out stats)
+                            .FirstOrDefault(x => x.Number == "0373100117415000026");
+                    // fail
+                    Assert.NotNull(item);
+                }
+            }
+        }
+    }
+
+}

@@ -1,0 +1,194 @@
+import { StudioSearchResultItem, StudioSearchResult } from "../studioSearchTypes";
+import { useEffect, useMemo, useState } from "react";
+
+interface UseStudioSearchKeyboardEventsProps {
+    refs: {
+        inputRef: React.RefObject<HTMLInputElement>;
+        serverColumnRef: React.RefObject<HTMLDivElement>;
+        databaseColumnRef: React.RefObject<HTMLDivElement>;
+    };
+    studioSearchInputId: string;
+    results: StudioSearchResult;
+    activeItem: StudioSearchResultItem;
+    setActiveItem: React.Dispatch<React.SetStateAction<StudioSearchResultItem>>;
+    setIsDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    handleAskAi: () => void;
+}
+
+export function useStudioSearchKeyboardEvents(props: UseStudioSearchKeyboardEventsProps) {
+    const { refs, results, activeItem, setIsDropdownOpen, setActiveItem, handleAskAi } = props;
+
+    const { inputRef, serverColumnRef, databaseColumnRef } = refs;
+
+    // Handle toggle dropdown by keyboard
+    useEffect(() => {
+        const handleToggleDropdown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+                e.preventDefault();
+                setIsDropdownOpen(true);
+                inputRef.current?.focus();
+            }
+            if (e.key === "Escape") {
+                e.preventDefault();
+                setIsDropdownOpen(false);
+                inputRef.current?.blur();
+            }
+        };
+
+        document.addEventListener("keydown", handleToggleDropdown);
+        return () => {
+            document.removeEventListener("keydown", handleToggleDropdown);
+        };
+    }, [inputRef, setIsDropdownOpen]);
+
+    // Handle closing dropdown on tab key
+    useEffect(() => {
+        const handleTabKey = (e: KeyboardEvent) => {
+            if (e.key === "Tab") {
+                setIsDropdownOpen(false);
+            }
+        };
+
+        const current = inputRef.current;
+        current.addEventListener("keydown", handleTabKey);
+
+        return () => {
+            current.removeEventListener("keydown", handleTabKey);
+        };
+    }, [inputRef, setIsDropdownOpen]);
+
+    // Handle enter key
+    useEffect(() => {
+        const handleEnterKey = (e: KeyboardEvent) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                if (activeItem) {
+                    activeItem.onSelected(e);
+                }
+            }
+        };
+
+        const current = inputRef.current;
+
+        current.addEventListener("keydown", handleEnterKey);
+        return () => {
+            current.removeEventListener("keydown", handleEnterKey);
+        };
+    }, [inputRef, activeItem, setIsDropdownOpen]);
+
+    // Handle ask AI shortcut
+    useEffect(() => {
+        const handleAskAiShortcut = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "/") {
+                e.preventDefault();
+                handleAskAi();
+            }
+        };
+
+        const current = inputRef.current;
+
+        current.addEventListener("keydown", handleAskAiShortcut);
+        return () => {
+            current.removeEventListener("keydown", handleAskAiShortcut);
+        };
+    }, [handleAskAi]);
+
+    const [activeGroup, setActiveGroup] = useState<"left" | "right">("left");
+    const [activeIndex, setActiveIndex] = useState(0);
+
+    const leftFlatItems = useMemo(
+        () => Object.values(results.database).flat().concat(results.switchToDatabase),
+        [results]
+    );
+    const rightFlatItems = useMemo(() => results.server, [results]);
+
+    const leftFlatItemsLength = leftFlatItems.length;
+    const rightFlatItemsLength = rightFlatItems.length;
+
+    // Handle switching group when some list is empty
+    useEffect(() => {
+        if (leftFlatItemsLength > 0 && rightFlatItemsLength === 0) {
+            setActiveGroup("left");
+        }
+        if (leftFlatItemsLength === 0 && rightFlatItemsLength > 0) {
+            setActiveGroup("right");
+        }
+        if (leftFlatItemsLength === 0 && rightFlatItemsLength === 0) {
+            setActiveGroup("left");
+        }
+
+        setActiveIndex(0);
+    }, [leftFlatItemsLength, rightFlatItemsLength, setActiveIndex, setActiveGroup]);
+
+    // Handle switching active item
+    useEffect(() => {
+        const newActiveItem = activeGroup === "left" ? leftFlatItems[activeIndex] : rightFlatItems[activeIndex];
+
+        if (newActiveItem?.id !== activeItem?.id) {
+            setActiveItem(newActiveItem);
+        }
+    }, [activeGroup, activeIndex, activeItem?.id, leftFlatItems, rightFlatItems, setActiveItem]);
+
+    // Handle keyboard navigation
+    useEffect(() => {
+        const handleKeyboardNavigation = (e: KeyboardEvent) => {
+            const isArrowKey = ["ArrowDown", "ArrowUp"].includes(e.key);
+            const isAltArrowKey = e.altKey && ["ArrowLeft", "ArrowRight"].includes(e.key);
+
+            if (isArrowKey || isAltArrowKey) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (e.key === "ArrowDown") {
+                    setActiveIndex(
+                        (activeIndex + 1) % (activeGroup === "left" ? leftFlatItemsLength : rightFlatItemsLength)
+                    );
+                } else if (e.key === "ArrowUp") {
+                    setActiveIndex(
+                        (activeIndex - 1 + (activeGroup === "left" ? leftFlatItemsLength : rightFlatItemsLength)) %
+                            (activeGroup === "left" ? leftFlatItemsLength : rightFlatItemsLength)
+                    );
+                } else if (e.key === "ArrowLeft" && e.altKey && leftFlatItemsLength > 0) {
+                    setActiveIndex(Math.min(activeIndex, leftFlatItemsLength - 1));
+                    setActiveGroup("left");
+                } else if (e.key === "ArrowRight" && e.altKey && rightFlatItemsLength > 0) {
+                    setActiveIndex(Math.min(activeIndex, rightFlatItemsLength - 1));
+                    setActiveGroup("right");
+                }
+            }
+        };
+
+        const current = inputRef.current;
+        current.addEventListener("keydown", handleKeyboardNavigation);
+
+        return () => {
+            current.removeEventListener("keydown", handleKeyboardNavigation);
+        };
+    }, [activeIndex, activeGroup, inputRef, leftFlatItemsLength, rightFlatItemsLength]);
+
+    // Handle scroll on active item change
+    useEffect(() => {
+        const activeItem = activeGroup === "left" ? leftFlatItems[activeIndex] : rightFlatItems[activeIndex];
+
+        const activeElement = document.getElementById(activeItem?.id);
+        if (!activeElement) {
+            return;
+        }
+
+        const columnElement =
+            activeItem.type === "serverMenuItem" ? serverColumnRef.current : databaseColumnRef.current;
+
+        const activeElementPage = getScrollPageNumber(
+            activeElement.offsetTop + activeElement.clientHeight,
+            columnElement.clientHeight
+        );
+
+        const scrollToY = activeElementPage * columnElement.clientHeight - activeElement.clientHeight;
+
+        columnElement.scrollTo(0, scrollToY);
+    }, [activeGroup, activeIndex, databaseColumnRef, leftFlatItems, rightFlatItems, serverColumnRef]);
+}
+
+const getScrollPageNumber = (y: number, height: number): number => {
+    return y === 0 ? 0 : Math.ceil(y / height) - 1;
+};

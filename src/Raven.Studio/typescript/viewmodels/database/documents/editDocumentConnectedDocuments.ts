@@ -1,0 +1,564 @@
+import router = require("plugins/router");
+import document = require("models/database/documents/document");
+import database = require("models/resources/database");
+import recentDocumentsCtr = require("models/database/documents/recentDocuments");
+import verifyDocumentsIDsCommand = require("commands/database/documents/verifyDocumentsIDsCommand");
+import getDocumentRevisionsCommand = require("commands/database/documents/getDocumentRevisionsCommand");
+import appUrl = require("common/appUrl");
+import endpoints = require("endpoints");
+import moment = require("moment");
+import generalUtils = require("common/generalUtils");
+import virtualColumn = require("widgets/virtualGrid/columns/virtualColumn");
+import textColumn = require("widgets/virtualGrid/columns/textColumn");
+import actionColumn = require("widgets/virtualGrid/columns/actionColumn");
+import hyperlinkColumn = require("widgets/virtualGrid/columns/hyperlinkColumn");
+import documentHelpers = require("common/helpers/database/documentHelpers");
+import starredDocumentsStorage = require("common/storage/starredDocumentsStorage");
+import virtualGridController = require("widgets/virtualGrid/virtualGridController");
+import downloader = require("common/downloader");
+import viewHelpers = require("common/helpers/view/viewHelpers");
+import editDocumentUploader = require("viewmodels/database/documents/editDocumentUploader");
+import columnPreviewPlugin = require("widgets/virtualGrid/columnPreviewPlugin");
+import genUtils = require("common/generalUtils");
+import _ = require("lodash")
+import AddAttachmentWithRemoteParametersModal = require("viewmodels/database/documents/AddAttachmentWithRemoteParametersModal");
+
+type connectedDocsTabs = "attachments" | "counters" | "revisions" | "related" | "recent" | "timeSeries";
+type connectedItemType = connectedDocumentItem | attachmentItem | counterItem | timeSeriesItem;
+
+interface connectedDocumentItem { 
+    id: string;
+    href: string;
+    deletedRevision: boolean;
+    conflictRevision: boolean;
+    resolvedRevision: boolean;
+}
+
+interface connectedRevisionDocumentItem extends connectedDocumentItem {
+    revisionChangeVector: string;
+}
+
+class connectedDocuments {
+
+    // static field to remember current tab between navigation
+    static currentTab = ko.observable<connectedDocsTabs>("attachments"); 
+
+    loadDocumentAction: (docId: string) => void;
+    loadRevisionAction: (changeVector: string) => void;
+    document: KnockoutObservable<document>;
+    db: database;
+    
+    isReadOnlyAccess: KnockoutObservable<boolean>;
+    inReadOnlyMode: KnockoutObservable<boolean>;
+    isClone: KnockoutObservable<boolean>;
+    searchInput = ko.observable<string>("");
+    searchInputVisible: KnockoutObservable<boolean>;
+    clearSearchInputSubscription: KnockoutSubscription;
+    gridResetSubscription: KnockoutSubscription;
+
+    crudActionsProvider: () => editDocumentCrudActions;
+    
+    docsColumns: virtualColumn[];
+    revisionsColumns: virtualColumn[];
+    attachmentsColumns: virtualColumn[];
+    attachmentsInReadOnlyModeColumns: virtualColumn[];
+    countersColumns: virtualColumn[];
+    countersInReadOnlyModeColumns: virtualColumn[];
+    timeSeriesColumns: virtualColumn[];
+    timeSeriesInReadOnlyModeColumns: virtualColumn[];
+    
+    private downloader = new downloader();
+    currentDocumentIsStarred = ko.observable<boolean>(false);
+
+    recentDocuments = new recentDocumentsCtr();
+    
+    isRelatedActive = ko.pureComputed(() => connectedDocuments.currentTab() === "related");
+    isAttachmentsActive = ko.pureComputed(() => connectedDocuments.currentTab() === "attachments");
+    isRecentActive = ko.pureComputed(() => connectedDocuments.currentTab() === "recent");
+    isRevisionsActive = ko.pureComputed(() => connectedDocuments.currentTab() === "revisions");
+    isCountersActive = ko.pureComputed(() => connectedDocuments.currentTab() === "counters");
+    isTimeSeriesActive = ko.pureComputed(() => connectedDocuments.currentTab() === "timeSeries");
+
+    isUploaderActive: KnockoutComputed<boolean>;
+    
+    isArtificialDocument: KnockoutComputed<boolean>;
+    isHiloDocument: KnockoutComputed<boolean>;  
+
+    isAddAttachmentWithRemoteParametersModalVisible = ko.observable<boolean>(false);
+    remoteAttachmentParametersModalView: ReactInKnockout<typeof AddAttachmentWithRemoteParametersModal.default> = ko.pureComputed(() => ({
+        component: AddAttachmentWithRemoteParametersModal.default,
+        props: {
+            document: this.document,
+            db: this.db,
+            onUploaded: () => this.afterUpload(),
+            onClose: () => this.isAddAttachmentWithRemoteParametersModalVisible(false)
+        }
+    }))
+
+    gridController = ko.observable<virtualGridController<connectedItemType>>();
+    private columnPreview = new columnPreviewPlugin<connectedItemType>();
+    
+    uploader: editDocumentUploader;
+
+    private remoteAttachmentDisabledReason: KnockoutObservable<string>;
+
+    constructor(document: KnockoutObservable<document>,
+        db: database,
+        loadDocument: (docId: string) => void,
+        loadRevision: (changeVector: string) => void,
+        isCreatingNewDocument: KnockoutObservable<boolean>,
+        crudActionsProvider: () => editDocumentCrudActions,
+        inReadOnlyMode: KnockoutObservable<boolean>,
+        isReadOnlyAccess: KnockoutComputed<boolean>,
+        isClone: KnockoutObservable<boolean>,
+        remoteAttachmentDisabledReason: KnockoutObservable<string>) {
+
+        _.bindAll(this, ...["toggleStar"] as Array<keyof this & string>);
+
+        this.document = document;
+        this.db = db;
+        this.isReadOnlyAccess = isReadOnlyAccess;
+        this.inReadOnlyMode = inReadOnlyMode;
+        this.isClone = isClone;
+        this.remoteAttachmentDisabledReason = remoteAttachmentDisabledReason;
+        this.document.subscribe((doc) => this.onDocumentLoaded(doc));
+        this.loadDocumentAction = loadDocument;
+        this.loadRevisionAction = loadRevision;
+        this.uploader = new editDocumentUploader(document, db, () => this.afterUpload());
+        this.crudActionsProvider = crudActionsProvider;
+
+        this.isUploaderActive = ko.pureComputed(() => {
+            const onAttachmentsPane = this.isAttachmentsActive();
+            const newDoc = isCreatingNewDocument();
+            const readOnly = inReadOnlyMode();
+            return onAttachmentsPane && !newDoc && !readOnly;
+        });
+
+        this.searchInputVisible = ko.pureComputed(() => !this.isRevisionsActive() && !this.isRecentActive());
+        this.searchInput.throttle(250).subscribe(() => {
+            this.gridController().reset(false);
+        });
+
+        this.clearSearchInputSubscription = connectedDocuments.currentTab.subscribe(() => this.searchInput(""));
+
+        this.isArtificialDocument = ko.pureComputed(() => {
+            return this.document().__metadata.hasFlag("Artificial");
+        });
+
+        this.isHiloDocument = ko.pureComputed(() => {
+            return this.document().__metadata.collection == "@hilo";
+        });        
+    }
+
+    private initColumns() {
+        this.docsColumns = [
+            new hyperlinkColumn<connectedDocumentItem>(this.gridController() as virtualGridController<any>, x => x.id, x => x.href, "", "100%")
+        ];
+
+        const revisionColumn = new hyperlinkColumn<connectedRevisionDocumentItem>(this.gridController() as virtualGridController<any>, x => x.id, x => x.href, "Revision", "75%",
+            {
+                extraClass: item => item.deletedRevision ? "typed-revision deleted-revision" :
+                    (item.conflictRevision ? "typed-revision conflict-revision" :
+                    item.resolvedRevision ? "typed-revision resolved-revision" : ""),
+                handler: (item, event) => {
+                    if (!event.ctrlKey) {
+                        this.loadRevisionAction(item.revisionChangeVector);
+                        event.preventDefault();
+                    }
+                }
+            });
+        
+        this.revisionsColumns = [revisionColumn];
+        
+        this.attachmentsColumns = [
+            new textColumn<attachmentItem>(this.gridController() as virtualGridController<any>, x => x?.remoteParameters?.Flags ?? "", "Remote flags", "35px", {
+                transformValue: (x: RemoteAttachmentFlags) => x === "Remote" ? `<i class="icon-remote-attachment text-info"></i>` : `<i class="icon-attachment text-primary"></i>`,
+            }),
+            new actionColumn<attachmentItem>(this.gridController() as virtualGridController<any>, x => this.downloadAttachment(x), "Name", x => x.name, "160px",
+                {
+                    extraClass: (item) => this.remoteAttachmentDisabledReason() && item?.remoteParameters?.Flags === "Remote" ? 'btn-link disabled' : "btn-link",
+                    title: (item) => this.remoteAttachmentDisabledReason() && item?.remoteParameters?.Flags === "Remote" ? this.remoteAttachmentDisabledReason() : `Download file: ${item.name}`
+                }),
+            new textColumn<attachmentItem>(this.gridController() as virtualGridController<any>, x => generalUtils.formatBytesToSize(x.size), "Size", "70px", { extraClass: () => 'filesize' }),
+            new textColumn<attachmentItem>(this.gridController() as virtualGridController<any>, x => x?.remoteParameters, "Remote parameters", "100px"),
+            new actionColumn<attachmentItem>(this.gridController() as virtualGridController<any>, x => this.crudActionsProvider().deleteAttachment(x),
+                "Delete",
+                `<i class="icon-trash"></i>`,
+                "35px",
+                {
+                    extraClass: () => 'file-trash',
+                    title: () => 'Delete attachment',
+                    hide: () => this.isReadOnlyAccess()
+                })
+        ];
+
+        this.attachmentsInReadOnlyModeColumns = [
+            new textColumn<attachmentItem>(this.gridController() as virtualGridController<any>, x => x?.remoteParameters?.Flags ?? "", "Remote flags", "35px", {
+                transformValue: (x: RemoteAttachmentFlags) => x === "Remote" ? `<i class="icon-remote-attachment text-info"></i>` : `<i class="icon-attachment text-primary"></i>`,
+            }),
+            new actionColumn<attachmentItem>(this.gridController() as virtualGridController<any>, x => this.downloadAttachment(x), "Name", x => x.name, "160px",
+                {
+                    extraClass: (item) => this.remoteAttachmentDisabledReason() && item?.remoteParameters?.Flags === "Remote" ? 'btn-link disabled' : "btn-link",
+                    title: (item) => this.remoteAttachmentDisabledReason() && item?.remoteParameters?.Flags === "Remote" ? this.remoteAttachmentDisabledReason() : `Download file: ${item.name}`
+                }),
+            new textColumn<attachmentItem>(this.gridController() as virtualGridController<any>, x => generalUtils.formatBytesToSize(x.size), "Size", "70px", { extraClass: () => 'filesize' }),
+            new textColumn<attachmentItem>(this.gridController() as virtualGridController<any>, x => x?.remoteParameters, "Remote parameters", "100px"),
+        ];
+
+        this.countersColumns = [
+            new textColumn<counterItem>(this.gridController() as virtualGridController<any>, x => x.counterName, "Counter name", "160px"),
+            new textColumn<counterItem>(this.gridController() as virtualGridController<any>, x => generalUtils.formatAsCommaSeperatedString(x.totalCounterValue, 0), "Counter total value", "100px"),
+            new actionColumn<counterItem>(this.gridController() as virtualGridController<any>, 
+                 x => this.crudActionsProvider().setCounter(x),
+                "Edit",
+                `<i class="icon-edit"></i>`,
+                "35px",
+                { title: () => 'Edit counter', hide: () => this.isReadOnlyAccess() }),
+            new actionColumn<counterItem>(this.gridController() as virtualGridController<any>,
+                 x => this.crudActionsProvider().deleteCounter(x),
+                "Delete",
+                `<i class="icon-trash"></i>`,
+                "35px",
+                { title: () => 'Delete counter', hide: () => this.isReadOnlyAccess() }),
+        ];
+
+        this.countersInReadOnlyModeColumns = [
+            new textColumn<counterItem>(this.gridController() as virtualGridController<any>, x => x.counterName, "Counter name", "60%"),
+            new textColumn<counterItem>(this.gridController() as virtualGridController<any>, x => generalUtils.formatAsCommaSeperatedString(x.totalCounterValue, 0), "Counter total value", "40%")
+        ];
+        
+        const dateFormatter = (date: string) => moment.utc(date).local().format("YYYY-MM-DD");
+        
+        this.timeSeriesColumns = [
+            new textColumn<timeSeriesItem>(this.gridController() as virtualGridController<any>, x => x.name, "Time series name", "145px"),
+            new textColumn<timeSeriesItem>(this.gridController() as virtualGridController<any>, x => x.numberOfEntries, "Timeseries items count", "60px"),
+            new textColumn<timeSeriesItem>(this.gridController() as virtualGridController<any>, x => dateFormatter(x.startDate) + " - " + dateFormatter(x.endDate), "Timeseries date range", "170px"),
+            new actionColumn<timeSeriesItem>(this.gridController() as virtualGridController<any>,
+                x => this.goToTimeSeriesEdit(x),
+                "Details",
+                `<i class="icon-preview"></i>`,
+                "50px",
+                { title: () => this.isClone() ? 'Go to time series in source document' : 'Go to time series details' })
+        ]
+        
+        this.timeSeriesInReadOnlyModeColumns = [
+            new textColumn<timeSeriesItem>(this.gridController() as virtualGridController<any>, x => x.name, "Time series name", "145px"),
+            new textColumn<timeSeriesItem>(this.gridController() as virtualGridController<any>, x => x.numberOfEntries, "Time series items count", "60px"),
+            new textColumn<timeSeriesItem>(this.gridController() as virtualGridController<any>, x => dateFormatter(x.startDate) + " - " + dateFormatter(x.endDate), "Time series date range", "170px")
+        ];
+    }
+
+    compositionComplete() {
+        const grid = this.gridController();
+        this.initColumns();
+        grid.headerVisible(false);
+        grid.init((s, t) => this.fetchCurrentTabItems(s, t), () => {
+            if (connectedDocuments.currentTab() === "attachments") {
+                return this.inReadOnlyMode() ? this.attachmentsInReadOnlyModeColumns : this.attachmentsColumns;
+            }
+            
+            if (connectedDocuments.currentTab() === "counters") {
+                return this.inReadOnlyMode() ? this.countersInReadOnlyModeColumns : this.countersColumns;
+                }
+            
+            if (connectedDocuments.currentTab() === "revisions") {
+                return this.revisionsColumns;
+            }
+
+            if (connectedDocuments.currentTab() === "timeSeries") {
+                return this.inReadOnlyMode() ? this.timeSeriesInReadOnlyModeColumns : this.timeSeriesColumns;
+            }
+            
+            return this.docsColumns;
+        });
+
+        this.gridResetSubscription = connectedDocuments.currentTab.subscribe(() => this.gridController().reset());
+
+        this.columnPreview.install(".document-items-grid", ".document-items-tooltip",
+            (item: connectedItemType,
+             column: virtualColumn,
+             e: JQuery.TriggeredEvent,
+             onValue: (context: any, valueToCopy?: string) => void) => {
+                const timeSeriesItem = (item as timeSeriesItem);
+                
+                if (column instanceof textColumn) {
+                    const value = column.getCellValue(item);
+                    switch (column.header) {
+                        case "Revision": {
+                            onValue(moment.utc(value), value);
+                            break;
+                        }
+                        case "Timeseries date range":
+                            onValue(timeSeriesItem.startDate + " - " + timeSeriesItem.endDate);
+                            break;
+                        case "Timeseries items count":
+                            onValue(timeSeriesItem.numberOfEntries.toLocaleString());
+                            break;
+                        case "Remote parameters": {
+                            const remoteParametersValue = value as RemoteAttachmentParameters;
+                            if (remoteParametersValue == null) {
+                                return;
+                            }
+
+                            const attachmentMetadataHtml = `<div><strong>Upload time:</strong> ${moment(remoteParametersValue.At).format(genUtils.dateFormat)}
+<strong>Destination ID:</strong> ${remoteParametersValue.Identifier}
+<strong>Flags:</strong> ${remoteParametersValue.Flags}</div>`
+                            onValue(attachmentMetadataHtml, value);
+                            break;
+                        }
+                        case "Remote flags": {
+                            const flag = value as RemoteAttachmentFlags;
+                            onValue(flag === "Remote" ? "Remote attachment" : "Local attachment");
+                            break;
+                        }
+                        default: {
+                            if (value == null) {
+                                return;
+                            }
+                            onValue(genUtils.escapeHtml(value), value);
+                            break;
+                        }
+                    }
+                }
+            });
+    }
+
+    dispose() {
+        this.clearSearchInputSubscription.dispose();
+        this.gridResetSubscription.dispose();
+    }
+
+    private fetchCurrentTabItems(skip: number, take: number): JQueryPromise<pagedResult<connectedDocumentItem | attachmentItem | counterItem | timeSeriesItem>> {
+        const doc = this.document();
+        if (!doc) {
+            return connectedDocuments.emptyDocResult<connectedDocumentItem | attachmentItem | counterItem | timeSeriesItem>();
+        }
+
+        switch (connectedDocuments.currentTab()) {
+            case "related":
+                return this.fetchRelatedDocs();
+            case "attachments":
+                return this.crudActionsProvider().fetchAttachments(this.searchInput().toLocaleLowerCase(), skip, take);
+            case "recent":
+                return this.fetchRecentDocs();
+            case "revisions":
+                return this.fetchRevisionDocs(skip, take);
+            case "counters": 
+                return this.crudActionsProvider().fetchCounters(this.searchInput().toLocaleLowerCase(), skip, take); 
+            case "timeSeries":
+                return this.crudActionsProvider().fetchTimeSeries(this.searchInput().toLocaleLowerCase(), skip, take);
+            default: return connectedDocuments.emptyDocResult<connectedDocumentItem | attachmentItem | counterItem | timeSeriesItem>();
+        }
+    }
+
+    fetchRelatedDocs(): JQueryPromise<pagedResult<connectedDocumentItem>> {
+        const deferred = $.Deferred<pagedResult<connectedDocumentItem>>();
+        const search = this.searchInput().toLocaleLowerCase();
+
+        let relatedDocumentsCandidates: string[] = documentHelpers.findRelatedDocumentsCandidates(this.document());
+
+        if (search) {
+            relatedDocumentsCandidates = relatedDocumentsCandidates.filter(x => x.toLocaleLowerCase().includes(search));
+        }
+
+        const docIDsVerifyCommand = new verifyDocumentsIDsCommand(relatedDocumentsCandidates, this.db);
+        docIDsVerifyCommand.execute()
+            .done((verifiedIDs: string[]) => {
+                const connectedDocs: connectedDocumentItem[] = verifiedIDs.map(id => this.docIdToConnectedDoc(id));
+                deferred.resolve({
+                    items: connectedDocs,
+                    totalResultCount: connectedDocs.length
+                });
+            });
+
+        return deferred.promise();
+    }
+    
+    fetchRecentDocs(): JQueryPromise<pagedResult<connectedDocumentItem>> {
+        const doc = this.document();
+
+        const recentDocs = this.recentDocuments.getTopRecentDocuments(this.db, doc.getId(), this.isClone());
+        
+        return $.Deferred<pagedResult<connectedDocumentItem>>().resolve({
+            items: recentDocs.map(x => ({ id: x.id, href: x.href, deletedRevision: false, conflictRevision: false, resolvedRevision: false })),
+            totalResultCount: recentDocs.length,
+        }).promise();
+    }
+
+    fetchRevisionDocs(skip: number, take: number): JQueryPromise<pagedResult<connectedDocumentItem>> {
+        const doc = this.document();
+
+        if (!doc.__metadata.hasFlag("HasRevisions") && !doc.__metadata.hasFlag("DeleteRevision")) {
+            return connectedDocuments.emptyDocResult<connectedDocumentItem>();
+        }
+
+        const fetchTask = $.Deferred<pagedResult<connectedDocumentItem>>();
+        
+        new getDocumentRevisionsCommand(doc.getId(), this.db, skip, take, true)
+            .execute()
+            .done(result => {
+                const mappedResults = result.items.map(x => this.revisionToConnectedDocument(x));
+                
+                this.crudActionsProvider().revisionsCount(result.totalResultCount);
+                
+                fetchTask.resolve({
+                    items: mappedResults,
+                    totalResultCount: result.totalResultCount
+                });
+
+                if (doc.__metadata.hasFlag("Revision") || doc.__metadata.hasFlag("DeleteRevision")) {
+                    const changeVector = doc.__metadata.changeVector();
+                    const resultIdx = result.items.findIndex(x => x.__metadata.changeVector() === changeVector);
+                    if (resultIdx >= 0) {
+                        this.gridController().setSelectedItems([mappedResults[resultIdx]]);
+                    }
+                }
+            })
+            .fail(xhr => fetchTask.reject(xhr));
+
+        return fetchTask.promise();
+    }
+
+    private revisionToConnectedDocument(doc: document): connectedRevisionDocumentItem {
+        const changeVector = doc.__metadata.changeVector();
+        return {
+            href: appUrl.forViewDocumentAtRevision(doc.getId(), changeVector, this.db),
+            id: doc.__metadata.lastModified(),
+            
+            deletedRevision: doc.__metadata.hasFlag("DeleteRevision"),
+            conflictRevision: doc.__metadata.hasFlag("Conflicted"), 
+            resolvedRevision: doc.__metadata.hasFlag("Resolved"), 
+            
+            revisionChangeVector: changeVector
+        };
+    }
+
+    static emptyDocResult<T>(): JQueryPromise<pagedResult<T>> {
+        return $.Deferred<pagedResult<T>>().resolve({
+            items: [],
+            totalResultCount: 0
+        }).promise();
+    }
+
+    private downloadAttachment(file: attachmentItem) {
+        const args = {
+            id: file.documentId,
+            name: file.name
+        };
+
+        const doc = this.document();
+        if (doc.__metadata.hasFlag("Revision")) {
+            this.downloadAttachmentAtRevision(doc, args);
+        } else {
+            const url = endpoints.databases.attachment.attachments + appUrl.urlEncodeArgs(args);
+            this.downloader.download(this.db, url);
+        }
+    }
+
+    private downloadAttachmentAtRevision(doc: document, file: { id: string; name: string }) {
+        const $form = $("#downloadAttachmentAtRevisionForm");
+        const $changeVector = $("[name=ChangeVectorAndType]", $form);
+
+        const payload = {
+            ChangeVector: doc.__metadata.changeVector(),
+            Type: "Revision"
+        };
+
+        const url = endpoints.databases.attachment.attachments + appUrl.urlEncodeArgs(file);
+
+        $form.attr("action", appUrl.forDatabaseQuery(this.db) + url);
+        
+        $changeVector.val(JSON.stringify(payload));
+        $form.submit();
+    }
+
+    private afterUpload() {
+        this.searchInput("");
+        this.loadDocumentAction(this.document().getId());
+    }
+
+    activateRelated() {
+        connectedDocuments.currentTab("related");
+    }
+
+    activateAttachments() {
+        connectedDocuments.currentTab("attachments");
+    }
+
+    activateRecent() {
+        connectedDocuments.currentTab("recent");
+    }
+
+    activateRevisions(blink: boolean) {
+        if (blink) {
+            viewHelpers.animate($("#revisions_pane"), "blink-style");
+        }
+        connectedDocuments.currentTab("revisions");
+    }
+
+    activateCounters() {
+        connectedDocuments.currentTab("counters");
+    }
+
+    activateTimeSeries() {
+        connectedDocuments.currentTab("timeSeries");
+    }
+    
+    onDocumentDeleted() {
+        this.recentDocuments.documentRemoved(this.db, this.document().getId());
+        const previous = this.recentDocuments.getPreviousDocument(this.db);
+        if (previous) {
+            this.loadDocumentAction(previous);
+            router.navigate(appUrl.forEditDoc(previous, this.db), false);
+        } else {
+            router.navigate(appUrl.forDocuments(null, this.db));
+        }
+    }
+
+    toggleStar() {
+        this.currentDocumentIsStarred(!this.currentDocumentIsStarred());
+        starredDocumentsStorage.markDocument(this.db, this.document().getId(), this.currentDocumentIsStarred());
+    }
+
+    private onDocumentLoaded(document: document) {
+        if (document) {
+            this.recentDocuments.appendRecentDocument(this.db, this.document().getId());
+            this.currentDocumentIsStarred(starredDocumentsStorage.isStarred(this.db, this.document().getId()));
+
+            if (connectedDocuments.currentTab() === "revisions" && (!document.__metadata.hasFlag("HasRevisions") && !document.__metadata.hasFlag("DeleteRevision"))) {
+                // this will also reset grid
+                connectedDocuments.currentTab("attachments");
+            } else {
+                if (this.gridController()) {
+                    this.gridController().reset(true);
+                }
+            }
+        }
+    }
+
+    onDocumentSaved() {
+        if (connectedDocuments.currentTab() === "revisions") {
+            this.gridController().reset();
+        }
+    }
+    
+    reload() {
+        this.gridController().reset(false);
+    }
+
+    private docIdToConnectedDoc(docId: string): connectedDocumentItem {
+        return {
+            id: docId,
+            href: appUrl.forEditDoc(docId, this.db),
+            deletedRevision: false,
+            conflictRevision: false,
+            resolvedRevision: false
+        }
+    }
+
+    goToTimeSeriesEdit(item: timeSeriesItem) { 
+        router.navigate(appUrl.forEditTimeSeries(item.name, this.document().getId(), this.db));
+    }
+}
+
+export = connectedDocuments;

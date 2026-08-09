@@ -1,0 +1,139 @@
+﻿.capture-stack-traces {
+    .overlay {
+        fill: none;
+        pointer-events: all;
+    }
+
+    .threadContainer {
+        fill: @panel-bg;
+    }
+
+    .header {
+        fill: @panel-footer-bg;
+    }
+
+    .link {
+        fill:none;
+        stroke-width:2;
+        stroke-miterlimit: 10;
+        vector-effect: non-scaling-stroke;
+
+        &.level-1 {
+            stroke: @color-3;
+        }
+
+        &.level-2 {
+            stroke: @color-3-2;
+        }
+
+        &.level-3 {
+            stroke: @color-4;
+        }
+
+        &.level-4 {
+            stroke: @color-4-2;
+        }
+
+        &.level-5 {
+            stroke: @color-5;
+        }
+
+        &.level-6 {
+            stroke: @color-5-2;
+        }
+
+        &.level-7 {
+            stroke: @color-1;
+        }
+    }
+
+    .wireframe {
+        fill-opacity: 0;
+        transition: fill-opacity .2s ease;
+        fill: @gray-light;
+        
+        &.own {
+            fill: @gray-lighter;
+        }
+    }
+    
+    .frame {
+        cursor: default; 
+        fill-opacity: 1;
+        transition: fill-opacity .2s ease;
+        
+        fill: @text-color;
+        font-size: 12px;
+        alignment-baseline: middle;
+
+        &.own {
+            fill: @text-emphasis;
+            font-weight: 900;
+        }
+    }
+    
+    .copy {
+        fill: @btn-primary-color;
+        alignment-baseline: central;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity .4s ease;
+    }
+    
+    .btn-copy {
+        cursor: pointer;
+        fill: @btn-primary-bg;
+        opacity: 0;
+        transition: opacity .4s ease;
+    }
+
+    .threadGroup {
+        &:hover {
+            .btn-copy {
+                opacity: 1;
+            }
+            .copy {
+                opacity: 1;
+            }
+            .legend {
+                opacity: 1;
+            }
+        }
+    }
+    
+    .wireframes {
+        .wireframe {
+            fill-opacity: 1;
+        }
+        
+        .frame {
+            fill-opacity: 0;
+        }
+    }
+
+    .count {
+        font-size:26px;
+        font-weight: bold;
+        fill: @text-emphasis;
+        cursor: default;
+    }
+    
+    .cpuUsage {
+        fill: @text-emphasis;
+    }
+
+    .cpuUsageContainer {
+        .legend {
+            font-size: 10px; 
+            fill: @text-color; 
+            opacity: 0;
+            transition: opacity .4s ease;
+        }
+    }
+
+    .title {
+        cursor: default;
+        font-size:20px;
+        fill: @text-color;
+    }
+}

@@ -1,0 +1,30 @@
+import dialogViewModelBase = require("viewmodels/dialogViewModelBase");
+import aceEditorBindingHandler = require("common/bindingHelpers/aceEditorBindingHandler");
+
+class subscriptionQueryDefinitionPreview extends dialogViewModelBase {
+
+    view = require("views/database/status/subscriptionQueryDefinitionPreview.html");
+    
+    taskName = ko.observable<string>();
+    query = ko.observable<string>();
+    
+    spinners = {
+        loading: ko.observable<boolean>(true)
+    };
+    
+    constructor(task: JQueryPromise<Raven.Client.Documents.Operations.OngoingTasks.OngoingTaskSubscription>) {
+        super();
+
+        aceEditorBindingHandler.install();
+        
+        task.done(result => {
+            this.query(result.Query);
+            this.taskName(result.SubscriptionName);
+        })
+        .always(() => {
+            this.spinners.loading(false);
+        });
+    }
+}
+
+export = subscriptionQueryDefinitionPreview;

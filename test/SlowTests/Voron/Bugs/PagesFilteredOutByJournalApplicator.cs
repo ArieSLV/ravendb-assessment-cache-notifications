@@ -1,0 +1,133 @@
+using System.IO;
+using Tests.Infrastructure;
+using Voron;
+using Voron.Debugging;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Voron.Bugs
+{
+    public class PagesFilteredOutByJournalApplicator : FastTests.Voron.StorageTest
+    {
+        public PagesFilteredOutByJournalApplicator(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        protected override void Configure(StorageEnvironmentOptions options)
+        {
+            base.Configure(options);
+            options.ManualFlushing = true;
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CouldNotReadPagesThatWereFilteredOutByJournalApplicator_1()
+        {
+            var bytes = new byte[1000];
+
+            using (var txw = Env.WriteTransaction())
+            {
+                var tree = txw.CreateTree("foo");
+
+                tree.Add("bars/1", new MemoryStream(bytes));
+
+                txw.Commit();
+
+                DebugStuff.RenderAndShow(tree);
+            }
+
+            using (var txw = Env.WriteTransaction())
+            {
+                txw.CreateTree("bar");
+
+                txw.Commit();
+            }
+
+            using (var txw = Env.WriteTransaction())
+            {
+                txw.CreateTree("baz");
+
+                txw.Commit();
+            }
+
+            using (var txr = Env.ReadTransaction())
+            {
+                using (var txw = Env.WriteTransaction())
+                {
+                    var tree = txw.CreateTree("foo");
+
+                    tree.Add("bars/1", new MemoryStream());
+
+                    txw.Commit();
+
+                }
+
+                Env.FlushLogToDataFile();
+
+                Assert.True(txr.CreateTree( "foo").TryRead("bars/1", out _));
+            }
+        } 
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CouldNotReadPagesThatWereFilteredOutByJournalApplicator_2()
+        {
+            var bytes = new byte[1000];
+
+            using (var txw = Env.WriteTransaction())
+            {
+                var tree = txw.CreateTree( "foo");
+
+                tree.Add("bars/1", new MemoryStream(bytes));
+                tree.Add("bars/2", new MemoryStream(bytes));
+                tree.Add("bars/3", new MemoryStream(bytes));
+                tree.Add("bars/4", new MemoryStream(bytes));
+
+                txw.Commit();
+
+                DebugStuff.RenderAndShow(tree);
+            }
+
+            using (var txw = Env.WriteTransaction())
+            {
+                var tree = txw.CreateTree(  "foo");
+
+                tree.Add("bars/0", new MemoryStream());
+                tree.Add("bars/5", new MemoryStream());
+
+                txw.Commit();
+
+                DebugStuff.RenderAndShow(tree);
+            }
+
+            using (var txw = Env.WriteTransaction())
+            {
+                txw.CreateTree(  "bar");
+
+                txw.Commit();
+            }
+
+            using (var txw = Env.WriteTransaction())
+            {
+                txw.CreateTree("baz");
+
+                txw.Commit();
+            }
+
+            using (var txr = Env.ReadTransaction())
+            {
+                using (var txw = Env.WriteTransaction())
+                {
+                    var tree = txw.CreateTree(  "foo");
+
+                    tree.Add("bars/4", new MemoryStream());
+
+                    txw.Commit();
+
+                }
+
+                Env.FlushLogToDataFile();
+
+                Assert.True(txr.CreateTree("foo").TryRead("bars/5", out _));
+            }
+        }
+    }
+}

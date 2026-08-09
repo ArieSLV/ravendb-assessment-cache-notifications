@@ -1,0 +1,141 @@
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
+using FastTests;
+using Raven.Client.Documents.Indexes;
+using Raven.Server.Documents.Indexes;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Server.Documents.Indexing
+{
+    public class LiveIndexingPerformanceCollectorTests : RavenTestBase
+    {
+        public LiveIndexingPerformanceCollectorTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class User
+        {
+            public string Name { get; set; }
+        }
+
+        private class UsersByName : AbstractIndexCreationTask<User>
+        {
+            public override string IndexName
+            {
+                get { return "Users/ByName"; }
+            }
+
+            public UsersByName()
+            {
+                Map = users => from user in users
+                               select new
+                               {
+                                   user.Name
+                               };
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Indexes)]
+        public async Task CanObtainRecentIndexingPerformance()
+        {
+            using (var store = GetDocumentStore())
+            {
+                store.Initialize();
+                await new UsersByName().ExecuteAsync(store);
+
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new User
+                    {
+                        Name = "First"
+                    }, "users/1");
+
+                    session.Store(new User
+                    {
+                        Name = "Second"
+                    }, "users/2");
+
+                    session.SaveChanges();
+                }
+
+                await Indexes.WaitForIndexingAsync(store);
+
+                var database = await Databases.GetDocumentDatabaseInstanceFor(store);
+                var index = database.IndexStore.GetIndex("Users/ByName");
+
+                var collector = new LiveIndexingPerformanceCollector(database, new[] { index.Name });
+
+                var tuple = await collector.Stats.TryDequeueAsync(TimeSpan.FromSeconds(1));
+                Assert.True(tuple.Item1);
+                var stats = tuple.Item2;
+
+                Assert.Equal(1, stats.Count);
+                var usersStats = stats[0];
+                Assert.Equal("Users/ByName", usersStats.Name);
+
+                Assert.Equal(2, usersStats.Performance.Select(x => x.InputCount).Sum());
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Indexes)]
+        public async Task CanObtainLiveIndexingPerformanceStats()
+        {
+            using (var store = GetDocumentStore())
+            {
+                store.Initialize();
+                var database = await Databases.GetDocumentDatabaseInstanceFor(store);
+
+                await new UsersByName().ExecuteAsync(store);
+                
+                var index = database.IndexStore.GetIndex("Users/ByName");
+
+                var collector = new LiveIndexingPerformanceCollector(database, new[] { index.Name });
+
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new User
+                    {
+                        Name = "First"
+                    }, "users/1");
+
+                    session.Store(new User
+                    {
+                        Name = "Second"
+                    }, "users/2");
+
+                    session.SaveChanges();
+                }
+
+                await Indexes.WaitForIndexingAsync(store);
+
+                var dequeueCount = 0;
+
+                var tuple = await collector.Stats.TryDequeueAsync(TimeSpan.FromSeconds(5));
+                Assert.True(tuple.Item1);
+                dequeueCount++;
+                var usersStats = tuple.Item2[0];
+
+                while (true)
+                {
+                    if (usersStats.Performance.Select(x => x.InputCount).Sum() == 2)
+                        break;
+
+                    tuple = await collector.Stats.TryDequeueAsync(TimeSpan.FromSeconds(10));
+                    dequeueCount++;
+
+                    if (tuple.Item1 == false)
+                        break;
+                    Assert.Equal(1, tuple.Item2.Count);
+                    usersStats = tuple.Item2[0];
+                }
+                Assert.Equal("Users/ByName", usersStats.Name);
+
+                var sum = usersStats.Performance.Select(x => x.InputCount).Sum();
+                Assert.True(sum == 2, $"Can\'t find indexing performance stats, after {dequeueCount} tries. Sum was: {sum}");
+            }
+        }
+    }
+}

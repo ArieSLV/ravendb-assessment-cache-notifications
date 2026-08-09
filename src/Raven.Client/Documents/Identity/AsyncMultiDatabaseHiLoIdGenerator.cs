@@ -1,0 +1,76 @@
+﻿using System;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
+using Raven.Client.Extensions;
+
+namespace Raven.Client.Documents.Identity
+{
+    public class AsyncMultiDatabaseHiLoIdGenerator : IHiLoIdGenerator
+    {
+        protected readonly DocumentStore Store;
+
+        private readonly ConcurrentDictionary<string, AsyncMultiTypeHiLoIdGenerator> _generators =
+            new ConcurrentDictionary<string, AsyncMultiTypeHiLoIdGenerator>();
+
+        public AsyncMultiDatabaseHiLoIdGenerator(DocumentStore store)
+        {
+            Store = store;
+        }
+
+        public Task<string> GenerateDocumentIdAsync(string database, object entity)
+        {
+            // todo: use the collection name overload starting with RavenDB 8.0. See https://github.com/ravendb/ravendb/pull/20692/files#r2127161848
+            // var collectionName = Store.Conventions.GetCollectionName(entity);
+            // return GenerateDocumentIdAsync(database, collectionName);
+
+            database = Store.GetDatabase(database);
+            var generator = _generators.GetOrAdd(database, GenerateAsyncMultiTypeHiLoFunc);
+#pragma warning disable CS0618 // Type or member is obsolete
+            return generator.GenerateDocumentIdAsync(entity);
+#pragma warning restore CS0618 // Type or member is obsolete
+        }
+
+        public Task<string> GenerateDocumentIdAsync(string database, Type type)
+        {
+            var collectionName = Store.Conventions.GetCollectionName(type);
+            return GenerateDocumentIdAsync(database, collectionName);
+        }
+
+        public Task<string> GenerateDocumentIdAsync(string database, string collectionName)
+        {
+            database = Store.GetDatabase(database);
+            var generator = _generators.GetOrAdd(database, GenerateAsyncMultiTypeHiLoFunc);
+            return generator.GenerateDocumentIdAsync(collectionName);
+        }
+
+        public Task<long> GenerateNextIdForAsync(string database, object entity)
+        {
+            var collectionName = Store.Conventions.GetCollectionName(entity);
+            return GenerateNextIdForAsync(database, collectionName);
+        }
+
+        public Task<long> GenerateNextIdForAsync(string database, Type type)
+        {
+            var collectionName = Store.Conventions.GetCollectionName(type);
+            return GenerateNextIdForAsync(database, collectionName);
+        }
+
+        public Task<long> GenerateNextIdForAsync(string database, string collectionName)
+        {
+            database = Store.GetDatabase(database);
+            var generator = _generators.GetOrAdd(database, GenerateAsyncMultiTypeHiLoFunc);
+            return generator.GenerateNextIdForAsync(collectionName);
+        }
+
+        public virtual AsyncMultiTypeHiLoIdGenerator GenerateAsyncMultiTypeHiLoFunc(string database)
+        {
+            return new AsyncMultiTypeHiLoIdGenerator(Store, database);
+        }
+
+        public async Task ReturnUnusedRange()
+        {
+            foreach (var generator in _generators)
+                await generator.Value.ReturnUnusedRange().ConfigureAwait(false);
+        }
+    }
+}

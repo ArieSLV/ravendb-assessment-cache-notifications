@@ -1,0 +1,47 @@
+﻿using Raven.Client.Documents;
+using Raven.Client.Documents.Linq;
+using Raven.Tests.Core.Utils.Entities;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace FastTests.Issues
+{
+    public class RavenDB_12235 : RavenTestBase
+    {
+        public RavenDB_12235(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        [RavenFact(RavenTestCategory.Querying)]
+        public void ShouldBeAbleToMoveBetweenDocumentQueryToIRavenQueryable()
+        {
+            using (var store = GetDocumentStore())
+            {
+                using (var session = store.OpenSession())
+                {
+                    var docQuery = session.Advanced.DocumentQuery<User>();
+                    var q = docQuery.ToQueryable();
+                    q = q.Where(x => x.Name == "123");
+                    q = q.Search(x => x.Age, "123");
+
+                    Assert.Equal("from 'Users' where (Name = $p0) and search(Age, $p1)", q.ToString());
+                    Assert.Equal("from 'Users'", docQuery.ToString());
+                }
+
+                using (var asyncSession = store.OpenAsyncSession())
+                {
+                    var docQuery = asyncSession.Advanced.AsyncDocumentQuery<User>();
+                    var q = docQuery.ToQueryable();
+                    q = q.Where(x => x.Name == "123");
+                    q = q.Search(x => x.Age, "123");
+
+                    Assert.Equal("from 'Users' where (Name = $p0) and search(Age, $p1)", q.ToString());
+                    Assert.Equal("from 'Users'", docQuery.ToString());
+                }
+            }
+
+        }
+    }
+}
+

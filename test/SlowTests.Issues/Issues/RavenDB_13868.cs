@@ -1,0 +1,71 @@
+﻿using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
+using FastTests;
+using Sparrow.Server;
+using Tests.Infrastructure;
+using Tests.Infrastructure.Entities;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Issues
+{
+    public class RavenDB_13868 : RavenTestBase
+    {
+        public RavenDB_13868(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private readonly TimeSpan _reasonableWaitTime = Debugger.IsAttached ? TimeSpan.FromSeconds(60 * 10) : TimeSpan.FromSeconds(30);
+
+        [RavenTheory(RavenTestCategory.Subscriptions)]
+        [RavenData(DatabaseMode = RavenDatabaseMode.All)]
+        public async Task CollectionInSubscriptionsShouldbeCaseInsensitive(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new Order()
+                    {
+                        Employee = "zzz"
+                    });
+                    session.SaveChanges();
+                }
+
+                var subsId = await store.Subscriptions.CreateAsync(new Raven.Client.Documents.Subscriptions.SubscriptionCreationOptions()
+                {
+                    Query = @"from orders as o where o.Employee=='zzz'"
+                });
+                var subsWorker = store.Subscriptions.GetSubscriptionWorker<Order>(new Raven.Client.Documents.Subscriptions.SubscriptionWorkerOptions(subsId)
+                {
+                    MaxDocsPerBatch = 1
+                });
+
+                var amre = new AsyncManualResetEvent();
+                subsWorker.AfterAcknowledgment += batch =>
+                {
+                    amre.Set();
+                    return Task.CompletedTask;
+                };
+                GC.KeepAlive(subsWorker.Run(x => { }));
+                Assert.True(await amre.WaitAsync(_reasonableWaitTime));
+                amre.Reset();
+                for (int i = 0; i < 9; i++)
+                {
+                    using (var session = store.OpenSession())
+                    {
+                        session.Store(new Order()
+                        {
+                            Employee = "zzz"
+                        });
+                        session.SaveChanges();
+                    }
+                    Assert.True(await amre.WaitAsync(_reasonableWaitTime));
+                    amre.Reset();
+                }
+            }
+        }
+    }
+
+}

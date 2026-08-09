@@ -1,0 +1,80 @@
+using System.IO;
+using Tests.Infrastructure;
+using Voron;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Voron.Bugs
+{
+    public class EmptyTree : FastTests.Voron.StorageTest
+    {
+        public EmptyTree(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void ShouldBeEmpty()
+        {
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.CreateTree("events");
+
+                tx.Commit();
+            }
+
+            using (var tx = Env.ReadTransaction())
+            {
+                var treeIterator = tx.CreateTree("events").Iterate(false);
+
+                Assert.False(treeIterator.Seek(Slices.AfterAllKeys));
+
+                tx.Commit();
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void SurviveRestart()
+        {
+            using (var options = StorageEnvironmentOptions.CreateMemoryOnlyForTests())
+            {
+                options.OwnsPagers = false;
+                using (var env = new StorageEnvironment(options))
+                {
+                    using (var tx = env.WriteTransaction())
+                    {
+                        tx.CreateTree("events");
+
+                        tx.Commit();
+                    }
+
+                    using (var tx = env.WriteTransaction())
+                    {
+                        tx.CreateTree("events").Add("test", new MemoryStream(0));
+
+                        tx.Commit();
+                    }
+                }
+
+                using (var env = new StorageEnvironment(options))
+                {
+                    using (var tx = env.WriteTransaction())
+                    {
+                        tx.CreateTree("events");
+
+                        tx.Commit();
+                    }
+
+                    using (var tx = env.WriteTransaction())
+                    {
+                        var tree = tx.CreateTree("events");
+                        Assert.True(tree.TryRead("test", out _));
+                        
+                        tx.Commit();
+                    }
+                }
+            }
+
+
+        }
+    }
+}

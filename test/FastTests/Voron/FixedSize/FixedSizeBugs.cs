@@ -1,0 +1,85 @@
+using Tests.Infrastructure;
+using Voron;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace FastTests.Voron.FixedSize
+{
+    public class FixedSizeBugs(ITestOutputHelper output) : StorageTest(output)
+    {
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CanAddDuplicate()
+        {
+            Slice treeId;
+            Slice.From(Allocator, "test", out treeId);
+            using (var tx = Env.WriteTransaction())
+            {
+                var fst = tx.FixedTreeFor(treeId, valSize: 8);
+
+                fst.Add(2, new byte[8]);
+                fst.Add(3, new byte[8]);
+
+                tx.Commit();
+            }
+
+            using (var tx = Env.WriteTransaction())
+            {
+                var fst = tx.FixedTreeFor(treeId, valSize: 8);
+                fst.DebugRenderAndShow();
+                fst.Add(1, new byte[8]);
+                fst.Add(2, new byte[8]);
+                fst.DebugRenderAndShow();
+
+                tx.Commit();
+            }
+
+            using (var tx = Env.WriteTransaction())
+            {
+                var fst = tx.FixedTreeFor(treeId, valSize: 8);
+
+                Assert.Equal(3, fst.NumberOfEntries);
+                using (var it = fst.Iterate())
+                {
+                    Assert.True(it.Seek(0));
+                    Assert.Equal(1, it.CurrentKey);
+                    Assert.True(it.MoveNext());
+                    Assert.Equal(2, it.CurrentKey);
+                    Assert.True(it.MoveNext());
+                    Assert.Equal(3, it.CurrentKey);
+                    Assert.False(it.MoveNext());
+                }
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CanAddDuplicate_Many()
+        {
+            Slice treeId;
+            Slice.From(Allocator, "test", out treeId);
+            using (var tx = Env.WriteTransaction())
+            {
+                for (var i = 0; i < 300; i++)
+                {
+                    var fst = tx.FixedTreeFor(treeId, valSize: 8);
+
+                    fst.Add(i, new byte[8]);
+                }
+
+                tx.Commit();
+            }
+
+            using (var tx = Env.WriteTransaction())
+            {
+                for (var i = 0; i < 300; i++)
+                {
+                    var fst = tx.FixedTreeFor(treeId, valSize: 8);
+
+                    fst.Delete(i);
+                    fst.Add(i, new byte[8]);
+                }
+
+                tx.Commit();
+            }
+        }
+    }
+}

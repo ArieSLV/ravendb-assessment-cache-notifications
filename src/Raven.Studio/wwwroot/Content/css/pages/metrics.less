@@ -1,0 +1,359 @@
+﻿@default-operation-color: antiquewhite;
+
+.metricsContainer {
+    position: relative;
+    
+    .tooltip-inner {
+        white-space: nowrap;
+        
+        .tooltip-li .value {
+            word-wrap: break-word;
+        }
+    }
+
+    .extent {
+        cursor: ew-resize !important;
+    }
+
+    .resize {
+        cursor: col-resize !important;
+    }
+}
+
+.metricsContainer canvas, .metricsContainer svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+.brush .extent {
+    fill-opacity: .3;
+    stroke: @brand-primary;
+    fill: @brand-primary;
+    shape-rendering: crispEdges;
+}
+
+rect.pane {
+    fill: none;
+    pointer-events: all;
+}
+
+.ongoing-tasks-stats {
+    
+    .tooltip-inner {
+        max-width: 400px;
+    }
+    
+    .color-definitions {
+        .axis {
+            color: fadeout(@text-color, 30%);
+        }
+
+        .axisText {
+            color: @on-base-background-color;
+        }
+        .gaps {
+            color: fadeout(@color-5, 50%);
+        }
+        .brushChartColor {
+            color: @panel-bg;
+        }
+        .brushChartStrokeColor {
+            color: @brand-info;
+        }
+        .trackBackground {
+            color: @panel-bg;
+        }
+        .separatorLine {
+            color: @layout-border;
+        }
+        .trackNameBg {
+            color: @panel-bg-2;
+        }
+        .trackNameFg {
+            color: @text-color;
+        }
+        .trackDirectionText {
+            color: @brand-primary;
+        }
+        .openedTrackArrow {
+            color: @brand-primary;
+        }
+        .closedTrackArrow {
+            color: @text-muted;
+        }
+        .collectionNameTextColor {
+            color: @text-color;
+        }
+        .itemWithError {
+            color: red;
+        }
+        .progressStripes {
+            color: fadeout(@gray-lighter, 90%);
+        }
+        .stripeTextColor {
+            color: lighten(@gray-lighter, 10%);
+        }
+        
+        .tracks {
+            .replication {
+                color: @color-3;
+            }
+            .networkRead {
+                color: @color-4-2;
+            }
+            .networkWrite {
+                color: @color-4-2;
+            }
+            .storageRead {
+                color: @color-5;
+            }
+            .storageWrite {
+                color: @color-5;
+            }
+            .networkDocumentRead {
+                color: @color-4;
+            }
+            .storageDocumentRead {
+                color: @color-4;
+            }
+            .networkAttachmentRead {
+                color: @color-3-3;
+            }
+            .storageAttachmentRead {
+                color: @color-3-3;
+            }
+            .networkTombstoneRead {
+                color: @color-3-2;
+            }
+            .storageTombstoneRead {
+                color: @color-3-2;
+            }
+            .storageCounterRead {
+                color: @color-3-1;
+            }
+            .storageTimeSeriesRead {
+                color: @color-5-2;
+            }
+            .modelGenerate {
+                color: @color-3-2;
+            }
+            .etl {
+                color: @color-4;
+            }
+            .embeddingsGeneration {
+                color: @color-4;
+            }
+            .storageWriteEmbeddings {
+                color: @color-3-1;
+            }
+            .extract {
+                color: @color-1;
+            }
+            .transform {
+                color: @color-1-3;
+            }
+            .load {
+                color: @color-2-2;
+            }
+            .loadLocal {
+                color: @color-3;
+            }
+            .loadLocalChild {
+                color: @color-3-2;
+            }
+            .loadUpload {
+                color: @color-5;
+            }
+            .loadUploadChild {
+                color: @color-4-3;
+            }
+            .genAi {
+                color: @color-4;
+            }
+            .genAiLoadToModel {
+                color: @color-2-3;
+            }
+            .genAiUpdatePhase {
+                color: @color-3-1;
+            }
+            .modelLoad {
+                color: @color-2-3;
+            }
+            .connectionPending {
+                color: @color-2-2;
+            }
+            .connectionActive {
+                color: @color-1-2;
+            }
+            .batch {
+                color: @color-3;
+            }
+            .batchSendDocuments {
+                color: @color-2-1;
+            }
+            .batchWaitForAcknowledge {
+                color: @color-3-3;
+            }
+            .connectionAborted {
+                color: darken(red, 5%);
+            }
+            .connectionRejected {
+                color: darken(red, 5%);
+            }
+            .connectionErrorBackground {
+                color: @black;
+            }
+            .aggregatedBatchesInfo {
+                color: @color-4-3;
+            }
+            .consume {
+                color: @color-3;
+            }
+            .queueReading {
+                color: @color-4;
+            }
+            .scriptProcessing {
+                color: @color-2-2;
+            }
+            .unknownOperation {
+                color: @default-operation-color;
+            }
+        }
+    }
+}
+
+.io-stats {
+    .main-colors {
+        .color-definitions {
+            .axis {
+                color: fadeout(@text-color, 30%);
+            }
+
+            .axisText {
+                color: @on-base-background-color;
+            }
+
+            .gaps {
+                color: fadeout(@color-5, 50%);
+            }
+
+            .trackBackground {
+                color: @panel-bg;
+            }
+
+            .trackNameBg {
+                color: @panel-bg-2;
+            }
+
+            .trackNameFg {
+                color: @text-color;
+            }
+
+            .openedTrackArrow {
+                color: @brand-primary;
+            }
+
+            .closedTrackArrow {
+                color: @text-muted;
+            }
+
+            .text {
+                color: @text-emphasis;
+            }
+        }
+    }
+
+    .event-colors {
+        .color-definitions {
+            .compression {
+                .low {
+                    color: darken(@color-5, 20%);
+                }
+
+                .high {
+                    color: lighten(@color-5-2, 5%);
+                }
+            }
+
+            .dataFlush {
+                .low {
+                    color: darken(@color-3-2, 20%);
+                }
+
+                .high {
+                    color: lighten(@color-3, 5%);
+                }
+            }
+
+            .dataSync {
+                .low {
+                    color: darken(@color-1, 20%);
+                }
+
+                .high {
+                    color: lighten(@color-1-2, 5%);
+                }
+            }
+
+            .journalWrite {
+                .low {
+                    color: darken(@color-4-2, 20%);
+                }
+
+                .high {
+                    color: lighten(@color-4, 5%);
+                }
+            }
+        }
+    }
+
+    .tooltip-inner {
+        white-space: nowrap;
+        max-width: 350px;
+    }
+}
+
+@legend-container-width: 200px;
+@legend-arrow-border: 6px;
+@legend-arrow-color: @color-1;
+
+.arrow-down {
+  position: absolute;
+  top: 20px; 
+  width: 0; 
+  height: 0; 
+  border-left: @legend-arrow-border solid transparent;
+  border-right: @legend-arrow-border solid transparent;
+  border-top: @legend-arrow-border solid @legend-arrow-color;
+}
+
+.legend-container {
+  position: relative;
+  width: @legend-container-width;
+  float: left;
+}
+
+.legend-start-range {
+  position: absolute;
+  top: 0;
+  left: -3px; /* Position inside containing element, the distance from left edge of legend-container */
+}
+
+.legend-end-range {
+  position: absolute;
+  top: 0;
+  right: 33px; /* Position inside containing element, the distance from right edge of legend-container */
+}
+
+.legend-container img {
+  margin-top: 20px;
+}
+
+.legend-container div {
+  font-size: 12px;
+  text-align: center;
+
+  &.legend-title {
+      width: @legend-container-width - 50px;
+  }
+}

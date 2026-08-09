@@ -1,0 +1,60 @@
+<div class="modal-dialog add-new-node-to-db-group" role="document">
+    <div class="modal-content neo-modal" tabindex="-1">
+        <div class="modal-header">
+            <div class="d-flex align-items-center">
+                <img src="../../../Content/img/sharding/shard.svg" alt="Shard" class="img-responsive margin-center" style="width:24px;"/>
+                <h3 class="flex-grow margin-none margin-left-xxs">Add a new shard</h3>
+            </div>
+        </div>
+        <div class="modal-body">
+            <h4>Replication Configuration <i class="icon-info" title="Set the number of nodes that will contain the database"></i></h4>
+            <!-- TODO: Add context -->
+            <div class="form-group">
+                <div class="input-group" title="Set the number of nodes that will contain the database" data-bind="validationElement: replicationFactor">
+                    <span class="input-group-addon">Replication factor</span>
+                    <input class="form-control" type="number" min="1" title="Set the number of nodes that will contain the database" 
+                           placeholder="Enter number of nodes" data-bind="numericInput: replicationFactor, disable: manualMode">
+                </div>
+            </div>
+
+            <div>
+                <div>
+                    <div class="toggle">
+                        <input class="styled" type="checkbox" id="manual_mode" data-bind="checked: manualMode">
+                        <label for="manual_mode">Set nodes layout manually</label>
+                    </div>
+                    <small class="toggle-caption">Select replication nodes from the list below.</small>
+                </div>
+                <div>
+                    <div class="bg-info padding no-margin" data-bind="visible: manualMode()">
+                        <h3>Available nodes</h3>
+                        <div class="checkbox checkbox-info margin-bottom-xxs">
+                            <input type="checkbox" id="toggle_all_in_cluster" class="styled" data-bind="checkboxTriple: selectionState, event: { change: toggleSelectAll }">
+                            <label for="toggle_all_in_cluster"><i class="icon-cluster"></i><span>All cluster nodes</span></label>
+                        </div>
+                        <div data-bind="foreach: clusterNodes">
+                            <div class="checkbox checkbox-success padding-left-md" data-bind="validationOptions: { errorsAsTitle: false, insertMessages: false }">
+                                <input class="styled" type="checkbox" data-bind="attr: { id: 'cluster_node_' + $index() }, checked: $parent.nodes, checkedValue: $data">
+                                <label class="text-success" data-bind="attr: { for: 'cluster_node_' + $index() }">
+                                    <i class="icon-cluster-node"></i><span data-bind="text: tag()"></span> &nbsp; <small data-bind="text: serverUrl()"></small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-bind="validationElement: nodes">
+                        <div class="help-block" data-bind="validationMessage: nodes"></div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+        <div class="modal-footer">
+            <div class="text-right">
+                <button type="button" class="btn btn-default" data-bind="click: close"><i class="icon-cancel"></i><span>Cancel</span></button>
+                <button data-bind="click: addShard, disable: spinners.addShard, css: { 'btn-spinner': spinners.addShard }" type="button" class="btn btn-primary">
+                    <i class="icon-plus"></i><span>Add shard</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

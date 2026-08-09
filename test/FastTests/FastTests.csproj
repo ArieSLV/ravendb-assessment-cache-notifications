@@ -1,0 +1,113 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeFrameworkVersion>10.0.2</RuntimeFrameworkVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>FastTests</AssemblyName>
+    <PackageId>FastTests</PackageId>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <CodeAnalysisRuleSet>..\..\RavenDB.ruleset</CodeAnalysisRuleSet>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+    <Compile Include="..\..\src\CommonAssemblyInfo.Windows.cs" Link="Properties\CommonAssemblyInfo.Windows.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+    <Compile Include="..\..\src\CommonAssemblyInfo.Linux.cs" Link="Properties\CommonAssemblyInfo.Linux.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\CommonAssemblyInfo.cs" Link="Properties\CommonAssemblyInfo.cs" />
+    <Compile Include="..\Tests.Infrastructure\CommonTestsAssemblyInfo.cs" Link="Properties\CommonTestsAssemblyInfo.cs" />
+    <Compile Include="..\..\src\Usings.Server.cs">
+      <Link>Properties\Usings.Server.cs</Link>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Blittable\BlittableJsonWriterTests\Jsons\*.json" />
+    <EmbeddedResource Include="Voron\Util\GreaterThan42B-Truncated.txt" />
+    <EmbeddedResource Include="Voron\Util\WriteTooMuchToBuffer.txt" />
+    <None Remove="Corax\Bugs\access_violation.json.gz" />
+    <None Remove="Corax\Bugs\Corax.Set.Adds.txt" />
+    <None Remove="Voron\CompactTrees\RavenDB-19703.replay" />
+    <None Remove="Voron\CompactTrees\RavenDB-19937.replay" />
+    <None Remove="Voron\CompactTrees\RavenDB-19956.replay" />
+    <EmbeddedResource Include="Corax\Bugs\access_violation.json.gz" />
+    <EmbeddedResource Include="Corax\Bugs\Corax.Set.Adds.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Corax\Bugs\Corax.Set.Removals.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Corax\Bugs\3-2015-10.txt.gz" />
+    <None Remove="Corax\Bugs\index-log.bin" />
+    <EmbeddedResource Include="Corax\Bugs\index-log.bin" />
+    <None Remove="Corax\Bugs\index-corrupt-log.bin" />
+    <EmbeddedResource Include="Corax\Bugs\index-corrupt-log.bin" />
+    <None Remove="Voron\PostingLists\WriteTooMuchToBuffer.txt" />
+    <None Remove="Voron\Util\SmallBufferSizeMisleading.txt" />
+    <EmbeddedResource Include="Voron\Util\SmallBufferSizeMisleading.txt" />
+    <None Remove="Voron\Util\SmallBufferMisleading2.txt" />
+    <EmbeddedResource Include="Voron\Util\SmallBufferMisleading2.txt" />
+    <None Remove="Voron\Util\GreaterThan42B.txt" />
+    <EmbeddedResource Include="Voron\Util\GreaterThan42B.txt" />
+    <None Remove="Corax\Bugs\PostListSplit.txt" />
+    <EmbeddedResource Include="Corax\Bugs\PostListSplit.txt" />
+    <None Remove="Corax\Bugs\page-base64.txt" />
+    <EmbeddedResource Include="Corax\Bugs\page-base64.txt" />
+    <None Update="Data\output.json.gz">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Remove="Corax\agents.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Sparrow\BitVectors.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="Data\memInfo.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\xunit.runner.json" Link="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Raven.Server\Raven.Server.csproj" />
+    <ProjectReference Include="..\Tests.Infrastructure\Tests.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Hl7.Fhir.R4" />
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" VersionOverride="2.0.77" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NJsonSchema" />
+    <PackageReference Include="NodaTime" />
+    <PackageReference Include="Spatial4n" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Data\RavenDB_17185\memInfo.txt" />
+    <None Remove="Voron\CompactTrees\RavenDB-19703.replay" />
+    <EmbeddedResource Include="Voron\CompactTrees\RavenDB-19703.replay" />
+    <None Remove="Voron\CompactTrees\RavenDB-19937.replay" />
+    <EmbeddedResource Include="Voron\CompactTrees\RavenDB-19937.replay" />
+    <EmbeddedResource Include="Voron\CompactTrees\RavenDB-19956.replay" />
+  </ItemGroup>
+  <ItemGroup>
+    <Service Include="{82a7f48d-3b50-4b1e-b82e-3ada8210c358}" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Issues\RavenDB-13499.ravendbdump">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="Corax\Bugs\Corax.PostingList.RemBiggerThanInt" />
+    <EmbeddedResource Include="Corax\Bugs\Corax.PostingList.RemBiggerThanInt.txt" />
+    <None Remove="Corax\Bugs\Corax.PostingList.AddsBiggerThanInt" />
+    <EmbeddedResource Include="Corax\Bugs\Corax.PostingList.AddsBiggerThanInt.txt" />
+  </ItemGroup>
+</Project>

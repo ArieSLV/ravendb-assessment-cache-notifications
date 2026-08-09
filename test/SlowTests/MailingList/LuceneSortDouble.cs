@@ -1,0 +1,201 @@
+﻿using System.Linq;
+using FastTests;
+using Raven.Client.Documents.Indexes;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.MailingList
+{
+    public class LuceneSortDouble : RavenTestBase
+    {
+        public LuceneSortDouble(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class ClassWithDouble
+        {
+            public string Id { get; set; }
+            public double Rating { get; set; }
+
+            public override string ToString()
+            {
+                return Rating.ToString();
+            }
+        }
+
+        private class ClassWithDouble_Index : AbstractIndexCreationTask<ClassWithDouble>
+        {
+            public ClassWithDouble_Index()
+            {
+                Map = docs => from doc in docs
+                              select new
+                              {
+                                  doc.Rating
+                              };
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Querying)]
+        [RavenData(SearchEngineMode = RavenSearchEngineMode.All)]
+        public void NormalQuery_SortingByDoubleShouldWork(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                new ClassWithDouble_Index().Execute(store);
+
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 5
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 1
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 6
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 4
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 7
+                    });
+
+                    session.SaveChanges();
+                }
+
+                using (var session = store.OpenSession())
+                {
+                    var results = session.Query<ClassWithDouble, ClassWithDouble_Index>()
+                        .Customize(customization => customization.WaitForNonStaleResults())
+                        .OrderBy(x => x.Rating)
+                        .ToList();
+
+                    Assert.Equal(results[0].Rating, 1);
+                    Assert.Equal(results[1].Rating, 4);
+                    Assert.Equal(results[2].Rating, 5);
+                    Assert.Equal(results[3].Rating, 6);
+                    Assert.Equal(results[4].Rating, 7);
+                }
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Querying)]
+        [RavenData(SearchEngineMode = RavenSearchEngineMode.All)]
+        public void LuceneQuery_SortingByDoubleDescShouldWork(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                new ClassWithDouble_Index().Execute(store);
+
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 5
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 1
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 6
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 4
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 7
+                    });
+
+                    session.SaveChanges();
+                }
+
+                using (var session = store.OpenSession())
+                {
+                    var results = session.Advanced.DocumentQuery<ClassWithDouble, ClassWithDouble_Index>()
+                        .WaitForNonStaleResults()
+                        .OrderByDescending(x => x.Rating)
+                        .ToList();
+
+                    Assert.Equal(results[0].Rating, 7);
+                    Assert.Equal(results[1].Rating, 6);
+                    Assert.Equal(results[2].Rating, 5);
+                    Assert.Equal(results[3].Rating, 4);
+                    Assert.Equal(results[4].Rating, 1);
+                }
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Querying)]
+        [RavenData(SearchEngineMode = RavenSearchEngineMode.All)]
+        public void LuceneQuery_SortingByDoubleShouldWork(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                new ClassWithDouble_Index().Execute(store);
+
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 5
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 1
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 6
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 4
+                    });
+
+                    session.Store(new ClassWithDouble
+                    {
+                        Rating = 7
+                    });
+
+                    session.SaveChanges();
+                }
+
+                using (var session = store.OpenSession())
+                {
+                    var results = session.Advanced.DocumentQuery<ClassWithDouble, ClassWithDouble_Index>()
+                        .WaitForNonStaleResults()
+                        .OrderBy(x => x.Rating)
+                        .ToList();
+
+                    Assert.Equal(results[0].Rating, 1);
+                    Assert.Equal(results[1].Rating, 4);
+                    Assert.Equal(results[2].Rating, 5);
+                    Assert.Equal(results[3].Rating, 6);
+                    Assert.Equal(results[4].Rating, 7);
+                }
+            }
+        }
+    }
+}

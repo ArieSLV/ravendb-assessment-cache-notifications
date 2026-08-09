@@ -1,0 +1,36 @@
+<div class="modal-dialog modal-lg" role="document" id="conflictResolutionSyntaxDialog">
+    <div class="modal-content">
+        <div class="modal-body">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><i class="icon-cancel"></i></button>
+            <div class="margin-top">Conflicted documents:</div>
+            <div class="row">
+                <div class="col-md-6">
+<pre>
+<span class="token punctuation">{</span>
+    <span class="token string">"Name"</span>: <span class="token string">"John"</span>,
+    <span class="token string">"MaxRecord"</span>: <span class="token number">43</span>
+<span class="token punctuation">}</span>
+</pre>
+                </div>
+                <div class="col-md-6">
+<pre>
+<span class="token punctuation">{</span>
+    <span class="token string">"Name"</span>: <span class="token string">"John"</span>,
+    <span class="token string">"MaxRecord"</span>: <span class="token number">80</span>
+<span class="token punctuation">}</span>
+</pre>
+                </div>
+            </div>
+
+            <div class="margin-top">Script:</div>
+            <pre class="copy-area"><a href="#" class="copy-button-hidden" title="Copy code sample" data-bind="click: $root.copySample"><i class="icon-copy"></i></a><span data-bind="html: scriptHtml"></span></pre>
+            <div class="margin-top">Conflict resolution result:</div>
+<pre>
+<span class="token punctuation">{</span>
+    <span class="token string">"Name"</span>: <span class="token string">"John"</span>,
+    <span class="token string">"MaxRecord"</span>: <span class="token number">80</span>
+<span class="token punctuation">}</span>
+</pre>
+        </div>
+    </div>
+</div>

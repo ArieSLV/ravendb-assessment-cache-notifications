@@ -1,0 +1,99 @@
+﻿@use "sass:math";
+
+@use "Content/scss/colors";
+@use "Content/scss/sizes";
+@use "Content/scss/bs5variables";
+
+.location-distribution {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, max-content));
+
+    .distribution-legend,
+    .distribution-summary,
+    .distribution-item {
+        font-size: 12px;
+        margin: sizes.$gutter-xs * 0.5;
+
+        .top {
+            font-size: 18px;
+            font-weight: bold;
+
+            i {
+                margin-right: sizes.$gutter-xxs;
+            }
+        }
+
+        & > div {
+            min-height: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            & + div {
+                border-top: sizes.$border-width solid colors.$border-color-light-var;
+            }
+
+            &:first-of-type {
+                height: 50px;
+            }
+        }
+    }
+
+    .distribution-legend > div {
+        justify-content: flex-start;
+
+        i {
+            width: sizes.$gutter;
+            text-align: center;
+        }
+    }
+
+    .distribution-summary {
+        grid-column: 2;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    .distribution-summary,
+    .distribution-legend {
+        grid-row-end: span 50;
+    }
+
+    .distribution-item {
+        background-color: colors.$panel-bg-2-var;
+        border-radius: sizes.$gutter-xs;
+        border: sizes.$border-width solid transparent;
+        transition: all 0.33s cubic-bezier(0.4, 0, 0.2, 1);
+
+        & > div {
+            padding-left: sizes.$gutter-xs;
+            padding-right: sizes.$gutter-xs;
+            line-height: 1em;
+            transition: opacity 0.2s ease-in;
+        }
+
+        .shard {
+            --icon-color: #{colors.$shard-color};
+        }
+
+        .node {
+            --icon-color: #{colors.$node-color};
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .top {
+            color: colors.$text-emphasis-var;
+
+            i {
+                color: var(--icon-color);
+            }
+        }
+        &.hovered {
+            transition: none;
+            box-shadow:
+                bs5variables.$box-shadow-sm,
+                0 0 20px 0 inset rgba(colors.$shard-color, 0.2);
+        }
+    }
+}

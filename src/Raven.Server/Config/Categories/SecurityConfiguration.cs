@@ -1,0 +1,334 @@
+using System;
+using System.ComponentModel;
+using System.Linq;
+using System.Net;
+using System.Net.Security;
+using Raven.Server.Config.Attributes;
+using Raven.Server.Config.Settings;
+using Raven.Server.Utils;
+using Sparrow;
+
+namespace Raven.Server.Config.Categories
+{
+    [ConfigurationCategory(ConfigurationCategoryType.Security)]
+    public sealed class SecurityConfiguration : ConfigurationCategory
+    {
+        [Description("Disable automatic redirection when listening to HTTPS. " +
+                     "By default, when using port 443, RavenDB redirects all incoming HTTP traffic on port 80 to HTTPS on port 443.")]
+        [DefaultValue(false)]
+        [ConfigurationEntry("Security.DisableHttpsRedirection", ConfigurationEntryScope.ServerWideOnly)]
+        public bool DisableHttpsRedirection { get; set; }
+        
+        [Description("Disable HTTP Strict Transport Security.")]
+        [DefaultValue(false)]
+        [ConfigurationEntry("Security.DisableHsts", ConfigurationEntryScope.ServerWideOnly)]
+        public bool DisableHsts { get; set; }
+
+        [Description("The path to a folder in which RavenDB stores audit log files. " +
+                     "Setting the path enables writing to the audit log.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.AuditLog.FolderPath", ConfigurationEntryScope.ServerWideOnly)]
+        public PathSetting AuditLogPath { get; set; }
+        
+        [Description("The name of the audit log file.")]
+        [DefaultValue("server.audit.log")]
+        [ConfigurationEntry("Security.AuditLog.FileName", ConfigurationEntryScope.ServerWideOnly)]
+        public string AuditLogFileName { get; set; }
+
+        [Description("The largest size (in megabytes) that an audit log file may reach " +
+                     "before it is archived and logging is directed to a new file.")]
+        [DefaultValue(128)]
+        [MinValue(16)]
+        [SizeUnit(SizeUnit.Megabytes)]
+        [ConfigurationEntry("Security.AuditLog.ArchiveAboveSizeInMb", ConfigurationEntryScope.ServerWideOnly)]
+        public Size AuditLogArchiveAboveSize { get; set; }
+
+        [Description("The maximum number of days that an archived audit log file is kept.")]
+        [DefaultValue(3)]
+        [ConfigurationEntry("Security.AuditLog.MaxArchiveDays", ConfigurationEntryScope.ServerWideOnly)]
+        public int? AuditLogMaxArchiveDays { get; set; }
+
+        [Description("The maximum number of archived audit log files to keep.")]
+        [DefaultValue(null)]
+        [MinValue(0)]
+        [ConfigurationEntry("Security.AuditLog.MaxArchiveFiles", ConfigurationEntryScope.ServerWideOnly)]
+        public int? AuditLogMaxArchiveFiles { get; set; }
+
+        [Description("Determines whether to compress the audit log files.")]
+        [DefaultValue(false)]
+        [ConfigurationEntry("Security.AuditLog.EnableArchiveFileCompression", ConfigurationEntryScope.ServerWideOnly)]
+        [ConfigurationEntry("Security.AuditLog.Compress", ConfigurationEntryScope.ServerWideOnly)]
+        public bool AuditLogEnableArchiveFileCompression { get; set; }
+
+        [Description("The path to .pfx certificate file. If specified, RavenDB will use HTTPS/SSL for all network activities. " +
+                     "Certificate setting priority order: 1) Path 2) Executable")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Path", ConfigurationEntryScope.ServerWideOnly)]
+        public string CertificatePath { get; set; }
+
+        [Description("EXPERT: Whether RavenDB will consider memory lock error to be catastrophic. " +
+                     "This is used with encrypted databases to ensure that temporary buffers are never written to disk and are locked to memory. " +
+                     "Setting this to true is not recommended and should be done only after proper security analysis has been performed.")]
+        [DefaultValue(false)]
+        [ConfigurationEntry("Security.DoNotConsiderMemoryLockFailureAsCatastrophicError", ConfigurationEntryScope.ServerWideOrPerDatabase)]
+        public bool DoNotConsiderMemoryLockFailureAsCatastrophicError { get; set; }
+
+        [Description("The (optional) password of the .pfx certificate file.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Password", ConfigurationEntryScope.ServerWideOnly, isSecured: true)]
+        public string CertificatePassword { get; set; }
+
+        [Description("Deprecated. Use Security.Certificate.Load.Exec along with Security.Certificate.Renew.Exec and Security.Certificate.Change.Exec")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Exec", ConfigurationEntryScope.ServerWideOnly)]
+        public string CertificateExec { get; set; }
+
+        [Description("A command or executable providing a .pfx cluster certificate when invoked by RavenDB. If specified, RavenDB will use HTTPS/SSL for all network activities. " +
+                     "The certificate path setting takes precedence over executable configuration option.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Load.Exec", ConfigurationEntryScope.ServerWideOnly)]
+        public string CertificateLoadExec { get; set; }
+
+        [Description("A command or executable to handle automatic renewals, providing a renewed .pfx cluster certificate. " +
+                     "The leader node will invoke the executable once every hour and if a new certificate is received, it will be sent to the other nodes. " +
+                     "The executable specified in Security.Certificate.Change.Exec will then be used to persist the certificate across the cluster.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Renew.Exec", ConfigurationEntryScope.ServerWideOnly)]
+        public string CertificateRenewExec { get; set; }
+
+        [Description("A command or executable that handles cluster certificate changes. When the cluster certificate is updated, this executable will persist the new certificate on all nodes.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Change.Exec", ConfigurationEntryScope.ServerWideOnly)]
+        public string CertificateChangeExec { get; set; }
+
+        [Description("The command line arguments for the 'Security.Certificate.Load.Exec' command or executable.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Load.Exec.Arguments", ConfigurationEntryScope.ServerWideOnly, isSecured: true)]
+        public string CertificateLoadExecArguments { get; set; }
+
+        [Description("The command line arguments for the 'Security.Certificate.Renew.Exec' command or executable.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Renew.Exec.Arguments", ConfigurationEntryScope.ServerWideOnly, isSecured: true)]
+        public string CertificateRenewExecArguments { get; set; }
+
+        [Description("The command line arguments for the 'Security.Certificate.Change.Exec' command or executable.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Change.Exec.Arguments", ConfigurationEntryScope.ServerWideOnly, isSecured: true)]
+        public string CertificateChangeExecArguments { get; set; }
+
+        [Description("The number of seconds to wait for the certificate executable to exit. Default: 30 seconds")]
+        [DefaultValue(30)]
+        [TimeUnit(TimeUnit.Seconds)]
+        [ConfigurationEntry("Security.Certificate.Exec.TimeoutInSec", ConfigurationEntryScope.ServerWideOnly)]
+        public TimeSetting CertificateExecTimeout { get; set; }
+
+        [Description("The E-mail address associated with the Let's Encrypt certificate. Used for renewal requests.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.LetsEncrypt.Email", ConfigurationEntryScope.ServerWideOnly)]
+        public string CertificateLetsEncryptEmail { get; set; }
+
+        [Description("The path of the (256-bit) Master Key. If specified, RavenDB will use this key to protect secrets.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.MasterKey.Path", ConfigurationEntryScope.ServerWideOnly)]
+        public string MasterKeyPath { get; set; }
+
+        [Description("A command or executable to run which will provide a (256-bit) Master Key. If specified, RavenDB will use this key to protect secrets.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.MasterKey.Exec", ConfigurationEntryScope.ServerWideOnly)]
+        public string MasterKeyExec { get; set; }
+
+        [Description("The command line arguments for the 'Security.MasterKey.Exec' command or executable.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.MasterKey.Exec.Arguments", ConfigurationEntryScope.ServerWideOnly, isSecured: true)]
+        public string MasterKeyExecArguments { get; set; }
+
+        [Description("The number of seconds to wait for the Master Key executable to exit. Default: 30 seconds")]
+        [DefaultValue(30)]
+        [TimeUnit(TimeUnit.Seconds)]
+        [ConfigurationEntry("Security.MasterKey.Exec.TimeoutInSec", ConfigurationEntryScope.ServerWideOnly)]
+        public TimeSetting MasterKeyExecTimeout { get; set; }
+
+        [Description("If authentication is disabled, set address range type for which server access is unsecured (None | Local | PrivateNetwork | PublicNetwork).")]
+        [DefaultValue(UnsecuredAccessAddressRange.Local)]
+        [ConfigurationEntry("Security.UnsecuredAccessAllowed", ConfigurationEntryScope.ServerWideOnly)]
+        public UnsecuredAccessAddressRange UnsecuredAccessAllowed { get; set; }
+
+        [Description("Well known certificate thumbprints that will be trusted by the server as cluster admins.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.WellKnownCertificates.Admin", ConfigurationEntryScope.ServerWideOnly)]
+        public string[] WellKnownAdminCertificates { get; set; }
+        
+        [Description("Well-known issuer certificates in Base64 format or file paths to certificate files" +
+                     "that will be used to validate a new client certificate when the issuer's certificate changes.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.WellKnownIssuers.Admin", ConfigurationEntryScope.ServerWideOnly)]
+        public string[] WellKnownIssuers { get; set; }
+
+        [Description("Determine whether the server will validate the subject alternative names (SANs) of well-known issuer certificates against the server's domain name.")]
+        [DefaultValue(false)]
+        [ConfigurationEntry("Security.WellKnownIssuers.Admin.ValidateCertificateNames", ConfigurationEntryScope.ServerWideOnly)]
+        public bool ValidateSanForCertificateWithWellKnownIssuer { get; set; }
+
+        [Description("OBSOLETE: This is no longer supported or used, use 'Security.WellKnownIssuers.Admin' instead.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.WellKnownIssuerHashes.Admin", ConfigurationEntryScope.ServerWideOnly)]
+        public string[] WellKnownIssuerHashes { get; set; }
+
+        [Description("EXPERT: A command or executable to validate a server authentication request. " +
+                     "RavenDB will execute: command [user-arg-1] ... [user-arg-n] <sender-url> <base64-certificate> <errors>. " +
+                     "The executable will return a case-insensitive boolean string through the standard output (e.g. true, false) indicating whether to approve the connection.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Validation.Exec", ConfigurationEntryScope.ServerWideOnly)]
+        public string CertificateValidationExec { get; set; }
+
+        [Description("EXPERT: The optional user arguments for the 'Security.Certificate.Validation.Exec' command or executable. The arguments must be escaped for the command line.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Certificate.Validation.Exec.Arguments", ConfigurationEntryScope.ServerWideOnly, isSecured: true)]
+        public string CertificateValidationExecArguments { get; set; }
+
+        [Description("The number of seconds to wait for the 'Security.Certificate.Validation.Exec' executable to exit. Default: 5 seconds")]
+        [DefaultValue(5)]
+        [TimeUnit(TimeUnit.Seconds)]
+        [ConfigurationEntry("Security.Certificate.Validation.Exec.TimeoutInSec", ConfigurationEntryScope.ServerWideOnly)]
+        public TimeSetting CertificateValidationExecTimeout { get; set; }
+
+        [Description("EXPERT: Defines a list of supported TLS Cipher Suites. Values must be semicolon separated. Default: null (Operating System defaults)")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.TlsCipherSuites", ConfigurationEntryScope.ServerWideOnly)]
+        public TlsCipherSuite[] TlsCipherSuites { get; set; }
+
+        [Description("EXPERT: Indicates if 'KeyUsage' validation of certificates should be turned on or off.")]
+        [DefaultValue(true)]
+        [ConfigurationEntry("Security.Certificate.Validation.KeyUsages", ConfigurationEntryScope.ServerWideOnly)]
+        public bool CertificateValidationKeyUsages { get; set; }
+        
+        [Description("Indicates if CSRF filter is enabled or not. Default: true")]
+        [DefaultValue(true)]
+        [ConfigurationEntry("Security.Csrf.Enabled", ConfigurationEntryScope.ServerWideOnly)]
+        public bool EnableCsrfFilter { get; set; }
+        
+        [Description("List of Trusted Origins for CSRF filter.")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Csrf.TrustedOrigins", ConfigurationEntryScope.ServerWideOnly)]
+        public string[] CsrfTrustedOrigins { get; set; }
+        
+        [Description("List of Request Headers to look for Origin, ex. X-Forwarded-Host")]
+        [DefaultValue(null)]
+        [ConfigurationEntry("Security.Csrf.AdditionalOriginHeaders", ConfigurationEntryScope.ServerWideOnly)]
+        public string[] CsrfAdditionalOriginHeaders { get; set; }
+        
+        [Description("Default (in minutes) two-factor session duration.")]
+        [DefaultValue(120)]
+        [TimeUnit(TimeUnit.Minutes)]
+        [ConfigurationEntry("Security.TwoFactor.DefaultSessionDurationInMin", ConfigurationEntryScope.ServerWideOnly)]
+        public TimeSetting DefaultTwoFactorSessionDuration { get; set; }
+        
+        [Description("Maximum (in minutes) two-factor session duration.")]
+        [DefaultValue(1440)]
+        [TimeUnit(TimeUnit.Minutes)]
+        [ConfigurationEntry("Security.TwoFactor.MaxSessionDurationInMin", ConfigurationEntryScope.ServerWideOnly)]
+        public TimeSetting MaxTwoFactorSessionDuration { get; set; }
+
+        [Description("The number of days before certificate expiration when it will be considered expiring. Default: 14")]
+        [DefaultValue(14)]
+        [TimeUnit(TimeUnit.Days)]
+        [ConfigurationEntry("Security.Certificate.ExpiringThresholdInDays", ConfigurationEntryScope.ServerWideOnly)]
+        public TimeSetting CertificateExpiringThreshold { get; set; }
+
+        [Description("Restrict the usage of an external script for non cluster admins.")]
+        [DefaultValue(false)]
+        [ConfigurationEntry("Security.RestrictExternalScriptUsageForNonClusterAdmin", ConfigurationEntryScope.ServerWideOnly)]
+        public bool RestrictExternalScriptUsageForNonClusterAdmin { get; set; }
+
+        internal bool? IsUnsecureAccessSetupValid { get; private set; }
+
+        internal string UnsecureAccessWarningMessage { get; private set; }
+
+        public bool IsCertificateConfigured =>
+            string.IsNullOrWhiteSpace(CertificatePath) == false ||
+            string.IsNullOrWhiteSpace(CertificateLoadExec) == false;
+
+        public bool AuthenticationEnabled => IsCertificateConfigured;
+
+#if !RVN
+        internal static void Validate(RavenConfiguration configuration)
+        {
+            foreach (var sUrl in configuration.Core.ServerUrls)
+            {
+                var serverUrl = sUrl.ToLowerInvariant();
+
+                if (Uri.TryCreate(serverUrl, UriKind.Absolute, out var uri) == false)
+                    throw new UriFormatException("Unable to parse URL - " + serverUrl);
+
+                var isServerUrlHttps = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
+
+                if (configuration.Security.AuthenticationEnabled)
+                {
+                    if (isServerUrlHttps == false)
+                        throw new InvalidOperationException(
+                            $"When the server certificate in either `{RavenConfiguration.GetKey(x => x.Security.CertificatePath)}` or `{RavenConfiguration.GetKey(x => x.Security.CertificateLoadExec)}` is specified, the `{RavenConfiguration.GetKey(x => x.Core.ServerUrls)}` must be using HTTPS, but was " +
+                            serverUrl);
+                }
+                else
+                {
+                    if (isServerUrlHttps)
+                        throw new InvalidOperationException($"Configured server address { string.Join(", ", configuration.Core.ServerUrls) } requires HTTPS. Please set up certification information under { RavenConfiguration.GetKey(x => x.Security.CertificatePath) } configuration key.");
+
+                    var serverAddresses = DetermineServerIp(uri);
+                    var unsecuredAccessAddressRange = configuration.Security.UnsecuredAccessAllowed;
+
+                    var serverIsWithinUnsecuredAccessRange = serverAddresses.Any(x => SecurityUtils.IsUnsecuredAccessAllowedForAddress(unsecuredAccessAddressRange, x));
+
+                    if (serverIsWithinUnsecuredAccessRange == false)
+                    {
+                        configuration.Security.UnsecureAccessWarningMessage =
+                            $"Configured {RavenConfiguration.GetKey(x => x.Core.ServerUrls)} \"{string.Join(", ", configuration.Core.ServerUrls)}\" is not set within allowed unsecured access address range - { configuration.Security.UnsecuredAccessAllowed }. Use a server url within unsecure access address range ({RavenConfiguration.GetKey(x => x.Security.UnsecuredAccessAllowed)} option) or fill in server certificate information.";
+                        configuration.Security.IsUnsecureAccessSetupValid = false;
+                    }
+                }
+
+                if (configuration.Security.IsUnsecureAccessSetupValid.HasValue == false)
+                    configuration.Security.IsUnsecureAccessSetupValid = true;
+            }
+        }
+
+        private static IPAddress[] DetermineServerIp(Uri serverUri)
+        {
+            IPAddress[] addresses;
+            if (UrlUtil.IsZeros(serverUri.DnsSafeHost))
+            {
+                addresses = new[] { IPAddress.Parse(serverUri.DnsSafeHost) };
+            }
+            else
+            {
+                var getHostAddressesTask = Dns.GetHostAddressesAsync(serverUri.DnsSafeHost);
+                if (getHostAddressesTask.Wait(TimeSpan.FromSeconds(30)) == false)
+                    throw new InvalidOperationException($"Could not obtain IP address from DNS {serverUri.DnsSafeHost} for 30 seconds.");
+
+                try
+                {
+                    addresses = getHostAddressesTask.Result;
+                }
+                catch (Exception e)
+                {
+                    throw new InvalidOperationException($"Failed to get IP address of {serverUri.DnsSafeHost} host", e);
+                }
+            }
+
+            if (addresses.Length == 0)
+                throw new InvalidOperationException($"Could not determine IP address for {serverUri}.");
+
+            return addresses;
+        }
+#endif
+    }
+
+    [Flags]
+    public enum UnsecuredAccessAddressRange
+    {
+        None = 0,
+        Local = 1,
+        PrivateNetwork = 2,
+        PublicNetwork = 4
+    }
+}

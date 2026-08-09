@@ -1,0 +1,175 @@
+using System;
+using System.Collections.Generic;
+using Sparrow.Server;
+using Sparrow.Threading;
+using Tests.Infrastructure;
+using Voron;
+using Voron.Data.PostingLists;
+using Voron.Global;
+using Voron.Util;
+using Voron.Util.PFor;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace FastTests.Voron.PostingLists
+{
+    public unsafe class PostingListLeafPageTests(ITestOutputHelper output) : StorageTest(output)
+    {
+        [RavenTheory(RavenTestCategory.Voron)]
+        [InlineData(1)]
+        [InlineData(100)]
+        [InlineData(257)] // with compressed
+        [InlineData(513)] // with compressed x 2
+        [InlineData(4096 + 257)] // with compressed x 16 (so will recompress)
+        public void CanAddAndRead(int size)
+        {
+            using var _tx = Env.WriteTransaction();
+            var _llt = _tx.LowLevelTransaction;
+            var _pagePtr = _llt.AllocatePage(1).Pointer;
+
+            var leaf = new PostingListLeafPage(new Page(_pagePtr));
+            PostingListLeafPage.InitLeaf(leaf.Header);
+            var list = new List<long>();
+            var buf = new int[] {12 << 2, 18 << 2};
+            var start = 24;
+            for (int i = 0; i < size; i++)
+            {
+                start += buf[i % buf.Length];
+                list.Add(start);
+            }
+
+            Span<long> span = list.ToArray();
+            using var bsc = new ByteStringContext(SharedMultipleUseFlag.None);
+            var tempList = new ContextBoundNativeList<long>(bsc);
+            fixed (long* p = span)
+            {
+                using var encoder = new FastPForEncoder(bsc);
+                var len = span.Length;
+                var rp = p;
+                long* rr = null;
+                var zero = 0;
+                leaf.Update(_llt, encoder,ref tempList, ref rp, ref len, ref rr, ref zero, long.MaxValue);
+                Assert.True(encoder.Done);
+                Assert.Equal(0, len);
+                Assert.Equal((long)(p+ span.Length), (long)rp);
+            }
+
+            Assert.Equal(list, leaf.GetDebugOutput());
+        }
+        
+        [RavenTheory(RavenTestCategory.Voron)]
+        [InlineData(1)]
+        [InlineData(100)]
+        [InlineData(257)] // with compressed
+        [InlineData(513)] // with compressed x 2
+        [InlineData(4096 + 257)] // with compressed x 16 (so will recompress)
+        public void CanAddAndRemove(int size)
+        {
+            using var _tx = Env.WriteTransaction();
+            var _llt = _tx.LowLevelTransaction;
+            var _pagePtr = _llt.AllocatePage(1).Pointer;
+
+            var leaf = new PostingListLeafPage(new Page(_pagePtr));
+            PostingListLeafPage.InitLeaf(leaf.Header);
+            var buf = new int[] {12 << 2, 18 << 2};
+            var start = 24;
+            var list = new long[size];
+            for (int i = 0; i < size; i++)
+            {
+                start += buf[i % buf.Length];
+                list[i] = start;
+            }
+            Span<long> additions = list;
+            using var bsc = new ByteStringContext(SharedMultipleUseFlag.None);
+            var tempList = new ContextBoundNativeList<long>(bsc);
+            fixed (long* p = additions)
+            {
+                using var encoder = new FastPForEncoder(bsc);
+                var pp = p;
+                var pl = additions.Length;
+                long* none = null;
+                int zero = 0;
+                leaf.Update(_llt, encoder, ref tempList, ref pp, ref pl, ref none, ref zero, long.MaxValue);
+                Assert.True(encoder.Done);
+                Assert.Equal(0, pl);
+            }
+            
+            Assert.NotEmpty(leaf.GetDebugOutput());
+            
+            Span<long> removals = list; // now remove
+            for (int i = 0; i < size; i++)
+            {
+                list[i] |= 1;
+            }
+            fixed (long* p = removals)
+            {
+                using var encoder = new FastPForEncoder(bsc);
+                var pp = p;
+                var pl = additions.Length;
+                long* none = null;
+                int zero = 0;
+                leaf.Update(_llt, encoder, ref tempList, ref none, ref zero, ref pp, ref pl, long.MaxValue);
+                Assert.True(encoder.Done);
+                Assert.Equal(0, pl);
+                Assert.Empty(leaf.GetDebugOutput());
+            }
+        }
+
+        
+        [RavenTheory(RavenTestCategory.Voron)]
+        [InlineData(1)]
+        [InlineData(100)]
+        [InlineData(257)] // with compressed
+        [InlineData(513)] // with compressed x 2
+        [InlineData(4096 + 257)] // with compressed x 16 (so will recompress)
+        public void CanHandleDuplicateValues(int size)
+        {
+            using var _tx = Env.WriteTransaction();
+            var _llt = _tx.LowLevelTransaction;
+            var _pagePtr = _llt.AllocatePage(1).Pointer;
+
+            var leaf = new PostingListLeafPage(new Page(_pagePtr));
+            PostingListLeafPage.InitLeaf(leaf.Header);
+            var list = new List<long>();
+            var buf = new int[] {12 << 2, 18 << 2};
+            var start = 24;
+            for (int i = 0; i < size; i++)
+            {
+                list.Add(start);
+                start += buf[i % buf.Length];
+            }
+            Span<long> additions = list.ToArray();
+
+            using var bsc = new ByteStringContext(SharedMultipleUseFlag.None);
+            var tempList = new ContextBoundNativeList<long>(bsc);
+
+            fixed (long* p = additions)
+            {
+                using var encoder = new FastPForEncoder(bsc);
+
+                var pp = p;
+                var pl = additions.Length;
+                long* none = null;
+                int zero = 0;
+                leaf.Update(_llt, encoder, ref tempList, ref pp, ref pl, ref none, ref zero, long.MaxValue);
+                Assert.True(encoder.Done);
+                Assert.Equal(0, pl);
+            }
+            additions = new long[] { 24 };
+            
+            fixed (long* p = additions)
+            {
+                using var encoder = new FastPForEncoder(bsc);
+                var pp = p;
+                var pl = additions.Length;
+                long* none = null;
+                int zero = 0;
+                leaf.Update(_llt,encoder, ref tempList,ref pp, ref pl, ref none, ref zero, long.MaxValue);
+                Assert.True(encoder.Done);
+                Assert.Equal(0, pl);
+            }
+
+            Assert.Equal(list, leaf.GetDebugOutput());
+        }
+    }
+}

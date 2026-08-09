@@ -1,0 +1,25 @@
+﻿using System.Net.Http;
+
+namespace Raven.Client.Util
+{
+    internal static class HttpMethods
+    {
+        public static readonly HttpMethod Connect = new HttpMethod("CONNECT");
+
+        public static readonly HttpMethod Reset = new HttpMethod("RESET");
+
+        public static readonly HttpMethod Patch = new HttpMethod("PATCH");
+
+        public static readonly HttpMethod Eval = new HttpMethod("EVAL");
+
+        public static readonly HttpMethod Get = HttpMethod.Get;
+
+        public static readonly HttpMethod Post = HttpMethod.Post;
+
+        public static readonly HttpMethod Put = HttpMethod.Put;
+
+        public static readonly HttpMethod Delete = HttpMethod.Delete;
+
+        public static readonly HttpMethod Head = HttpMethod.Head;
+    }
+}

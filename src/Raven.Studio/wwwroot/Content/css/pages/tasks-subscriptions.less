@@ -1,0 +1,20 @@
+#subscriptionTestArea {
+    .virtual-grid {
+        .cell {
+            &.action-cell {
+                text-align: center;
+
+                .btn {
+                    font-size: 20px;
+                }
+            }
+        }
+    }
+
+    @red-dark: rgba(143, 31, 73, 0.35); // nice dark red
+    @row-bg-exception: @red-dark;
+
+    .exception-row {
+        background-color: @row-bg-exception;
+    }
+}

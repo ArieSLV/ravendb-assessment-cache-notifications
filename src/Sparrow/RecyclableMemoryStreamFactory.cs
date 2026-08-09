@@ -1,0 +1,40 @@
+﻿using System;
+using System.IO;
+using Microsoft.IO;
+using Sparrow.Global;
+
+namespace Sparrow;
+
+internal class RecyclableMemoryStreamFactory
+{
+    private static readonly RecyclableMemoryStreamManager Manager = new(new RecyclableMemoryStreamManager.Options
+    {
+        AggressiveBufferReturn = true,
+        MaximumBufferSize = Constants.Size.Megabyte,
+        MaximumSmallPoolFreeBytes = 256 * Constants.Size.Megabyte,
+        MaximumLargePoolFreeBytes = 128 * Constants.Size.Megabyte,
+        ThrowExceptionOnToArray = true,
+        LargeBufferMultiple = 64 * Constants.Size.Kilobyte,
+        BlockSize = 32 * Constants.Size.Kilobyte
+    });
+
+    public static RecyclableMemoryStream GetRecyclableStream()
+    {
+        return Manager.GetStream(Guid.Empty);
+    }
+
+    public static RecyclableMemoryStream GetRecyclableStream(ReadOnlySpan<byte> buffer)
+    {
+        return Manager.GetStream(Guid.Empty, tag: null, buffer);
+    }
+
+    public static RecyclableMemoryStream GetRecyclableStream(long requiredSize)
+    {
+        return Manager.GetStream(Guid.Empty, null, requiredSize);
+    }
+
+    public static MemoryStream GetMemoryStream()
+    {
+        return new MemoryStream();
+    }
+}

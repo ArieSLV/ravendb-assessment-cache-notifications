@@ -1,0 +1,109 @@
+﻿.log-list {
+    .item {
+        &:not(.bg-danger) {
+            background-color: @panel-bg;
+        }
+        
+        span {
+            &.studio-item-info {
+                color: darken(@state-info-text, 7%);
+            }
+        }
+
+        border: none;
+        white-space: pre-wrap;
+        font-size: 13px;
+        line-height: 17px;
+        width: 100%;
+        
+        .copy-item-button {
+            color: darken(@color-4-1, 20%);
+            visibility: hidden;
+            padding: 5px 0px 0px 5px;
+        }
+
+        &:hover {
+            .copy-item-button {
+                visibility: visible;
+            }
+        }
+    }
+
+    pre {
+        padding: 0px 2px 0px 2px;
+    }
+    
+    span {
+        padding: 5px 5px 5px 1px;
+    }
+    
+    .even {
+        .item {
+            &:not(.bg-danger) {
+                background-color: lighten(@panel-bg, 5%);
+            }
+            
+            span {
+                &.bg-danger {
+                    background-color: lighten(@state-danger-bg, 6%);
+                }
+            }
+        }
+    }
+}
+
+.admin-logs {
+    .dropdown-menu {
+        background-color: @panel-bg;
+    }
+    .columns-list-container {
+        max-width: 600px;
+        
+        &#settingsContainer {
+            height: auto;
+        }
+    }
+
+    .dropdown-extended {
+        width: 600px;
+        padding: @gutter-sm;
+    }
+
+    .full-width {
+        width: 100%;
+    }
+
+    .bootstrap-datetimepicker-widget {
+        &::before, &::after {
+            display: none;
+        }
+    }
+
+    #adminLogsPath {
+        word-break: break-word;
+    }
+
+    #selectedLogMode {
+        margin-top: 5px;
+    }
+
+    #downloadLogs {
+        .modal-dialog {
+            margin: 0;
+            
+            .control-label {
+                width: 100px;
+            }
+        }
+
+        .dropdown-menu {
+            overflow: visible;
+        }
+    }
+}
+
+.admin-logs-event-listener-dialog {
+    .form-group .control-label {
+        width: 250px;
+    }
+}

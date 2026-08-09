@@ -1,0 +1,632 @@
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading.Tasks;
+using FastTests;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Operations;
+using Raven.Client.ServerWide.Operations;
+using Raven.Server;
+using Raven.Server.Commercial;
+using Raven.Server.Config;
+using Raven.Server.Config.Settings;
+using Raven.Server.Extensions;
+using Raven.Server.Utils;
+using SlowTests.Core.Utils.Entities;
+using Sparrow.Json;
+using Sparrow.Server;
+using Tests.Infrastructure;
+using xRetry;
+using Xunit;
+using Xunit.Abstractions;
+using Raven.Client.Documents.Conventions;
+using Raven.Client.ServerWide.Operations.Certificates;
+using Raven.Server.ServerWide.Context;
+using Raven.Client.Exceptions;
+using System.Runtime.CompilerServices;
+using Raven.Client.Json;
+using Raven.Server.ServerWide;
+using Raven.Client.Util;
+using System.Threading;
+
+namespace SlowTests.Authentication
+{
+    public partial class AuthenticationLetsEncryptTests : ClusterTestBase
+    {
+        public AuthenticationLetsEncryptTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        [RavenIntegrationRetryFact(delayBetweenRetriesMs: 1000)]
+        public async Task CanGetPebbleCertificate()
+        {
+            var acmeUrl = Environment.GetEnvironmentVariable("RAVEN_PEBBLE_URL") ?? string.Empty;
+            Assert.NotEmpty(acmeUrl);
+
+            RemoveAcmeCache(acmeUrl);
+
+            SetupLocalServer();
+            TestingSetupInfo setupInfo = await SetupClusterInfo(acmeUrl);
+            Server.ForTestingPurposesOnly().ReservedSockets = new List<Socket> { setupInfo.Sockets[0], setupInfo.Sockets[1] };
+            await GetCertificateFromLetsEncrypt(setupInfo, acmeUrl);
+
+            Server.Dispose();
+        }
+
+        [RavenRetryTheory(RavenTestCategory.Certificates, delayBetweenRetriesMs: 1000)]
+        [InlineData(null)]
+        [InlineData("tlsserver")]
+        public async Task CanGetLetsEncryptCertificateAndRenewIt(string acmeProfile)
+        {
+            var acmeUrl = "https://acme-staging-v02.api.letsencrypt.org/directory";
+
+            SetupLocalServer();
+            TestingSetupInfo setupInfo = await SetupClusterInfo(acmeUrl, acmeProfile);
+            // this is needed because we simulate running server inside GetCertificateFromLetsEncrypt
+            Server.ForTestingPurposesOnly().OnSimulateRunningServerFinally = port =>
+            {
+                setupInfo.Sockets[0] = ReservePort(port).Socket;
+            };
+            Server._forTestingPurposes.ReservedSockets = new List<Socket> { setupInfo.Sockets[0], setupInfo.Sockets[1] };
+            var serverCert = await GetCertificateFromLetsEncrypt(setupInfo, acmeUrl, acmeProfile);
+            var firstServerCertThumbprint = serverCert.Thumbprint;
+            Server.Dispose();
+
+            UseNewLocalServer(sockets: setupInfo.Sockets);
+            await RenewCertificate(serverCert, firstServerCertThumbprint);
+            using (Server.ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+            using (context.OpenReadTransaction())
+            {
+                var local = Server.ServerStore.Cluster.GetCertificateThumbprintsFromLocalState(context).ToList();
+                Assert.Equal(0, local.Count);
+
+                var cluster = Server.ServerStore.Cluster.GetCertificateThumbprintsFromCluster(context).ToList();
+                Assert.Equal(0, cluster.Count);
+            }
+        }
+
+        [RavenIntegrationRetryFact(delayBetweenRetriesMs: 1000)]
+        public async Task CanGetLetsEncryptCertificateAndRenewAfterFailurePebble()
+        {
+            var acmeUrl = Environment.GetEnvironmentVariable("RAVEN_PEBBLE_URL") ?? string.Empty;
+            Assert.NotEmpty(acmeUrl);
+
+            await CanGetLetsEncryptCertificateAndRenewAfterFailure_Act(acmeUrl);
+        }
+
+        [RavenRetryTheory(RavenTestCategory.Certificates, delayBetweenRetriesMs: 1000)]
+        [InlineData(null)]
+        [InlineData("tlsserver")]
+        public async Task CanGetLetsEncryptCertificateAndRenewAfterFailure(string acmeProfile)
+        {
+            var acmeUrl = "https://acme-staging-v02.api.letsencrypt.org/directory";
+            await CanGetLetsEncryptCertificateAndRenewAfterFailure_Act(acmeUrl, acmeProfile);
+        }
+
+        [RavenRetryTheory(RavenTestCategory.Certificates, delayBetweenRetriesMs: 1000)]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ReplaceCertificateWithPrivateKey(bool with2Eku)
+        {
+            var acmeUrl = "https://acme-staging-v02.api.letsencrypt.org/directory";
+
+            SetupLocalServer();
+            TestingSetupInfo setupInfo = await SetupClusterInfo(acmeUrl);
+            Server.ForTestingPurposesOnly().OnSimulateRunningServerFinally = port =>
+            {
+                setupInfo.Sockets[0] = ReservePort(port).Socket;
+            };
+            Server._forTestingPurposes.ReservedSockets = new List<Socket> { setupInfo.Sockets[0], setupInfo.Sockets[1] };
+            var serverCert = await GetCertificateFromLetsEncrypt(setupInfo, acmeUrl);
+            Server.Dispose();
+            UseNewLocalServer(sockets: setupInfo.Sockets);
+
+            var amre = new AsyncManualResetEvent();
+            Server.ServerCertificateChanged += (sender, args) => amre.Set();
+
+            var ct = Certificates.GenerateAndSaveSelfSignedCertificate(with2Eku);
+            var first = Server.Certificate.ServerCertificate.Thumbprint;
+            var certForCommunication = Server.Certificate.ClientCertificate;
+
+            using (var store = GetDocumentStore(new Options { AdminCertificate = certForCommunication, ClientCertificate = certForCommunication }))
+            {
+                var bytesWithoutPrivateKey = ct.ServerCertificate.Value.RawData;
+                var op = new ReplaceClusterCertificateOperation(bytesWithoutPrivateKey, replaceImmediately: true);
+                var ex = await Assert.ThrowsAsync<RavenException>(() => store.Maintenance.Server.SendAsync(op));
+                Assert.Contains("Unable to find the private key in the provided certificate", ex.ToString());
+
+                var bytesWithPrivateKey = ct.ServerCertificate.Value.Export(X509ContentType.Pkcs12);
+                var op2 = new ReplaceClusterCertificateOperation(bytesWithPrivateKey, replaceImmediately: true);
+                await store.Maintenance.Server.SendAsync(op2);
+            }
+
+            await amre.WaitAsync(TimeSpan.FromSeconds(15));
+            Assert.NotEqual(first, Server.Certificate.ServerCertificate.Thumbprint);
+        }
+
+        [RavenTheory(RavenTestCategory.Certificates)]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ReplaceCertificateWithPassword(bool with2Eku)
+        {
+            const string password = "mysecretpassword";
+
+            var (_, leader, certificates) = await CreateRaftClusterWithSsl(1, with2Eku: with2Eku);
+
+            using (var store = GetDocumentStore(new Options { Server = leader, CreateDatabase = false, ClientCertificate = certificates.ServerCertificateForCommunication.Value }))
+            {
+                var rawData = certificates.ServerCertificate.Value.Export(X509ContentType.Pkcs12, password);
+                var certificateDefinition = new CertificateDefinition { Certificate = Convert.ToBase64String(rawData), Password = password };
+
+                var requestExecutor = store.GetRequestExecutor();
+                using (requestExecutor.ContextPool.AllocateOperationContext(out var context))
+                {
+                    var blittable = DocumentConventions.Default.Serialization.DefaultConverter.ToBlittable(certificateDefinition, context);
+                    var content = new BlittableJsonContent(async stream => await context.WriteAsync(stream, blittable).ConfigureAwait(false), DocumentConventions.Default);
+                    var response = await requestExecutor.HttpClient.PostAsync($"{leader.WebUrl}/admin/certificates/replace-cluster-cert", content);
+
+                    if (response.IsSuccessStatusCode == false)
+                        Assert.Fail(await response.Content.ReadAsStringAsync());
+                }
+            }
+
+            using (var store = GetDocumentStore(new Options { Server = leader, CreateDatabase = true, ClientCertificate = certificates.ServerCertificateForCommunication.Value }))
+            {
+                using (var session = store.OpenAsyncSession())
+                {
+                    await session.StoreAsync(new { Prop = "value" });
+                    await session.SaveChangesAsync();
+                }
+            }
+        }
+
+        private async Task CanGetLetsEncryptCertificateAndRenewAfterFailure_Act(string acmeUrl, string acmeProfile = null)
+        {
+            RemoveAcmeCache(acmeUrl);
+
+            SetupLocalServer();
+            TestingSetupInfo setupInfo = await SetupClusterInfo(acmeUrl, acmeProfile);
+            Server.ForTestingPurposesOnly().OnSimulateRunningServerFinally = port =>
+            {
+                setupInfo.Sockets[0] = ReservePort(port).Socket;
+            };
+            Server._forTestingPurposes.ReservedSockets = new List<Socket> { setupInfo.Sockets[0], setupInfo.Sockets[1] };
+            var serverCert = await GetCertificateFromLetsEncrypt(setupInfo, acmeUrl, acmeProfile);
+            var firstServerCertThumbprint = serverCert.Thumbprint;
+            Server.Dispose();
+
+            UseNewLocalServer(sockets: setupInfo.Sockets);
+            Server.ForTestingPurposesOnly().ThrowExceptionAfterLetsEncryptRefresh = true;
+            await RenewCertificate(serverCert, firstServerCertThumbprint);
+
+            using (Server.ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+            using (context.OpenReadTransaction())
+            {
+                var local = Server.ServerStore.Cluster.GetCertificateThumbprintsFromLocalState(context).ToList();
+                Assert.Equal(0, local.Count);
+
+                var cluster = Server.ServerStore.Cluster.GetCertificateThumbprintsFromCluster(context).ToList();
+                Assert.Equal(0, cluster.Count);
+            }
+        }
+
+        private static void RemoveAcmeCache(string acmeUrl)
+        {
+            var path = LetsEncryptClient.GetCachePath(acmeUrl);
+            IOExtensions.DeleteFile(path);
+        }
+
+        private void SetupLocalServer()
+        {
+            var settingPath = Path.Combine(NewDataPath(forceCreateDir: true), "settings.json");
+            var defaultSettingsPath = new PathSetting("settings.default.json").FullPath;
+            File.Copy(defaultSettingsPath, settingPath, true);
+
+            UseNewLocalServer(customConfigPath: settingPath);
+        }
+
+        private async Task<X509Certificate2> GetCertificateFromLetsEncrypt(TestingSetupInfo info, string acmeUrl, string acmeProfile = null)
+        {
+            X509Certificate2 serverCert;
+            using (var store = GetDocumentStoreForServerOnly())
+            using (var commands = store.Commands())
+            using (Server.ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                var command = new SetupLetsEncryptCommand(store.Conventions, context, info.SetupInfo)
+                {
+                    Timeout = TimeSpan.FromMinutes(10)
+                };
+
+                await commands.RequestExecutor.ExecuteAsync(command, commands.Context);
+
+                Assert.True(command.Result.Length > 0);
+
+                var zipBytes = command.Result;
+
+                BlittableJsonReaderObject settingsJsonObject;
+                byte[] serverCertBytes;
+                try
+                {
+                    settingsJsonObject =
+                        SetupManager.ExtractCertificatesAndSettingsJsonFromZip(zipBytes, "A", context, out serverCertBytes, out serverCert, out _, out _, out _, out _);
+                }
+                catch (Exception e)
+                {
+                    throw new InvalidOperationException("Unable to extract setup information from the zip file.", e);
+                }
+
+                // Finished the setup wizard, need to restart the server.
+                // Since cannot restart we'll create a new server loaded with the new certificate and settings and use the server cert to connect to it
+
+                settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Security.CertificatePassword), out string certPassword);
+                settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Security.CertificateLetsEncryptEmail), out string letsEncryptEmail);
+                settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Core.PublicServerUrl), out string publicServerUrl);
+                settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Core.TcpServerUrls), out string tcpServerUrl);
+                settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Core.ServerUrls), out string serverUrl);
+                settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Core.SetupMode), out SetupMode setupMode);
+                settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Core.ExternalIp), out string externalIp);
+
+                var tempFileName = GetTempFileName();
+                await File.WriteAllBytesAsync(tempFileName, serverCertBytes);
+
+                IDictionary<string, string> customSettings = new ConcurrentDictionary<string, string>
+                {
+                    [RavenConfiguration.GetKey(x => x.Security.CertificatePath)] = tempFileName,
+                    [RavenConfiguration.GetKey(x => x.Security.CertificateLetsEncryptEmail)] = letsEncryptEmail,
+                    [RavenConfiguration.GetKey(x => x.Security.CertificatePassword)] = certPassword,
+                    [RavenConfiguration.GetKey(x => x.Core.PublicServerUrl)] = publicServerUrl,
+                    [RavenConfiguration.GetKey(x => x.Core.TcpServerUrls)] = tcpServerUrl,
+                    [RavenConfiguration.GetKey(x => x.Core.ServerUrls)] = serverUrl,
+                    [RavenConfiguration.GetKey(x => x.Core.SetupMode)] = setupMode.ToString(),
+                    [RavenConfiguration.GetKey(x => x.Core.ExternalIp)] = externalIp,
+                    [RavenConfiguration.GetKey(x => x.Core.AcmeUrl)] = acmeUrl,
+                    [RavenConfiguration.GetKey(x => x.Core.AcmeProfile)] = acmeProfile
+                };
+
+                DoNotReuseServer(customSettings);
+            }
+
+            return serverCert;
+        }
+
+        private async Task RenewCertificate(X509Certificate2 serverCert, string firstServerCertThumbprint)
+        {
+            // Note: because we use a staging lets encrypt cert, the chain is not trusted.
+            // It only works because in the TestBase ctor we do:
+            // RequestExecutor.ServerCertificateCustomValidationCallback += (msg, cert, chain, errors) => true;
+
+            var serverCertificateForCommunication = SecretProtection.HasCertificateClientAuthEnhancedKeyUsage(serverCert)
+                ? serverCert
+                : CertificateUtils.CreateClientCertificateFromServerCertificate(serverCert, out _);
+
+            using (var store = GetDocumentStoreForServerOnly(serverCertificateForCommunication))
+            using (var commands = store.Commands())
+            using (Server.ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                await Server.ServerStore.EnsureNotPassiveAsync();
+                Assert.Equal(firstServerCertThumbprint, Server.Certificate.ServerCertificate.Thumbprint);
+
+                Server.Time.UtcDateTime = () => DateTime.UtcNow.AddDays(80);
+
+                var amre = new AsyncManualResetEvent();
+                var clusterReplacementConfirmed = new AsyncManualResetEvent();
+
+                Server.ServerCertificateChanged += (sender, args) => amre.Set();
+                Server.ServerStore.ForTestingPurposesOnly().OnConfirmCertificateReplacedValueChanged += clusterReplacementConfirmed.Set;
+
+                var command = new ForceRenewCertCommand(store.Conventions, context);
+
+                await commands.RequestExecutor.ExecuteAsync(command, commands.Context);
+
+                Assert.True(command.Result.Success, "ForceRenewCertCommand returned false");
+
+                var result = await amre.WaitAsync(Debugger.IsAttached ? TimeSpan.FromMinutes(10) : TimeSpan.FromMinutes(4));
+
+                if (result == false && Server.RefreshTask.IsCompleted)
+                {
+                    if (Server.RefreshTask.IsFaulted || Server.RefreshTask.IsCanceled)
+                    {
+                        Assert.True(result,
+                            $"Refresh task failed to complete successfully. Exception: {Server.RefreshTask.Exception}");
+                    }
+
+                    Assert.True(result, "Refresh task completed successfully, waited too long for the cluster cert to be replaced");
+                }
+
+                Assert.True(result, "Refresh task didn't complete. Waited too long for the cluster cert to be replaced");
+
+                Assert.NotEqual(firstServerCertThumbprint, Server.Certificate.ServerCertificate.Thumbprint);
+
+                var r = await clusterReplacementConfirmed.WaitAsync(TimeSpan.FromMinutes(2));
+                Assert.True(r, "missing ConfirmServerCertificateReplacedCommand");
+            }
+        }
+
+        internal class TestingSetupInfo
+        {
+            public SetupInfo SetupInfo;
+            public List<Socket> Sockets;
+        }
+
+        private async Task<TestingSetupInfo> SetupClusterInfo(string acmeUrl, string profile = null)
+        {
+            Server.Configuration.Core.AcmeUrl = acmeUrl;
+            Server.ServerStore.Configuration.Core.SetupMode = SetupMode.Initial;
+            if (string.IsNullOrEmpty(profile) == false)
+                Server.Configuration.Core.AcmeProfile = profile;
+
+            var domain = "RavenClusterTest" + Environment.MachineName.Replace("-", "");
+            string email;
+            string rootDomain;
+
+            await Server.ServerStore.EnsureNotPassiveAsync();
+            var license = Server.ServerStore.LoadLicense();
+
+            using (var store = GetDocumentStoreForServerOnly())
+            using (var commands = store.Commands())
+            using (Server.ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                var command = new ClaimDomainCommand(store.Conventions, context, new ClaimDomainInfo { Domain = domain, License = license });
+
+                await commands.RequestExecutor.ExecuteAsync(command, commands.Context);
+
+                Assert.True(command.Result.RootDomains.Length > 0);
+                rootDomain = command.Result.RootDomains[0];
+                email = command.Result.Email;
+            }
+            var (port, socketPort) = ReservePort();
+            var (tcpPort, socketTcpPort) = ReservePort();
+
+            var setupInfo = new SetupInfo
+            {
+                Domain = domain,
+                RootDomain = rootDomain,
+                ZipOnly = false, // N/A here
+                RegisterClientCert = false, // N/A here
+                Password = null,
+                Certificate = null,
+                LocalNodeTag = "A",
+                License = license,
+                Email = email,
+                NodeSetupInfos = new Dictionary<string, NodeInfo>()
+                {
+                    ["A"] = new NodeInfo { Port = port, TcpPort = tcpPort, Addresses = new List<string> { "127.0.0.1" } }
+                }
+            };
+            var testingSetupInfo = new TestingSetupInfo { SetupInfo = setupInfo, Sockets = new List<Socket> { socketPort, socketTcpPort } };
+            return testingSetupInfo;
+        }
+
+        [RavenRetryFact(RavenTestCategory.Certificates | RavenTestCategory.Sharding, delayBetweenRetriesMs: 1000)]
+        public async Task CertificateReplaceSharded()
+        {
+            using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(300)))
+            {
+                var acmeStagingUrl = "https://acme-staging-v02.api.letsencrypt.org/directory";
+                RemoveAcmeCache(acmeStagingUrl);
+
+                DebuggerAttachedTimeout.DisableLongTimespan = true;
+                var clusterSize = 3;
+                var (leader, nodes, serverCert) = await CreateLetsEncryptCluster(clusterSize, acmeStagingUrl);
+                Assert.Equal(serverCert.Thumbprint, nodes[0].Certificate.ServerCertificate.Thumbprint);
+                var databaseName = GetDatabaseName();
+
+                var certForCommunication = CertificateUtils.CreateClientCertificateFromServerCertificate(serverCert, out _);
+                var options = Sharding.GetOptionsForCluster(leader, clusterSize, shardReplicationFactor: 1, orchestratorReplicationFactor: 1);
+                options.ClientCertificate = certForCommunication;
+                options.AdminCertificate = certForCommunication;
+                options.ModifyDatabaseName = _ => databaseName;
+                options.RunInMemory = false;
+                options.DeleteDatabaseOnDispose = false;
+                options.ModifyDocumentStore = s => s.Conventions.DisposeCertificate = false;
+
+                X509Certificate2 newCert;
+
+                using (var store = Sharding.GetDocumentStore(options))
+                {
+                    var record = await store.Maintenance.Server.SendAsync(new GetDatabaseRecordOperation(databaseName), cts.Token);
+                    foreach (var topology in record.Sharding.Shards.Values)
+                    {
+                        Assert.Equal(1, topology.Members.Count);
+                    }
+
+                    var requestExecutor = store.GetRequestExecutor(databaseName);
+
+                    var replaceTasks = new Dictionary<string, AsyncManualResetEvent>();
+                    foreach (var node in nodes)
+                    {
+                        replaceTasks.Add(node.ServerStore.NodeTag, new AsyncManualResetEvent(cts.Token));
+                    }
+
+                    foreach (var server in nodes)
+                    {
+                        server.ServerCertificateChanged += (sender, args) => replaceTasks[server.ServerStore.NodeTag].Set();
+                    }
+
+                    //trigger cert refresh
+                    await requestExecutor.HttpClient.SendAsync(
+                        new HttpRequestMessage(HttpMethod.Post, $"{nodes[0].WebUrl}/admin/certificates/letsencrypt/force-renew").WithConventions(store.Conventions), cts.Token);
+
+                    var result = await Task.WhenAll(replaceTasks.Values.Select(x => x.WaitAsync(cts.Token)).ToArray());
+
+                    foreach (var res in result)
+                    {
+                        Assert.True(res, "Refresh task didn't complete. Waited too long for the cluster cert to be replaced");
+                    }
+
+                    //make sure all cluster nodes have the new server cert
+                    foreach (var node in nodes)
+                    {
+                        Assert.NotEqual(serverCert.Thumbprint, node.Certificate.ServerCertificate.Thumbprint);
+                    }
+
+                    newCert = nodes[0].Certificate.ClientCertificate;
+                }
+
+                using (var store = new DocumentStore()
+                {
+                    Certificate = newCert,
+                    Database = databaseName,
+                    Urls = new string[] { leader.WebUrl },
+                    Conventions = { DisposeCertificate = false }
+                }.Initialize())
+                {
+                    //try a request that will not use shard executors
+                    await store.Maintenance.Server.SendAsync(new GetDatabaseRecordOperation(databaseName), cts.Token);
+
+                    //try a request that will use shard executors
+                    await store.Maintenance.SendAsync(new GetCollectionStatisticsOperation(), cts.Token);
+
+                    using (var session = store.OpenAsyncSession())
+                    {
+                        await session.StoreAsync(new User(), "users/1", cts.Token);
+                        await session.SaveChangesAsync(cts.Token);
+                    }
+                }
+            }
+        }
+
+        public async Task<(RavenServer Leader, List<RavenServer> Nodes, X509Certificate2 Cert)> CreateLetsEncryptCluster(int clutserSize, string acmeStagingUrl)
+        {
+            var settingPath = Path.Combine(NewDataPath(forceCreateDir: true), "settings.json");
+            var defaultSettingsPath = new PathSetting("settings.default.json").FullPath;
+            File.Copy(defaultSettingsPath, settingPath, true);
+
+            UseNewLocalServer(customConfigPath: settingPath);
+
+            Server.Configuration.Core.AcmeUrl = acmeStagingUrl;
+            Server.ServerStore.Configuration.Core.SetupMode = SetupMode.Initial;
+
+            var domain = "RavenClusterTest" + Environment.MachineName.Replace("-", "");
+            string email;
+            string rootDomain;
+
+            await Server.ServerStore.EnsureNotPassiveAsync();
+            var license = Server.ServerStore.LoadLicense();
+
+            using (var store = GetDocumentStore())
+            using (var commands = store.Commands())
+            using (Server.ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                var command = new AuthenticationLetsEncryptTests.ClaimDomainCommand(store.Conventions, context, new ClaimDomainInfo
+                {
+                    Domain = domain,
+                    License = license
+                });
+
+                await commands.RequestExecutor.ExecuteAsync(command, commands.Context);
+
+                Assert.True(command.Result.RootDomains.Length > 0);
+                rootDomain = command.Result.RootDomains[0];
+                email = command.Result.Email;
+            }
+
+            var nodeSetupInfos = new Dictionary<string, NodeInfo>();
+            char nodeTag = 'A';
+            for (int i = 1; i <= clutserSize; i++)
+            {
+                var tcpListener = new TcpListener(IPAddress.Loopback, 0);
+                tcpListener.Start();
+                var port = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
+                tcpListener.Stop();
+                var setupNodeInfo = new NodeInfo
+                {
+                    Port = port,
+                    Addresses = new List<string> { $"127.0.0.{i}" }
+                };
+                nodeSetupInfos.Add(nodeTag.ToString(), setupNodeInfo);
+                nodeTag++;
+            }
+
+            var setupInfo = new SetupInfo
+            {
+                Domain = domain,
+                RootDomain = rootDomain,
+                RegisterClientCert = false,
+                Password = null,
+                Certificate = null,
+                LocalNodeTag = "A",
+                License = license,
+                Email = email,
+                NodeSetupInfos = nodeSetupInfos
+            };
+
+            X509Certificate2 serverCert = default;
+            byte[] serverCertBytes;
+            BlittableJsonReaderObject settingsJsonObject;
+            var customSettings = new List<IDictionary<string, string>>();
+
+            using (var store = GetDocumentStore())
+            using (var commands = store.Commands())
+            using (Server.ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                var command = new AuthenticationLetsEncryptTests.SetupLetsEncryptCommand(store.Conventions, context, setupInfo);
+
+                await commands.RequestExecutor.ExecuteAsync(command, commands.Context);
+
+                Assert.True(command.Result.Length > 0);
+
+                var zipBytes = command.Result;
+
+                foreach (var node in setupInfo.NodeSetupInfos)
+                {
+                    try
+                    {
+                        var tag = node.Key;
+                        settingsJsonObject = SetupManager.ExtractCertificatesAndSettingsJsonFromZip(zipBytes, tag, context, out serverCertBytes, out serverCert, out _, out _, out _, out _);
+                    }
+                    catch (Exception e)
+                    {
+                        throw new InvalidOperationException("Unable to extract setup information from the zip file.", e);
+                    }
+
+                    settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Security.CertificatePassword), out string certPassword);
+                    settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Security.CertificateLetsEncryptEmail), out string letsEncryptEmail);
+                    settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Core.PublicServerUrl), out string publicServerUrl);
+                    settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Core.ServerUrls), out string serverUrl);
+                    settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Core.SetupMode), out SetupMode setupMode);
+                    settingsJsonObject.TryGet(RavenConfiguration.GetKey(x => x.Core.ExternalIp), out string externalIp);
+
+                    var tempFileName = GetTempFileName();
+                    await File.WriteAllBytesAsync(tempFileName, serverCertBytes);
+
+                    var settings = new Dictionary<string, string>
+                    {
+                        [RavenConfiguration.GetKey(x => x.Security.CertificatePath)] = tempFileName,
+                        [RavenConfiguration.GetKey(x => x.Security.CertificateLetsEncryptEmail)] = letsEncryptEmail,
+                        [RavenConfiguration.GetKey(x => x.Security.CertificatePassword)] = certPassword,
+                        [RavenConfiguration.GetKey(x => x.Core.PublicServerUrl)] = publicServerUrl,
+                        [RavenConfiguration.GetKey(x => x.Core.ServerUrls)] = serverUrl,
+                        [RavenConfiguration.GetKey(x => x.Core.SetupMode)] = setupMode.ToString(),
+                        [RavenConfiguration.GetKey(x => x.Core.ExternalIp)] = externalIp,
+                        [RavenConfiguration.GetKey(x => x.Core.AcmeUrl)] = acmeStagingUrl
+                    };
+                    customSettings.Add(settings);
+                }
+            }
+
+            Server.Dispose();
+
+            var cluster = await CreateRaftClusterInternalAsync(clutserSize, customSettingsList: customSettings, leaderIndex: 0, useSsl: true);
+            return (cluster.Leader, cluster.Nodes, serverCert);
+        }
+
+        private DocumentStore GetDocumentStoreForServerOnly(X509Certificate2 certificate = null, [CallerMemberName] string caller = null)
+        {
+            return GetDocumentStore(new Options
+            {
+                CreateDatabase = false,
+                DeleteDatabaseOnDispose = false,
+                AdminCertificate = certificate,
+                ClientCertificate = certificate
+            }, caller);
+        }
+    }
+}

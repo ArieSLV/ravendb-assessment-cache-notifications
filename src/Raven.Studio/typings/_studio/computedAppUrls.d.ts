@@ -1,0 +1,122 @@
+
+type EditPeriodicBackupTaskSourceView = "Backups" | "OngoingTasks";
+type EditAiTaskSourceView = "AiTasks" | "OngoingTasks";
+
+// Interface
+interface computedAppUrls {
+    adminSettingsCluster: KnockoutComputed<string>;
+
+    databases: KnockoutComputed<string>;
+    clusterDashboard: KnockoutComputed<string>;
+    manageDatabaseGroup: KnockoutComputed<string>;
+    clientConfiguration: KnockoutComputed<string>;
+    studioConfiguration: KnockoutComputed<string>;
+    documents: KnockoutComputed<string>;
+    allRevisions: KnockoutComputed<string>;
+    revisionsBin: KnockoutComputed<string>;
+    conflicts: KnockoutComputed<string>;
+    patch: KnockoutComputed<string>;
+    cmpXchg: KnockoutComputed<string>;
+    identities: KnockoutComputed<string>;
+    indexes: (indexName?: string, staleOnly?: boolean, isImportOpen?: boolean) => KnockoutComputed<string>;
+    newIndex: KnockoutComputed<string>;
+    newDoc: KnockoutComputed<string>;
+    newCmpXchg: KnockoutComputed<string>;
+    editIndex: (indexName?: string) => KnockoutComputed<string>;
+    editExternalReplication: (taskId?: number) => KnockoutComputed<string>;
+    editReplicationHub: (taskId?: number) => KnockoutComputed<string>;
+    editReplicationSink: (taskId?: number) => KnockoutComputed<string>;
+    editPeriodicBackupTask: (sourceView: EditPeriodicBackupTaskSourceView, isManual: boolean, taskId?: number) => KnockoutComputed<string>;
+    editSubscription: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editRavenEtl: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editSqlEtl: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editSnowflakeEtl: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editOlapEtl: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editElasticSearchEtl: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editKafkaEtl: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editRabbitMqEtl: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editAzureQueueStorageEtl: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editAmazonSqsEtl: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editKafkaSink: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editRabbitMqSink: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editEmbeddingsGeneration: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    editGenAi: (taskId?: number, taskName?: string) => KnockoutComputed<string>;
+    query: (indexName?: string) => KnockoutComputed<string>;
+    terms: (indexName?: string) => KnockoutComputed<string>;
+    importDatabaseFromFileUrl: KnockoutComputed<string>;
+    importCollectionFromCsv: KnockoutComputed<string>;
+    importDatabaseFromSql: KnockoutComputed<string>;
+    exportDatabaseUrl: KnockoutComputed<string>;
+    migrateRavenDbDatabaseUrl: KnockoutComputed<string>;
+    migrateDatabaseUrl: KnockoutComputed<string>;
+    sampleDataUrl: KnockoutComputed<string>;
+    backupsUrl: KnockoutComputed<string>;
+    ongoingTasksUrl: KnockoutComputed<string>;
+    addNewOngoingTask: (isAiOnly: boolean) => KnockoutComputed<string>;
+    editExternalReplicationTaskUrl: KnockoutComputed<string>;
+    editReplicationHubTaskUrl: KnockoutComputed<string>;
+    editReplicationSinkTaskUrl: KnockoutComputed<string>;
+    editSubscriptionTaskUrl: KnockoutComputed<string>;
+    editRavenEtlTaskUrl: KnockoutComputed<string>;
+    editSqlEtlTaskUrl: KnockoutComputed<string>;
+    editSnowflakeEtlTaskUrl: KnockoutComputed<string>;
+    editOlapEtlTaskUrl: KnockoutComputed<string>;
+    editElasticSearchEtlTaskUrl: KnockoutComputed<string>;
+    editKafkaEtlTaskUrl: KnockoutComputed<string>;
+    editRabbitMqEtlTaskUrl: KnockoutComputed<string>;
+    editAzureQueueStorageEtlTaskUrl: KnockoutComputed<string>;
+    editAmazonSqsEtlTaskUrl: KnockoutComputed<string>;
+    editKafkaSinkTaskUrl: KnockoutComputed<string>;
+    editRabbitMqSinkTaskUrl: KnockoutComputed<string>;
+    editEmbeddingsGenerationTaskUrl: KnockoutComputed<string>;
+    editGenAiTaskUrl: KnockoutComputed<string>;
+    csvImportUrl: KnockoutComputed<string>;
+    status: KnockoutComputed<string>;
+    indexPerformance: KnockoutComputed<string>;
+    indexCleanup: KnockoutComputed<string>;
+    settings: KnockoutComputed<string>;
+    indexErrors: KnockoutComputed<string>;
+    ongoingTasksStats: KnockoutComputed<string>;
+    runningQueries: KnockoutComputed<string>;
+    visualizer: KnockoutComputed<string>;
+    databaseSettings: KnockoutComputed<string>;
+    databaseRecord: KnockoutComputed<string>;
+    databaseIDs: KnockoutComputed<string>;
+    tombstonesState: KnockoutComputed<string>;
+    revisions: KnockoutComputed<string>;
+    revertRevisions: KnockoutComputed<string>;
+    expiration: KnockoutComputed<string>;
+    dataArchival: KnockoutComputed<string>;
+    documentSchema: KnockoutComputed<string>;
+    documentSchemaPlayground: KnockoutComputed<string>;
+    documentsCompression: KnockoutComputed<string>;
+    timeSeries: KnockoutComputed<string>;
+    refresh: KnockoutComputed<string>;
+    customSorters: KnockoutComputed<string>;
+    customAnalyzers: KnockoutComputed<string>;
+    integrations: KnockoutComputed<string>;
+    connectionStrings: KnockoutComputed<string>;
+    conflictResolution: KnockoutComputed<string>;
+    revisionsBinCleaner: KnockoutComputed<string>;
+    remoteAttachments: KnockoutComputed<string>;
+
+    about: KnockoutComputed<string>;
+    whatsNew: KnockoutComputed<string>;
+
+    ioStats: KnockoutComputed<string>;
+
+    statusStorageReport: KnockoutComputed<string>;
+    statusBucketsReport: KnockoutComputed<string>;
+    isAreaActive: (routeRoot: string) => KnockoutComputed<boolean>;
+    isActive: (routeTitle: string) => KnockoutComputed<boolean>;
+    databasesManagement: KnockoutComputed<string>;
+
+    // AI Hub
+    aiConnectionStrings: KnockoutComputed<string>;
+    aiAgents: KnockoutComputed<string>;
+    editAiAgent: (id: string, isClone?: boolean) => KnockoutComputed<string>;
+    editAiAgentUrl: KnockoutComputed<string>;
+    chatAiAgent: (id: string) => KnockoutComputed<string>;
+    aiTasks: KnockoutComputed<string>;
+    aiTasksStats: KnockoutComputed<string>;
+}

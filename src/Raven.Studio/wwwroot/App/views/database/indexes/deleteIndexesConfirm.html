@@ -1,0 +1,44 @@
+<div class="modal-dialog" role="document">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title" data-bind="text: title"></h5>
+            <button type="button" class="close" data-bind="click: close" aria-hidden="true">
+                <i class="icon-cancel"></i>
+            </button>
+        </div>
+        <div class="modal-body force-text-wrap">
+            <p data-bind="visible: indexesInfoForDelete?.length > 0, html: subTitleHtml"></p>
+            <ul data-bind="foreach: indexesInfoForDelete" style="max-height: 200px; overflow-y: auto;">
+                <li class="padding padding-xs">
+                    <strong data-bind="text: indexName"></strong>
+                    <small data-bind="if: reduceOutputCollection">
+                        <span data-bind="visible: referenceCollection, text: '(Reduce Results Collections: ' + reduceOutputCollection + ', ' + referenceCollection + ')'" class="margin-left margin-left-sm"></span>
+                        <span data-bind="visible: !referenceCollection, text: '(Reduce Results Collection: ' + reduceOutputCollection + ')'" class="margin-left margin-left-sm"></span>
+                    </small>
+                </li>
+            </ul>
+            <p data-bind="visible: lockedIndexNames?.length > 0">Skipping locked indexes:</p>
+            <ul data-bind="foreach: lockedIndexNames" style="max-height: 200px; overflow-y: auto;">
+                <li class="padding padding-xs">
+                    <strong data-bind="text: $data"></strong>
+                </li>
+            </ul>
+            <hr data-bind="visible: showWarning">
+            <div data-bind="if: showWarning, visible: showWarning" class="flex-horizontal text-warning bg-warning margin">
+                <span class="flex-start padding padding-xs">
+                    <i class="icon-warning"></i>
+                </span>
+                <span class="padding padding-xs">
+                     Note: <br>  
+                    'Reduce Results Collections' were created by above index(es).<br>  
+                     Clicking 'Delete' will delete the index(es) but Not the Results Collection(s).<br>
+                     Go to the collection itself to manually remove documents.                    
+                </span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-bind="click: cancel">Cancel</button>
+            <button type="button" class="btn btn-primary" data-bind="click: deleteIndexes">Delete</button>
+        </div>
+    </div>
+</div>

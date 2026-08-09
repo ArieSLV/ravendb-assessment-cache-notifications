@@ -1,0 +1,13 @@
+@use "Content/scss/sizes";
+
+.index-errors-details-tooltip {
+    &__container {
+        display: flex;
+        gap: sizes.$gutter-md;
+        justify-content: space-between;
+
+        time {
+            text-wrap: nowrap;
+        }
+    }
+}

@@ -1,0 +1,87 @@
+﻿using System.Collections.Generic;
+using Raven.Client.Documents.Operations.AI.Agents;
+using Raven.Server.Documents.TransactionMerger.Commands;
+using Raven.Server.ServerWide.Context;
+using Sparrow.Json;
+using PutOperationResults = Raven.Server.Documents.DocumentsStorage.PutOperationResults;
+
+namespace Raven.Server.Documents.Handlers.AI.Agents
+{
+    internal class PutConversationCommand : MergedTransactionCommand<DocumentsOperationContext, DocumentsTransaction>
+    {
+        public PutOperationResults PutResult;
+
+        private string _id;
+        private BlittableJsonReaderObject _conversationDoc;
+        private readonly ConversationDocument _conversation;
+        private readonly List<BlittableJsonReaderObject> _historyDocs;
+        private readonly LazyStringValue _expectedChangeVector;
+        private readonly DocumentDatabase _database;
+        private readonly AiAgentConfiguration _configuration;
+
+        private const string AiAgentConversationHistoryIdPrefix = "ConversationHistory";
+
+        public PutConversationCommand(string conversationId, ConversationDocument conversation, List<BlittableJsonReaderObject> history, LazyStringValue changeVector, AiAgentConfiguration configuration, DocumentDatabase database)
+        {
+            _id = conversationId;
+            _conversation = conversation;
+            _historyDocs = history;
+            _expectedChangeVector = changeVector;
+            _database = database;
+            _configuration = configuration;
+        }
+
+        protected override long ExecuteCmd(DocumentsOperationContext context)
+        {
+            _id = _database.DocumentsStorage.DocumentPut.BuildDocumentId(_id, _database.DocumentsStorage.GenerateNextEtag(), out _);
+
+            if (_historyDocs != null)
+            {
+                foreach (var historyDoc in _historyDocs)
+                {
+                    var historyId = _database.DocumentsStorage.DocumentPut.BuildDocumentId($"{AiAgentConversationHistoryIdPrefix}{_database.IdentityPartsSeparator}", _database.DocumentsStorage.GenerateNextEtag(), out _);
+                    historyId = $"{historyId}${_id}";
+
+                    var putHistoryResult = _database.DocumentsStorage.Put(context, historyId, null, historyDoc, nonPersistentFlags: NonPersistentDocumentFlags.SkipSchemaValidation);
+                    _conversation.LinkedConversations.Add(putHistoryResult.Id);
+                }
+            }
+
+            _conversationDoc = _conversation.ToBlittable(context);
+            PutResult = _database.DocumentsStorage.Put(context, _id, _expectedChangeVector, _conversationDoc, nonPersistentFlags: NonPersistentDocumentFlags.SkipSchemaValidation);
+
+            return 1;
+        }
+
+        public override IReplayableCommandDto<DocumentsOperationContext, DocumentsTransaction, MergedTransactionCommand<DocumentsOperationContext, DocumentsTransaction>> ToDto(DocumentsOperationContext context)
+        {
+            return new PutChatCommandDto(_id, _conversation, _historyDocs, _expectedChangeVector, _configuration, _database);
+        }
+
+        public class PutChatCommandDto : IReplayableCommandDto<DocumentsOperationContext, DocumentsTransaction, PutConversationCommand>
+        {
+            private string _id;
+            private ConversationDocument _conversation;
+            private List<BlittableJsonReaderObject> _historyDocs;
+            private readonly LazyStringValue _expectedChangeVector;
+            private DocumentDatabase _database;
+            private AiAgentConfiguration _configuration;
+
+            public PutChatCommandDto(string conversationId, ConversationDocument conversation, List<BlittableJsonReaderObject> history, LazyStringValue changeVector, AiAgentConfiguration configuration, DocumentDatabase database)
+            {
+                _id = conversationId;
+                _conversation = conversation;
+                _historyDocs = history;
+                _expectedChangeVector = changeVector;
+                _database = database;
+                _configuration = configuration;
+            }
+
+            public PutConversationCommand ToCommand(DocumentsOperationContext context, DocumentDatabase database)
+            {
+                return new PutConversationCommand(_id, _conversation, _historyDocs, _expectedChangeVector, _configuration, _database);
+            }
+        }
+    }
+
+}

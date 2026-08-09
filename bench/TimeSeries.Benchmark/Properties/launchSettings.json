@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TimeSeries.Benchmark": {
+      "commandName": "Project",
+      "commandLineArgs": "--url=http://localhost:8080 --workers=8 --scale=100 --metrics=10 --start=3/20 --end=4/20"
+    }
+  }
+}

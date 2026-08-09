@@ -1,0 +1,62 @@
+﻿using System.IO;
+using Tests.Infrastructure;
+using Voron;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Voron.Bugs
+{
+    public class AccessViolationWithIteratorUsage : FastTests.Voron.StorageTest
+    {
+        public AccessViolationWithIteratorUsage(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        protected override void Configure(StorageEnvironmentOptions options)
+        {
+            options.ManualFlushing = true;
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void ShouldNotThrow()
+        {
+            using (var tx = Env.WriteTransaction())
+            {
+                var tree = tx.CreateTree(  "test");
+
+                tree.Add("items/1", new MemoryStream());
+                tree.Add("items/2", new MemoryStream());
+
+                tx.Commit();
+            }
+
+            using (var txr = Env.ReadTransaction())
+            using (var iterator = txr.ReadTree("test").Iterate(false))
+            {
+                using (var tx = Env.WriteTransaction())
+                {
+                    for (int i = 0; i < 10; i++)
+                    {
+                        tx.CreateTree( "test").Add("items/" + i, new MemoryStream(new byte[2048]));
+                    }
+
+                    tx.Commit();
+                }
+
+                Assert.True(iterator.Seek(Slices.BeforeAllKeys));
+
+                using (var tx = Env.WriteTransaction())
+                {
+                    for (int i = 10; i < 40; i++)
+                    {
+                        tx.CreateTree("test").Add("items/" + i, new MemoryStream(new byte[2048]));
+                    }
+
+                    tx.Commit();
+                }
+
+                iterator.MoveNext();
+            }
+        }
+    }
+}

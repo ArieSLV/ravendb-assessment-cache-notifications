@@ -1,0 +1,308 @@
+﻿using Sparrow.Server;
+using Sparrow.Threading;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace FastTests.Sparrow
+{
+    public unsafe class ByteStringTests : NoDisposalNeeded
+    {
+        public ByteStringTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void Lifecycle()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None))
+            {
+                context.Allocate(512, out var byteString);
+
+                Assert.Equal(512, byteString.Length);
+                Assert.True(byteString.HasValue);
+                Assert.True((ByteStringType.Mutable & byteString.Flags) != 0);
+                Assert.True(byteString.IsMutable);
+                Assert.Equal(1024, byteString._pointer->Size);
+
+                context.Allocate(1024 - sizeof(ByteStringStorage), out var byteStringWithExactSize);
+
+                Assert.True(byteStringWithExactSize.HasValue);
+                Assert.Equal(1024 - sizeof(ByteStringStorage), byteStringWithExactSize.Length);
+                Assert.True((ByteStringType.Mutable & byteStringWithExactSize.Flags) != 0);
+                Assert.True(byteStringWithExactSize.IsMutable);
+                Assert.Equal(1024, byteStringWithExactSize._pointer->Size);
+
+                context.Release(ref byteString);
+                Assert.False(byteString.HasValue);
+                Assert.True(byteString._pointer == null);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void ConstructionInsideWholeSegment()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            {
+                context.Allocate((ByteStringContext.MinBlockSizeInBytes / 2) - sizeof(ByteStringStorage), out var byteStringInFirstSegment);
+                context.Allocate((ByteStringContext.MinBlockSizeInBytes / 2) - sizeof(ByteStringStorage), out var byteStringWholeSegment);
+                context.Allocate(1, out var byteStringNextSegment);
+
+                long startLocation = (long)byteStringInFirstSegment._pointer;
+                Assert.InRange((long)byteStringWholeSegment._pointer, startLocation, startLocation + ByteStringContext.MinBlockSizeInBytes - 1);
+                Assert.NotInRange((long)byteStringNextSegment._pointer, startLocation, startLocation + ByteStringContext.MinBlockSizeInBytes - 1);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void ConstructionInsideWholeSegmentWithHistory()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    context.Allocate(ByteStringContext.MinBlockSizeInBytes * 2, out var _);
+                }
+            }
+            using (new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            {
+                context.Allocate((ByteStringContext.MinBlockSizeInBytes / 2) - sizeof(ByteStringStorage), out var byteStringInFirstSegment);
+                context.Allocate((ByteStringContext.MinBlockSizeInBytes / 2) - sizeof(ByteStringStorage), out var byteStringWholeSegment);
+                context.Allocate(1, out var byteStringNextSegment);
+
+                long startLocation = (long)byteStringInFirstSegment._pointer;
+                Assert.InRange((long)byteStringWholeSegment._pointer, startLocation, startLocation + ByteStringContext.MinBlockSizeInBytes - 1);
+                Assert.NotInRange((long)byteStringNextSegment._pointer, startLocation, startLocation + ByteStringContext.MinBlockSizeInBytes - 1);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void ConstructionReleaseForReuseTheLeftOver()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            {
+                context.Allocate((ByteStringContext.MinBlockSizeInBytes / 2) - sizeof(ByteStringStorage), out var byteStringInFirstSegment);
+                context.Allocate((ByteStringContext.MinBlockSizeInBytes / 2) - sizeof(ByteStringStorage) + 1, out var byteStringInNewSegment);
+                context.Allocate((ByteStringContext.MinBlockSizeInBytes / 2) - sizeof(ByteStringStorage), out var byteStringInReusedSegment);
+
+                long startLocation = (long)byteStringInFirstSegment._pointer;
+                Assert.NotInRange((long)byteStringInNewSegment._pointer, startLocation, startLocation + ByteStringContext.MinBlockSizeInBytes - 1);
+                Assert.InRange((long)byteStringInReusedSegment._pointer, startLocation, startLocation + ByteStringContext.MinBlockSizeInBytes - 1);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void AllocateAndReleaseShouldReuse()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            {
+                context.Allocate(ByteStringContext.MinBlockSizeInBytes / 2 - sizeof(ByteStringStorage), out var byteStringInFirst);
+                context.Allocate(ByteStringContext.MinBlockSizeInBytes / 2 - sizeof(ByteStringStorage), out var byteStringInSecond);
+
+                long ptrLocation = (long)byteStringInFirst._pointer;
+                Assert.InRange((long)byteStringInSecond._pointer, ptrLocation, ptrLocation + ByteStringContext.MinBlockSizeInBytes - 1);
+
+                context.Release(ref byteStringInFirst);
+
+                context.Allocate(ByteStringContext.MinBlockSizeInBytes / 2 - sizeof(ByteStringStorage), out var byteStringReused);
+
+                Assert.InRange((long)byteStringReused._pointer, ptrLocation, ptrLocation + ByteStringContext.MinBlockSizeInBytes - 1);
+                Assert.Equal(ptrLocation, (long)byteStringReused._pointer);
+
+                context.Allocate(ByteStringContext.MinBlockSizeInBytes / 2 - sizeof(ByteStringStorage), out var byteStringNextSegment);
+                Assert.NotInRange((long)byteStringNextSegment._pointer, ptrLocation, ptrLocation + ByteStringContext.MinBlockSizeInBytes - 1);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void AllocateAndReleaseShouldReuseAsSegment()
+        {
+            int allocationBlockSize = 2 * ByteStringContext.MinBlockSizeInBytes + 128 + sizeof(ByteStringStorage);
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, allocationBlockSize))
+            {
+                // Will be only 128 bytes left for the allocation unit.
+                context.Allocate(2 * ByteStringContext.MinBlockSizeInBytes - sizeof(ByteStringStorage), out var byteStringInFirst);
+
+                long ptrLocation = (long)byteStringInFirst._pointer;
+
+                // we need to allocate this since we want the first block to be released as a new segment
+                context.Allocate(1, out var byteStringInSecond);
+                long nextPtrLocation = (long)byteStringInSecond._pointer + byteStringInSecond._pointer->Size;
+
+                context.Release(ref byteStringInFirst); // After the release the block should be reserved as a new segment. 
+
+                // We use a different size to ensure we are not reusing a reuse bucket but big enough to avoid having space available. 
+                context.Allocate(512, out var byteStringReused);
+
+                Assert.InRange((long)byteStringReused._pointer, ptrLocation, ptrLocation + allocationBlockSize);
+                Assert.Equal(ptrLocation, (long)byteStringReused._pointer); // We are the first in the segment.
+
+                // This allocation will have an allocation unit size of 64 and fit into the rest of the initial segment, which should be 
+                // available for an exact reuse bucket allocation. 
+                context.Allocate(32, out var byteStringReusedFromBucket);
+
+                Assert.Equal((long)byteStringReusedFromBucket._pointer, nextPtrLocation);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void AllocateAndReleaseShouldReuseRepeatedly()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            {
+                context.Allocate(ByteStringContext.MinBlockSizeInBytes / 2 - sizeof(ByteStringStorage), out var first);
+                long ptrLocation = (long)first._pointer;
+                context.Release(ref first);
+
+                for (int i = 0; i < 100; i++)
+                {
+                    context.Allocate(ByteStringContext.MinBlockSizeInBytes / 2 - sizeof(ByteStringStorage), out var repeat);
+                    Assert.Equal(ptrLocation, (long)repeat._pointer);
+                    context.Release(ref repeat);
+                }
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void CanResetAllocationBlockSize()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None))
+            {
+                while (context.AllocationBlockSize == ByteStringContext.DefaultAllocationBlockSizeInBytes)
+                {
+                    context.Allocate(ByteStringContext.MinBlockSizeInBytes / 2, out _);
+                }
+
+                Assert.NotEqual(ByteStringContext.DefaultAllocationBlockSizeInBytes, context.AllocationBlockSize);
+
+                context.Reset();
+
+                Assert.Equal(ByteStringContext.DefaultAllocationBlockSizeInBytes, context.AllocationBlockSize);
+            }
+
+            var blockSizeInBytes = ByteStringContext.MinBlockSizeInBytes * 8;
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, allocationBlockSize: blockSizeInBytes))
+            {
+                while (context.AllocationBlockSize == blockSizeInBytes)
+                {
+                    context.Allocate(blockSizeInBytes / 2, out _);
+                }
+
+                Assert.NotEqual(ByteStringContext.MinBlockSizeInBytes, context.AllocationBlockSize);
+
+                context.Reset();
+
+                Assert.Equal(blockSizeInBytes, context.AllocationBlockSize);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void CanReuseMemory()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None))
+            {
+                while (context.AllocationBlockSize != ByteStringContext.MaxSegmentSizeInBytes)
+                {
+                    context.Allocate(ByteStringContext.MinBlockSizeInBytes / 2, out _);
+                }
+
+                Assert.Equal(ByteStringContext.MaxSegmentSizeInBytes, context.AllocationBlockSize);
+
+                const int toAllocate = ByteStringContext.MinBlockSizeInBytes * 5;
+                context.Allocate(toAllocate, out var first);
+                var ptrLocation = (long)first._pointer;
+                var allocatedBefore = context._totalAllocated;
+                context.Release(ref first);
+
+                for (var i = 0; i < 512; i++)
+                {
+                    var allocation = i % 2 == 0 ? toAllocate / 2 : toAllocate;
+                    context.Allocate(allocation, out var byteString);
+
+                    Assert.Equal(ptrLocation, (long)byteString._pointer);
+
+                    context.Release(ref byteString);
+                }
+
+                Assert.Equal(allocatedBefore, context._totalAllocated);
+            }
+        }
+
+#if VALIDATE
+        [RavenFact(RavenTestCategory.Memory)]
+        public void ValidationKeyAfterAllocateAndReleaseReuseShouldBeDifferent()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            {
+                context.Allocate(ByteStringContext.MinBlockSizeInBytes / 2 - sizeof(ByteStringStorage), out var first);
+                context.Release(ref first);
+
+                context.Allocate(ByteStringContext.MinBlockSizeInBytes / 2 - sizeof(ByteStringStorage), out var repeat);
+                Assert.NotEqual(first.Key, repeat._pointer->Key);
+                Assert.Equal(first.Key >> 32, repeat._pointer->Key >> 32);
+                context.Release(ref repeat);
+            }
+        } 
+
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void FailValidationTryingToReleaseInAnotherContext()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            using (var otherContext = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            {
+                context.Allocate(1, out var first);
+                Assert.Throws<ByteStringValidationException>(() => otherContext.Release(ref first));
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void FailValidationReleasingAnAliasAfterReleasingOriginal()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            {
+                context.Allocate(1, out var first);
+                var firstAlias = first;
+                context.Release(ref first);
+
+                Assert.Throws<InvalidOperationException>(() => context.Release(ref firstAlias));
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void DetectImmutableChangeOnValidation()
+        {
+            using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+            {
+                ByteString value;
+
+                Assert.Throws<ByteStringValidationException>(() =>
+                {
+                    using (context.From("string", ByteStringType.Immutable, out value))
+                    {
+                        value.Ptr[2] = (byte)'t';
+                    }
+                });
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void DetectImmutableChangeOnContextDispose()
+        {
+            Assert.Throws<ByteStringValidationException>(() =>
+            {
+                using (var context = new ByteStringContext<ByteStringDirectAllocator>(SharedMultipleUseFlag.None, ByteStringContext.MinBlockSizeInBytes))
+                {
+                    ByteString value;
+                    using (context.From("string", ByteStringType.Immutable, out value))
+                    {
+                        value.Ptr[2] = (byte)'t';
+                    }
+                }
+            });
+        }
+
+#endif
+    }
+}

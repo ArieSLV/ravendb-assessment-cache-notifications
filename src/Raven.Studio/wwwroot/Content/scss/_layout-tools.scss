@@ -1,0 +1,304 @@
+@use "sass:math";
+@use "bs5variables";
+@use "colors";
+
+@mixin padding {
+    padding: $gutter-sm;
+
+    @media (min-width: $screen-sm) {
+        padding: $gutter;
+    }
+}
+
+@mixin padding-sm {
+    padding: $gutter-sm;
+
+    @media (min-width: $screen-sm) {
+        padding: $gutter-sm;
+    }
+}
+
+@mixin padding-sm {
+    padding: $gutter-sm;
+
+    @media (min-width: $screen-sm) {
+        padding: $gutter-sm;
+    }
+}
+
+@mixin padding-lg {
+    padding: $gutter;
+
+    @media (min-width: $screen-sm) {
+        padding: $gutter-lg;
+    }
+}
+
+$directions: ("top", "right", "bottom", "left");
+
+.nomargin {
+    margin: 0 !important;
+}
+
+.margin {
+    margin: math.div($gutter, $gutter-ratio);
+
+    @each $name, $value in $gutters {
+        &.margin-#{$name} {
+            margin: math.div($value, $gutter-ratio);
+        }
+    }
+
+    @media (min-width: $screen-sm) {
+        margin: $gutter;
+
+        @each $name, $value in $gutters {
+            &.margin-#{$name} {
+                margin: $value;
+            }
+        }
+    }
+}
+
+.no-padding {
+    padding: 0 !important;
+}
+
+.padding {
+    padding: math.div($gutter, $gutter-ratio);
+
+    @media (min-width: $screen-sm) {
+        padding: $gutter;
+    }
+
+    @each $name, $value in $gutters {
+        &.padding-#{$name} {
+            padding: math.div($value, $gutter-ratio);
+
+            @media (min-width: $screen-sm) {
+                padding: $gutter;
+                padding: $value;
+            }
+        }
+    }
+}
+
+//GENERATE padding-xs padding-sm etc.
+@each $name, $value in $gutters {
+    .padding-#{$name} {
+        padding: math.div($value, $gutter-ratio);
+
+        @media (min-width: $screen-sm) {
+            padding: $gutter;
+            padding: $value;
+        }
+    }
+}
+
+@each $direction in $directions {
+    .margin-#{$direction} {
+        margin-#{$direction}: math.div($gutter, $gutter-ratio) !important;
+
+        @media (min-width: $screen-sm) {
+            margin-#{$direction}: $gutter !important;
+        }
+    }
+
+    @each $name, $value in $gutters {
+        .margin-#{$direction}-#{$name} {
+            margin-#{$direction}: math.div($value, $gutter-ratio) !important;
+
+            @media (min-width: $screen-sm) {
+                margin-#{$direction}: $value !important;
+            }
+        }
+    }
+}
+
+@each $direction in $directions {
+    .padding-#{$direction} {
+        padding-#{$direction}: math.div($gutter, $gutter-ratio);
+
+        @media (min-width: $screen-sm) {
+            padding-#{$direction}: $gutter !important;
+        }
+    }
+
+    @each $name, $value in $gutters {
+        .padding-#{$direction}-#{$name} {
+            padding-#{$direction}: math.div($value, $gutter-ratio) !important;
+
+            @media (min-width: $screen-sm) {
+                padding-#{$direction}: $value !important;
+            }
+        }
+    }
+}
+
+.flex-vertical,
+.flex-horizontal {
+    display: flex;
+    flex-direction: row;
+}
+
+.flex-horizontal-sm {
+    @media (min-width: $screen-sm) {
+        display: flex;
+    }
+}
+
+.flex-vertical {
+    flex-direction: column;
+}
+
+.flex-grow-sm {
+    flex-grow: math.div(1, $gutter-ratio);
+}
+
+.flex-grow {
+    flex-grow: 1;
+}
+
+.flex-grow-lg {
+    flex-grow: $gutter-ratio;
+}
+
+.flex-center {
+    align-items: center;
+    justify-content: center;
+}
+
+.flex-self-center {
+    align-self: center;
+}
+
+.flex-justify-end {
+    justify-content: flex-end;
+}
+
+.flex-window {
+    display: flex;
+    -ms-flex-direction: column;
+    -webkit-flex-direction: column;
+    flex-direction: column;
+
+    &.stretch {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+    }
+
+    .flex-window-head {
+        overflow-y: visible;
+    }
+
+    .flex-window-scroll {
+        overflow-y: auto;
+        overflow-x: hidden;
+        position: relative;
+        flex-grow: 1;
+    }
+}
+
+@keyframes bg-pulse {
+    from {
+        background-color: rgba(var(--pulse-bg), 0.1);
+    }
+
+    to {
+        background-color: rgba(var(--pulse-bg), 0.4);
+    }
+}
+
+.bg-pulse {
+    animation: bg-pulse 1s cubic-bezier(0.5, 0, 1, 0.5) alternate infinite;
+    &.bg-primary {
+        --pulse-bg: var(--bs-primary-rgb);
+    }
+    &.bg-success {
+        --pulse-bg: var(--bs-success-rgb);
+    }
+    &.bg-info {
+        --pulse-bg: var(--bs-info-rgb);
+    }
+    &.bg-warning {
+        --pulse-bg: var(--bs-warning-rgb);
+    }
+    &.bg-danger {
+        --pulse-bg: var(--bs-danger-rgb);
+    }
+}
+
+.hover-filter {
+    transition: bs5variables.$transition-base;
+    &:hover {
+        filter: colors.$hover-filter-var;
+    }
+}
+
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background-color: inherit;
+}
+
+::-webkit-scrollbar-thumb {
+    border-radius: 8px;
+    border: 4px solid transparent;
+    background-clip: content-box;
+    background-color: $gray-600;
+
+    &:hover {
+        background-color: $gray-500;
+    }
+
+    &:active {
+        background-color: $primary;
+    }
+}
+
+::-webkit-scrollbar-corner {
+    background-color: inherit;
+}
+
+// Define directions
+$border-sides: ("left", "right");
+
+// Define sizes as a map
+$border-sizes: (
+    "": $border-radius,
+    "-pill": $border-radius-pill,
+    "-lg": $border-radius-lg,
+    "-sm": $border-radius-sm,
+    "-none": 0,
+);
+
+// Mixin to generate classes
+@mixin border-radius-classes {
+    @each $border-side in $border-sides {
+        @each $size-name, $size-value in $border-sizes {
+            .border-top-#{$border-side}-radius#{$size-name} {
+                @if $border-side == "left" {
+                    border-top-left-radius: $size-value !important;
+                } @else if $border-side == "right" {
+                    border-top-right-radius: $size-value !important;
+                }
+            }
+
+            .border-bottom-#{$border-side}-radius#{$size-name} {
+                @if $border-side == "left" {
+                    border-bottom-left-radius: $size-value !important;
+                } @else if $border-side == "right" {
+                    border-bottom-right-radius: $size-value !important;
+                }
+            }
+        }
+    }
+}
+
+@include border-radius-classes;

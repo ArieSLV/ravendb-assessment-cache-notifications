@@ -1,0 +1,65 @@
+.stats {
+    .identities {
+        .identities-header {
+            margin-bottom: $gutter-sm;
+            margin-left: $gutter-xs;
+        }
+    }
+
+    .stats-list {
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        display: grid;
+        column-gap: 6rem;
+        row-gap: 1rem;
+        border-radius: $gutter-xs;
+        .title {
+            margin-bottom: $gutter-sm;
+
+            h3 {
+                margin: 0;
+            }
+        }
+
+        .stats-item {
+            display: flex;
+            align-items: center;
+            padding: $gutter-xs;
+            position: relative;
+            transition: background-color 0.1s ease;
+            gap: $gutter-xs;
+            border-radius: $gutter-xxs;
+
+            &:hover {
+                background-color: $panel-bg-2;
+            }
+
+            .name {
+                flex-grow: 1;
+                font-size: 13px;
+            }
+
+            .value {
+                font-size: 16px;
+                color: $text-emphasis-color;
+                text-align: right;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                min-width: 120px;
+
+                &.long {
+                    width: auto;
+                }
+
+                &.true,
+                .true {
+                    color: $success;
+                }
+
+                &.false,
+                .false {
+                    color: $warning;
+                }
+            }
+        }
+    }
+}

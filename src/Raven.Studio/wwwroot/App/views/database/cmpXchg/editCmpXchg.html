@@ -1,0 +1,130 @@
+<form class="cmp-xchg flex-form" data-bind="submit: saveCompareExchangeItem" autocomplete="off">
+    <div class="flex-window flex-grow content-margin">
+        <div class="margin-top flex-horizontal">
+            <div class="pull-left-sm btn-group">
+                <button type="submit" class="btn btn-primary" data-bind="enable: isSaveEnabled, css: { 'btn-spinner': spinners.save }">
+                    <i class="icon-save"></i><span>Save</span>
+                </button>
+                <a class="btn btn-default" data-bind="attr: { href: cmpXchUrl }">
+                    <i class="icon-cancel"></i><span>Cancel</span>
+                </a>
+                <button class="btn btn-default" data-bind="click: cloneCmpXch, visible: !isCreatingNewItem()">
+                    <i class="icon-clone"></i><span>Clone</span>
+                </button>
+                <button class="btn btn-danger" data-bind="click: deleteItem, enable: !isCreatingNewItem() && !spinners.delete(), css: { 'btn-spinner': spinners.delete }" >
+                    <i class="icon-trash"></i><span>Delete</span>
+                </button>
+            </div>
+            <div data-bind="visible: !isCreatingNewItem() && isAtomicGuard()">
+                <div class="text-warning bg-warning padding-xs margin-left-sm flex-horizontal">
+                    <i class="icon-warning flex-start margin-top-xxs"></i>
+                    <span>
+                        This compare-exchange item is used as an <strong>Atomic Guard</strong>, identified by the <code>rvn-atomic/</code> prefix.<br />
+                        Editing it manually may break document concurrency guarantees.<br />
+                        Learn more in the <a href='https://ravendb.net/l/SDMR11' target='_blank'>Atomic Guards docs</a>.
+                    </span>
+                </div>
+            </div>
+            <div class="flex-separator"></div>
+            <div class="pull-right-sm bg-warning padding padding-xs" data-bind="visible: displayExternalChange">
+                <small>
+                    <i class="icon-warning"></i>
+                    <span>Value has been modified outside of the studio. <a href="#" data-bind="click: refresh">Click here to refresh.</a></span>
+                </small>
+            </div>
+        </div>
+        <div class="row margin-top">
+            <div class="col-sm-offset-1 col-sm-1 no-padding-right no-padding-left margin-top">
+                <label class="cmp-xchg-label">Key</label>
+                <span class="cmp-xchg-info"><i class="key-info icon-info text-info"></i></span>
+            </div>
+            <div class="col-sm-10 margin-top">
+                <div data-bind="if: !isCreatingNewItem()" class="force-text-wrap">
+                    <label class="cmp-xchg-label" data-bind="text: key, attr: { title: key }"></label>
+                </div>
+                <div data-bind="if: isCreatingNewItem, validationElement: key" class="margin-top margin-top-sm">
+                    <input class="form-control" data-bind="textInput: key, disable: $root.isBusy" placeholder="Enter Compare Exchange Key" />
+                </div>
+            </div>
+        </div>
+        <div class="row margin-top">
+            <div class="col-sm-offset-1 col-sm-1 no-padding-right no-padding-left">
+                <label class="cmp-xchg-label margin-top">Value</label>
+                <span class="cmp-xchg-info"><i class="value-info icon-info text-info"></i></span>
+            </div>
+            <div class="col-sm-10" data-bind="with: valueEditor">
+                <div data-bind="template: { name: 'common-editor-buttons' }">
+                </div>
+                <div>
+                    <pre id="valueEditor" class="form-control content-editor"
+                         data-bind="aceEditor: { code: contentText, minHeight: 200, allowResize: true, getFocus: true, lang: 'ace/mode/raven_document' },
+                                    disable: $root.isBusy, validationOptions: { errorsAsTitle: false }, validationElement: contentText">
+                    </pre>
+                </div>
+                <div data-bind="validationOptions: { errorsAsTitle: false }, validationElement: contentText">
+                    <div class="help-block" data-bind="validationMessage: contentText"></div>
+                </div>
+            </div>
+        </div>
+        <div class="row margin-top">
+            <div class="col-sm-offset-1 col-sm-1 no-padding-right no-padding-left">
+                <label class="cmp-xchg-label margin-top">Metadata</label>
+                <span class="cmp-xchg-info"><i class="metadata-info icon-info text-info"></i></span>
+            </div>
+            <div class="col-sm-10">
+                <div data-bind="visible: !hasMetadata()">
+                    <div class="margin-top">
+                        <button class="btn btn-info margin-top margin-top-sm" data-bind="click: addMetadata">
+                            <i class="icon-plus"></i><span>Add Metadata</span>
+                        </button>
+                    </div>
+                </div>
+                <div data-bind="with: metadataEditor, visible: hasMetadata">
+                    <div class="btn-group btn-group-sm pull-right" role="group">
+                        <button class="btn btn-danger" data-bind="click: $root.removeMetadata" title="Remove the metadata from the compare exchange item">
+                            <i class="icon-trash"></i><span>Delete</span>
+                        </button>
+                    </div>
+                    <div data-bind="template: { name: 'common-editor-buttons' }">
+                    </div>
+                    <div>
+                        <pre id="metadataEditor" class="form-control content-editor"
+                             data-bind="aceEditor: { code: contentText, minHeight: 200, allowResize: true, lang: 'ace/mode/raven_document' },
+                                        disable: $root.isBusy, validationOptions: { errorsAsTitle: false }, validationElement: contentText">
+                        </pre>
+                    </div>
+                    <div data-bind="validationOptions: { errorsAsTitle: false }, validationElement: contentText">
+                        <div class="help-block" data-bind="validationMessage: contentText"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div data-bind="if: !isCreatingNewItem()" class="row margin-top">
+            <div class="col-sm-offset-1 col-sm-1 no-padding-right no-padding-left margin-top">
+                <label class="cmp-xchg-label">Raft Index</label>
+                <small class="cmp-xchg-info"><i class="raft-index-info icon-info text-info"></i></small>
+            </div>
+            <div class="col-sm-10 margin-top">
+                <label class="cmp-xchg-label" data-bind="text: loadedIndex"></label>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script type="text/html" id="common-editor-buttons">
+    <div class="btn-group btn-group-sm pull-right" role="group">
+        <button class="btn btn-default" data-bind="enable: contentText, click: toClipboard" title="Copy metadata to clipboard">
+            <i class="icon-copy-to-clipboard"></i><span>Copy</span>
+        </button>
+        <button class="btn btn-default" data-bind="enable: contentText() && !isNewLineFriendlyMode(), click: formatContent">
+            <i class="icon-indent"></i><span>Format</span>
+        </button>
+        <button class="btn btn-default" data-bind="enable: contentText, click: toggleCollapseContent">
+            <i data-bind="attr: { class: isContentCollapsed() ? 'icon-unfold' : 'icon-fold'}"></i>
+            <span data-bind="text: isContentCollapsed() ? 'Expand' : 'Collapse'"></span>
+        </button>
+        <button class="btn btn-default" data-toggle="button" data-bind="enable: contentText, click: toggleNewlineMode">
+            <i class="icon-newline"></i><span>Toggle new lines</span>
+        </button>
+    </div>
+</script>

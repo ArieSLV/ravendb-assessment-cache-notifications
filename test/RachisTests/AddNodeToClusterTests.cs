@@ -1,0 +1,1213 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Conventions;
+using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Operations.CompareExchange;
+using Raven.Client.Documents.Operations.Replication;
+using Raven.Client.Documents.Session;
+using Raven.Client.Exceptions;
+using Raven.Client.Exceptions.Cluster;
+using Raven.Client.Http;
+using Raven.Client.ServerWide;
+using Raven.Client.ServerWide.Commands.Cluster;
+using Raven.Client.ServerWide.Operations;
+using Raven.Server;
+using Raven.Server.Config;
+using Raven.Server.Documents.Commands.Indexes;
+using Raven.Server.Documents.Replication;
+using Raven.Server.Documents.Subscriptions;
+using Raven.Server.Extensions;
+using Raven.Server.Rachis;
+using Raven.Server.ServerWide.Commands;
+using Raven.Server.ServerWide.Context;
+using Raven.Server.Utils;
+using Raven.Server.Web.System;
+using Raven.Tests.Core.Utils.Entities;
+using Sparrow.Json;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace RachisTests
+{
+    public class AddNodeToClusterTests : ReplicationTestBase
+    {
+        public AddNodeToClusterTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task FailOnAddingNonPassiveNode()
+        {
+            var (_, raft1) = await CreateRaftCluster(1);
+            var (_, raft2) = await CreateRaftCluster(1);
+
+            var url = raft2.WebUrl;
+            await raft1.ServerStore.AddNodeToClusterAsync(url);
+            Assert.True(await WaitForValueAsync(() => raft1.ServerStore.GetClusterErrors().Count > 0, true));
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task ReAddWatcherNode()
+        {
+            var cluster = await CreateRaftCluster(2, watcherCluster: true);
+            var leader = cluster.Leader;
+            var watcher = cluster.Nodes.Single(x => x != leader);
+
+            await ActionWithLeader((l) => l.ServerStore.RemoveFromClusterAsync(watcher.ServerStore.NodeTag));
+
+            using (var requestExecutor = ClusterRequestExecutor.CreateForShortTermUse(leader.WebUrl, null, DocumentConventions.DefaultForServer))
+            using (requestExecutor.ContextPool.AllocateOperationContext(out var ctx))
+            {
+                await requestExecutor.ExecuteAsync(new AddClusterNodeCommand(watcher.WebUrl, watcher.ServerStore.NodeTag), ctx);
+            }
+        }
+
+        private static async Task AddManyCompareExchange(IDocumentStore store, CancellationToken token)
+        {
+            var list = Enumerable.Range(0, 10)
+                .Select(i =>
+                {
+                    return Task.Run(async () =>
+                    {
+                        int k = 0;
+                        for (int f = 0; f < 200; f++)
+                        {
+                            using (var session = store.OpenAsyncSession(new SessionOptions { TransactionMode = TransactionMode.ClusterWide }))
+                            {
+                                for (int j = 0; j < 30; j++)
+                                {
+                                    for (int d = 0; d < 5; d++)
+                                    {
+                                        session.Advanced.ClusterTransaction.CreateCompareExchangeValue($"usernamesb{i}/{k}", k);
+                                        k++;
+                                    }
+
+                                    await session.SaveChangesAsync(token);
+                                }
+                            }
+                        }
+                    }, token);
+                });
+
+            await Task.WhenAll(list);
+        }
+
+        [RavenTheory(RavenTestCategory.ClusterTransactions)]
+        [InlineData(false)]
+        public async Task ReAddMemberNode(bool withManyCompareExchange)
+        {
+            var timeout = withManyCompareExchange ? TimeSpan.FromMinutes(10) : TimeSpan.FromMinutes(1);
+            using (var cts = new CancellationTokenSource(timeout))
+            {
+                var customSettings = new Dictionary<string, string>
+                {
+                    {"Cluster.TcpTimeoutInMs", "3000"}
+                };
+
+                var (nodes, leader) = await CreateRaftCluster(2, customSettings: customSettings, watcherCluster: true);
+                var follower = nodes.Single(x => x != leader);
+                using (var store = GetDocumentStore(new Options
+                {
+                    Server = leader,
+                    ReplicationFactor = 2,
+                    DeleteTimeout = timeout
+                }))
+                {
+                    if (withManyCompareExchange)
+                        await AddManyCompareExchange(store, cts.Token);
+
+                    var followerAmbassador = leader.ServerStore.Engine.CurrentLeader.CurrentPeers[follower.ServerStore.NodeTag];
+
+                    await ActionWithLeader((l) => l.ServerStore.RemoveFromClusterAsync(follower.ServerStore.NodeTag, cts.Token));
+                    var removed = await WaitForValueAsync(() =>
+                    {
+                        try
+                        {
+                            return followerAmbassador.Status != AmbassadorStatus.Connected;
+                        }
+                        catch
+                        {
+                            return true;
+                        }
+                    }, true);
+
+                    Assert.True(removed, $"{followerAmbassador.Status}");
+
+                    var result = await store.Operations.SendAsync(new PutCompareExchangeValueOperation<string>("Emails/foo@example.org", "users/123", 0), token: cts.Token);
+                    await leader.ServerStore.AddNodeToClusterAsync(follower.WebUrl, follower.ServerStore.NodeTag, asWatcher: true, token: cts.Token);
+                    await follower.ServerStore.Cluster.WaitForIndexNotification(result.Index, timeout);
+                }
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task PutDatabaseOnHealthyNodes()
+        {
+            var (_, leader) = await CreateRaftCluster(5, leaderIndex: 0);
+            var serverToDispose = Servers[1];
+            await DisposeServerAndWaitForFinishOfDisposalAsync(serverToDispose);
+
+            var actual = await WaitForValueAsync(async () =>
+            {
+                var count = -1;
+                await ActionWithLeader(l =>
+                {
+                    count = l.ServerStore.GetNodesStatuses().Count(n => n.Value.Connected);
+                });
+                return count;
+            }, 3);
+
+            Assert.Equal(3, actual);
+
+            for (int i = 0; i < 5; i++)
+            {
+                var dbName = GetDatabaseName();
+                var db = await CreateDatabaseInCluster(dbName, 4, leader.WebUrl);
+                Assert.False(db.Servers.Contains(serverToDispose));
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task EqualChangeVectorAfterAddingNode()
+        {
+            DebuggerAttachedTimeout.DisableLongTimespan = true;
+
+            DefaultClusterSettings[RavenConfiguration.GetKey(x => x.Replication.MaxItemsCount)] = "1";
+            DefaultClusterSettings[RavenConfiguration.GetKey(x => x.Replication.ReplicationMinimalHeartbeat)] = "3";
+            DefaultClusterSettings[RavenConfiguration.GetKey(x => x.Cluster.MaxChangeVectorDistance)] = "1";
+            DefaultClusterSettings[RavenConfiguration.GetKey(x => x.Cluster.WorkerSamplePeriod)] = "50";
+            DefaultClusterSettings[RavenConfiguration.GetKey(x => x.Cluster.SupervisorSamplePeriod)] = "100";
+
+            var cluster = await CreateRaftCluster(3, watcherCluster: true);
+            using (var store = GetDocumentStore(new Options
+            {
+                Server = cluster.Leader,
+                ReplicationFactor = 1
+            }))
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    using (var session = store.OpenAsyncSession())
+                    {
+                        await session.StoreAsync(new User());
+                        await session.SaveChangesAsync();
+                    }
+                }
+
+                await store.Maintenance.Server.SendAsync(new AddDatabaseNodeOperation(store.Database));
+                await WaitAndAssertForValueAsync(() => GetMembersCount(store), 2);
+
+                await store.Maintenance.Server.SendAsync(new AddDatabaseNodeOperation(store.Database));
+                await WaitAndAssertForValueAsync(() => GetMembersCount(store), 3);
+
+                await WaitAndAssertForValueAsync(async () =>
+                {
+                    var cvs = new List<string>();
+                    foreach (var node in cluster.Nodes)
+                    {
+                        var database = await node.ServerStore.DatabasesLandlord.TryGetOrCreateResourceStore(store.Database);
+                        var changeVector = database.ReadLastEtagAndChangeVector().ChangeVector.ToChangeVector()
+                            .SerializeVector();
+                        cvs.Add(changeVector);
+                    }
+                    
+                    return cvs.ToHashSet().Count;
+                }, 1);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task DisallowAddingNodeWithInvalidSourcePublicServerUrl()
+        {
+            var (_, raft1) = await CreateRaftCluster(1, customSettings: new Dictionary<string, string>
+            {
+                [RavenConfiguration.GetKey(x => x.Core.PublicServerUrl)] = "http://fake.url:8080"
+            });
+            var (_, raft2) = await CreateRaftCluster(1);
+
+            var source = raft1.WebUrl;
+            var dest = raft2.ServerStore.GetNodeHttpServerUrl();
+
+            using (raft1.ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            using (var requestExecutor = ClusterRequestExecutor.CreateForShortTermUse(source, raft1.ServerStore.Server.Certificate.ClientCertificate, DocumentConventions.DefaultForServer))
+            {
+                var nodeConnectionTest = new TestNodeConnectionCommand(dest, bidirectional: true);
+                await requestExecutor.ExecuteAsync(nodeConnectionTest, context);
+                var error = NodeConnectionTestResult.GetError(raft1.ServerStore.GetNodeHttpServerUrl(), dest);
+                Assert.StartsWith(error, nodeConnectionTest.Result.Error);
+
+                var request = new HttpRequestMessage
+                {
+                    Method = HttpMethod.Put,
+                    RequestUri = new Uri($"{source}/admin/cluster/node?url={dest}")
+                }.WithConventions(DocumentConventions.DefaultForServer);
+                var response = await requestExecutor.HttpClient.SendAsync(request);
+                Assert.False(response.IsSuccessStatusCode);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task DisallowAddingNodeWithInvalidSourcePublicTcpServerUrl()
+        {
+            var (_, raft1) = await CreateRaftCluster(1, customSettings: new Dictionary<string, string>
+            {
+                [RavenConfiguration.GetKey(x => x.Core.PublicTcpServerUrl)] = "tcp://fake.url:54321"
+            });
+            var (_, raft2) = await CreateRaftCluster(1);
+
+            var source = raft1.WebUrl;
+            var dest = raft2.ServerStore.GetNodeHttpServerUrl();
+
+            using (raft1.ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            using (var requestExecutor = ClusterRequestExecutor.CreateForShortTermUse(source, raft1.ServerStore.Server.Certificate.ClientCertificate, DocumentConventions.DefaultForServer))
+            {
+                var nodeConnectionTest = new TestNodeConnectionCommand(dest, bidirectional: true);
+                await requestExecutor.ExecuteAsync(nodeConnectionTest, context);
+                var error = NodeConnectionTestResult.GetError(raft1.ServerStore.GetNodeHttpServerUrl(), dest);
+                Assert.StartsWith(error, nodeConnectionTest.Result.Error);
+
+                var request = new HttpRequestMessage
+                {
+                    Method = HttpMethod.Put,
+                    RequestUri = new Uri($"{source}/admin/cluster/node?url={dest}")
+                }.WithConventions(DocumentConventions.DefaultForServer);
+                var response = await requestExecutor.HttpClient.SendAsync(request);
+                Assert.False(response.IsSuccessStatusCode);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task DisallowAddingNodeWithInvalidDestinationPublicServerUrl()
+        {
+            var (_, raft1) = await CreateRaftCluster(1);
+            var (_, raft2) = await CreateRaftCluster(1, customSettings: new Dictionary<string, string>
+            {
+                [RavenConfiguration.GetKey(x => x.Core.PublicServerUrl)] = "http://fake.url:54321"
+            });
+
+            var source = raft1.WebUrl;
+            var dest = raft2.WebUrl;
+
+            // here we pusblish a wrong PublicServerUrl, but connect to the ServerUrl, so the HTTP connection should be okay, but will when trying to the TCP connection.
+            using (raft1.ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            using (var requestExecutor = ClusterRequestExecutor.CreateForShortTermUse(source, raft1.ServerStore.Server.Certificate.ClientCertificate, DocumentConventions.DefaultForServer))
+            {
+                var nodeConnectionTest = new TestNodeConnectionCommand(dest, bidirectional: true);
+                await requestExecutor.ExecuteAsync(nodeConnectionTest, context);
+                var error = $"Was able to connect to url '{dest}', but exception was thrown while trying to connect to TCP port";
+                Assert.StartsWith(error, nodeConnectionTest.Result.Error);
+
+                var request = new HttpRequestMessage
+                {
+                    Method = HttpMethod.Put,
+                    RequestUri = new Uri($"{source}/admin/cluster/node?url={dest}")
+                }.WithConventions(DocumentConventions.DefaultForServer);
+                var response = await requestExecutor.HttpClient.SendAsync(request);
+                Assert.False(response.IsSuccessStatusCode);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task DisallowAddingNodeWithInvalidDestinationPublicTcpServerUrl()
+        {
+            var (_, raft1) = await CreateRaftCluster(1);
+            var (_, raft2) = await CreateRaftCluster(1, customSettings: new Dictionary<string, string>
+            {
+                [RavenConfiguration.GetKey(x => x.Core.PublicTcpServerUrl)] = "tcp://fake.url:54321"
+            });
+
+            var source = raft1.WebUrl;
+            var dest = raft2.ServerStore.GetNodeHttpServerUrl();
+
+            using (raft1.ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            using (var requestExecutor = ClusterRequestExecutor.CreateForShortTermUse(source, raft1.ServerStore.Server.Certificate.ClientCertificate, DocumentConventions.DefaultForServer))
+            {
+                var nodeConnectionTest = new TestNodeConnectionCommand(dest, bidirectional: true);
+                await requestExecutor.ExecuteAsync(nodeConnectionTest, context);
+                var error = $"Was able to connect to url '{dest}', but exception was thrown while trying to connect to TCP port";
+                Assert.StartsWith(error, nodeConnectionTest.Result.Error);
+
+                var request = new HttpRequestMessage
+                {
+                    Method = HttpMethod.Put,
+                    RequestUri = new Uri($"{source}/admin/cluster/node?url={dest}")
+                }.WithConventions(DocumentConventions.DefaultForServer);
+                var response = await requestExecutor.HttpClient.SendAsync(request);
+                Assert.False(response.IsSuccessStatusCode);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task AddDatabaseOnDisconnectedNode()
+        {
+            var clusterSize = 3;
+            var (_, leader) = await CreateRaftCluster(clusterSize, leaderIndex: 0);
+            await DisposeServerAndWaitForFinishOfDisposalAsync(Servers[1]);
+            var db = GetDatabaseName();
+            using (var store = new DocumentStore
+            {
+                Urls = new[] { leader.WebUrl },
+                Database = db
+            }.Initialize())
+            using (Databases.EnsureDatabaseDeletion(db, store))
+            {
+                var hasDisconnected = await WaitForValueAsync(() => leader.ServerStore.GetNodesStatuses().Count(n => n.Value.Connected == false), 1) == 1;
+                Assert.True(hasDisconnected);
+
+                var record = new DatabaseRecord(db);
+                var databaseResult = await store.Maintenance.Server.SendAsync(new CreateDatabaseOperation(record, clusterSize));
+                var nodes = databaseResult.Topology.AllNodes.ToList();
+                Assert.True(nodes.Contains("A"));
+                Assert.True(nodes.Contains("B"));
+                Assert.True(nodes.Contains("C"));
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task RemoveNodeWithDb()
+        {
+            var dbMain = GetDatabaseName();
+            var dbWatcher = GetDatabaseName();
+
+            var fromSeconds = Debugger.IsAttached ? TimeSpan.FromSeconds(15) : TimeSpan.FromSeconds(5);
+            var (nodes, leader) = await CreateRaftCluster(5, leaderIndex: 0);
+            Assert.True(leader.ServerStore.LicenseManager.HasHighlyAvailableTasks());
+
+            var db = await CreateDatabaseInCluster(dbMain, 5, leader.WebUrl);
+            var watcherDb = await CreateDatabaseInCluster(dbWatcher, 1, leader.WebUrl);
+            var serverNodes = db.Servers.Select(s => new ServerNode
+            {
+                ClusterTag = s.ServerStore.NodeTag,
+                Database = dbMain,
+                Url = s.WebUrl
+            }).ToList();
+
+            var conventions = new DocumentConventions
+            {
+                DisableTopologyUpdates = true
+            };
+
+            using (var watcherStore = new DocumentStore
+            {
+                Database = dbWatcher,
+                Urls = new[] { watcherDb.Item2.Single().WebUrl },
+                Conventions = conventions
+            }.Initialize())
+            using (var leaderStore = new DocumentStore
+            {
+                Database = dbMain,
+                Urls = new[] { leader.WebUrl },
+                Conventions = conventions
+            }.Initialize())
+            {
+                var watcher = new ExternalReplication(dbWatcher, "Connection")
+                {
+                    MentorNode = Servers.First(s => s.ServerStore.NodeTag != watcherDb.Servers[0].ServerStore.NodeTag).ServerStore.NodeTag
+                };
+
+                Assert.True(watcher.MentorNode != watcherDb.Servers[0].ServerStore.NodeTag);
+
+                var watcherRes = await AddWatcherToReplicationTopology((DocumentStore)leaderStore, watcher, nodes.Select(n => n.WebUrl).ToArray());
+                var tasks = new List<Task>();
+                foreach (var ravenServer in Servers)
+                {
+                    tasks.Add(ravenServer.ServerStore.Cluster.WaitForIndexNotification(watcherRes.RaftCommandIndex));
+                }
+
+                Assert.True(await Task.WhenAll(tasks).WaitWithoutExceptionAsync(TimeSpan.FromSeconds(5)));
+
+                var responsibleServer = Servers.Single(s => s.ServerStore.NodeTag == watcherRes.ResponsibleNode);
+                using (var responsibleStore = new DocumentStore
+                {
+                    Database = dbMain,
+                    Urls = new[] { responsibleServer.WebUrl },
+                    Conventions = conventions
+                }.Initialize())
+                {
+                    // check that replication works.
+                    using (var session = leaderStore.OpenSession())
+                    {
+                        session.Advanced.WaitForReplicationAfterSaveChanges(timeout: fromSeconds, replicas: 4);
+                        session.Store(new User
+                        {
+                            Name = "Karmel"
+                        }, "users/1");
+                        session.SaveChanges();
+                    }
+
+                    Assert.True(WaitForDocument<User>(watcherStore, "users/1", u => u.Name == "Karmel", 30_000));
+
+                    // remove the node from the cluster that is responsible for the external replication
+                    await ActionWithLeader((l) => l.ServerStore.RemoveFromClusterAsync(watcherRes.ResponsibleNode).WaitAsync(fromSeconds));
+                    Assert.True(await responsibleServer.ServerStore.WaitForState(RachisState.Passive, CancellationToken.None).WaitWithoutExceptionAsync(fromSeconds));
+
+                    var dbInstance = await responsibleServer.ServerStore.DatabasesLandlord.TryGetOrCreateResourceStore(dbMain);
+                    await WaitForValueAsync(() => dbInstance.ReplicationLoader.OutgoingConnections.Count(), 0);
+
+                    // replication from the removed node should be suspended
+                    await Assert.ThrowsAsync<NodeIsPassiveException>(async () =>
+                    {
+                        using (var session = responsibleStore.OpenAsyncSession())
+                        {
+                            await session.StoreAsync(new User
+                            {
+                                Name = "Karmel2"
+                            }, "users/2");
+                            await session.SaveChangesAsync();
+                        }
+                    });
+                }
+
+                var nodeInCluster = serverNodes.First(s => s.ClusterTag != responsibleServer.ServerStore.NodeTag);
+                using (var nodeInClusterStore = new DocumentStore
+                {
+                    Database = dbMain,
+                    Urls = new[] { nodeInCluster.Url },
+                    Conventions = conventions
+                }.Initialize())
+                {
+                    // the task should be reassinged within to another node
+                    using (var session = nodeInClusterStore.OpenSession())
+                    {
+                        session.Advanced.WaitForReplicationAfterSaveChanges(timeout: TimeSpan.FromSeconds(30), replicas: 3);
+                        session.Store(new User
+                        {
+                            Name = "Karmel3"
+                        }, "users/3");
+                        session.SaveChanges();
+                    }
+                }
+
+                Assert.True(WaitForDocument<User>(watcherStore, "users/3", u => u.Name == "Karmel3", 30_000), $"Doc 'users/3' did not reach watcherStore");
+
+                // rejoin the node
+                var newLeader = await ActionWithLeader(l => l.ServerStore.AddNodeToClusterAsync(responsibleServer.WebUrl, watcherRes.ResponsibleNode));
+                Assert.True(await responsibleServer.ServerStore.WaitForState(RachisState.Follower, CancellationToken.None).WaitWithoutExceptionAsync(fromSeconds));
+
+                using (var newLeaderStore = new DocumentStore
+                {
+                    Database = dbMain,
+                    Urls = new[] { newLeader.WebUrl },
+                }.Initialize())
+                using (var session = newLeaderStore.OpenAsyncSession())
+                {
+                    session.Advanced.WaitForReplicationAfterSaveChanges(timeout: TimeSpan.FromSeconds(30), replicas: 3);
+                    await session.StoreAsync(new User
+                    {
+                        Name = "Karmel4"
+                    }, "users/4");
+                    await session.SaveChangesAsync();
+                }
+
+                Assert.True(WaitForDocument<User>(watcherStore, "users/4", u => u.Name == "Karmel4", 30_000), $"The watcher doesn't have the document");
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task RemoveRedundantPromotable()
+        {
+            var clusterSize = 3;
+            var cluster = await CreateRaftCluster(clusterSize, watcherCluster: true);
+            var db = GetDatabaseName();
+
+            using (var store = new DocumentStore
+            {
+                Urls = new[] { cluster.Leader.WebUrl },
+                Database = db
+            }.Initialize())
+            {
+                await cluster.Leader.ServerStore.SendToLeaderAsync(new AddDatabaseCommand(Guid.NewGuid().ToString())
+                {
+                    Record = new DatabaseRecord(db)
+                    {
+                        Topology = new DatabaseTopology
+                        {
+                            Members = new List<string> { "A" },
+                            Promotables = new List<string> { "B", "C" },
+                            ReplicationFactor = 2
+                        }
+                    },
+                    Name = db
+                });
+
+                await WaitForAssertionAsync(() =>
+                {
+                    using (cluster.Leader.ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext ctx))
+                    using (ctx.OpenReadTransaction())
+                    {
+                        var record = cluster.Leader.ServerStore.Cluster.ReadDatabase(ctx, db);
+                        Assert.Equal(0, record.DeletionInProgress?.Count ?? 0);
+
+                        var topology = record.Topology;
+                        Assert.Equal(2, topology.ReplicationFactor);
+                        Assert.Equal(2, topology.Members.Count);
+                        Assert.Equal(0, topology.Promotables.Count);
+                        Assert.Equal(0, topology.Rehabs.Count);
+                    }
+
+                    return Task.CompletedTask;
+                });
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task RemoveRedundantRehabs()
+        {
+            var clusterSize = 3;
+            var cluster = await CreateRaftCluster(clusterSize, watcherCluster: true);
+            var db = GetDatabaseName();
+
+            using (var store = new DocumentStore
+            {
+                Urls = new[] { cluster.Leader.WebUrl },
+                Database = db
+            }.Initialize())
+            {
+                await cluster.Leader.ServerStore.SendToLeaderAsync(new AddDatabaseCommand(Guid.NewGuid().ToString())
+                {
+                    Record = new DatabaseRecord(db)
+                    {
+                        Topology = new DatabaseTopology
+                        {
+                            Members = new List<string> { "A" },
+                            Rehabs = new List<string> { "B", "C" },
+                            ReplicationFactor = 2
+                        }
+                    },
+                    Name = db
+                });
+
+                await WaitForAssertionAsync(async () =>
+                {
+                    using (cluster.Leader.ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext ctx))
+                    using (ctx.OpenReadTransaction())
+                    {
+                        var record = cluster.Leader.ServerStore.Cluster.ReadDatabase(ctx, db);
+                        var deletionInProgress = record.DeletionInProgress?.Count ?? 0;
+                        var info = "";
+                        var topology = record.Topology;
+
+                        if (deletionInProgress > 0 || topology.Members.Count < 2)
+                        {
+                            var status = deletionInProgress > 0 ? record.DeletionInProgress.First().Value.ToString() : "";
+                            info += $"deletionInProgress = {deletionInProgress}, status = {status}. " +
+                                    $"members = {topology.Members.Count}, rehabs = {topology.Rehabs.Count}, ReplicationFactor = {topology.ReplicationFactor}";
+                            var sb = new StringBuilder();
+                            await GetClusterDebugLogsAsync(sb);
+                            info += sb.ToString();
+                        }
+
+                        Assert.True(0 == deletionInProgress, info);
+                        Assert.True(2 == topology.Members.Count, info);
+
+                        Assert.Equal(2, topology.ReplicationFactor);
+                        Assert.Equal(0, topology.Promotables.Count);
+                        Assert.Equal(0, topology.Rehabs.Count);
+                    }
+                });
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task RemoveRedundantNodes()
+        {
+            var clusterSize = 5;
+            var cluster = await CreateRaftCluster(clusterSize, watcherCluster: true);
+            var db = GetDatabaseName();
+
+            using (var store = new DocumentStore
+            {
+                Urls = new[] { cluster.Leader.WebUrl },
+                Database = db
+            }.Initialize())
+            {
+                var res = await cluster.Leader.ServerStore.SendToLeaderAsync(new AddDatabaseCommand(Guid.NewGuid().ToString())
+                {
+                    Record = new DatabaseRecord(db)
+                    {
+                        Topology = new DatabaseTopology
+                        {
+                            Members = new List<string> { "A" },
+                            Rehabs = new List<string> { "B", "C" },
+                            Promotables = new List<string> { "D", "E" },
+                            ReplicationFactor = 3
+                        }
+                    },
+                    Name = db
+                });
+
+                await Cluster.WaitForRaftIndexToBeAppliedOnClusterNodesAsync(res.Index, cluster.Nodes);
+
+                // Step 1: Wait for database to be created
+                await WaitForAssertionAsync(() =>
+                {
+                    using (cluster.Leader.ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext ctx))
+                    using (ctx.OpenReadTransaction())
+                    {
+                        var record = cluster.Leader.ServerStore.Cluster.ReadDatabase(ctx, db);
+                        Assert.NotNull(record);
+                        Assert.Equal(0, record.DeletionInProgress?.Count ?? 0);
+                    }
+
+                    return Task.CompletedTask;
+                }, timeoutInMs: 15_000);
+
+                // Step 2: Wait for topology to have sufficient members
+                await WaitForAssertionAsync(() =>
+                {
+                    using (cluster.Leader.ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext ctx))
+                    using (ctx.OpenReadTransaction())
+                    {
+                        var record = cluster.Leader.ServerStore.Cluster.ReadDatabase(ctx, db);
+                        var topology = record.Topology;
+
+                        // At minimum, we should have the replication factor met
+                        Assert.True(topology.Members.Count >= topology.ReplicationFactor,
+                            $"Members count ({topology.Members.Count}) should be >= replication factor ({topology.ReplicationFactor})");
+                    }
+
+                    return Task.CompletedTask;
+                }, timeoutInMs: 30_000);
+
+                // Step 3: Wait for final topology stabilization
+                await WaitForAssertionAsync(() =>
+                {
+                    using (cluster.Leader.ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext ctx))
+                    using (ctx.OpenReadTransaction())
+                    {
+                        var record = cluster.Leader.ServerStore.Cluster.ReadDatabase(ctx, db);
+                        var topology = record.Topology;
+
+                        Assert.Equal(3, topology.ReplicationFactor);
+                        Assert.Equal(3, topology.Members.Count);
+                        Assert.Equal(0, topology.Promotables.Count);
+                        Assert.Equal(0, topology.Rehabs.Count);
+                    }
+
+                    return Task.CompletedTask;
+                }, timeoutInMs: 15_000);
+            }
+        }
+
+        private static string GetRecordFixedString(DatabaseRecord record, RavenServer leader)
+        {
+            var topology = record.Topology;
+            return $"topology.ReplicationFactor={topology.ReplicationFactor}" +
+                   $"\ntopology.Members={string.Join(',', topology.Members)}" +
+                   $"\ntopology.Rehabs={string.Join(',', topology.Rehabs)}" +
+                   $"\ntopology.Promotables={string.Join(',', topology.Promotables)}" +
+                   $"\nleader={leader.ServerStore.NodeTag}" +
+                   $"\nrecord.DeletionInProgress={string.Join(',', record.DeletionInProgress)}";
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task FailOnAddingNodeWhenLeaderHasPortZero()
+        {
+            var (_, leader) = await CreateRaftCluster(1);
+            leader.ServerStore.ValidateFixedPort = true;
+
+            var server2 = GetNewServer();
+            var server2Url = server2.ServerStore.GetNodeHttpServerUrl();
+            Servers.Add(server2);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await leader.ServerStore.AddNodeToClusterAsync(server2Url));
+
+            Assert.Contains("Adding nodes to cluster is forbidden when the leader " +
+                            "has port '0' in 'Configuration.Core.ServerUrls' setting", ex.Message);
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task WhoseTaskIsItShouldNotSelectRemovedNode()
+        {
+            var clusterSize = 5;
+            var cluster = await CreateRaftCluster(clusterSize, watcherCluster: true);
+            var db = GetDatabaseName();
+
+            var first = cluster.Nodes.First(x => x != cluster.Leader);
+            var firstFollowerTag = first.ServerStore.NodeTag;
+
+            await cluster.Leader.ServerStore.SendToLeaderAsync(new AddDatabaseCommand(Guid.NewGuid().ToString())
+            {
+                Record = new DatabaseRecord(db)
+                {
+                    Topology = new DatabaseTopology
+                    {
+                        Members = new List<string> { cluster.Leader.ServerStore.NodeTag, firstFollowerTag },
+                        ReplicationFactor = 2,
+                        Stamp = new LeaderStamp()
+                    }
+                },
+                Name = db
+            });
+
+            await DisposeServerAndWaitForFinishOfDisposalAsync(first);
+            var result = await cluster.Leader.ServerStore.SendToLeaderAsync(new DeleteDatabaseCommand(db, Guid.NewGuid().ToString())
+            {
+                FromNodes = new[] { firstFollowerTag },
+            });
+
+            await Cluster.WaitForRaftIndexToBeAppliedInClusterAsync(result.Index, TimeSpan.FromSeconds(10));
+
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                var res = cluster.Nodes.First(x =>
+                    x != cluster.Leader && x != first &&
+                    x.ServerStore.LoadDatabaseTopology(db)
+                        .WhoseTaskIsIt(x.ServerStore.Engine.CurrentState, new PromotableTask(x.ServerStore.NodeTag, x.WebUrl, db, firstFollowerTag), null) == firstFollowerTag);
+
+                Assert.Fail($"removed node was selected :/ Leader: {cluster.Leader.ServerStore.NodeTag}, first: {firstFollowerTag}, second {res.ServerStore.NodeTag}");
+            });
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task FailOnAddingNodeThatHasPortZero()
+        {
+            var (_, leader) = await CreateRaftCluster(1);
+            leader.ServerStore.Configuration.Core.ServerUrls = new[] { leader.WebUrl };
+            leader.ServerStore.ValidateFixedPort = true;
+
+            var server2 = GetNewServer();
+            var server2Url = server2.ServerStore.GetNodeHttpServerUrl();
+            Servers.Add(server2);
+
+            using (var requestExecutor = ClusterRequestExecutor.CreateForShortTermUse(leader.WebUrl, null, DocumentConventions.DefaultForServer))
+            using (requestExecutor.ContextPool.AllocateOperationContext(out var ctx))
+            {
+                var ex = await Assert.ThrowsAsync<RavenException>(async () =>
+                    await requestExecutor.ExecuteAsync(new AddClusterNodeCommand(server2Url), ctx));
+
+                Assert.Contains($"Node '{server2Url}' has port '0' in 'Configuration.Core.ServerUrls' setting. " +
+                                "Adding a node with non fixed port is forbidden. Define a fixed port for the node to enable cluster creation.", ex.Message);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task CanSnapshotCompareExchangeTombstones()
+        {
+            var (_, leader) = await CreateRaftCluster(1);
+
+            using (var store = GetDocumentStore(options: new Options
+            {
+                Server = leader
+            }))
+            {
+                using (var session = store.OpenAsyncSession(new SessionOptions
+                {
+                    TransactionMode = TransactionMode.ClusterWide
+                }))
+                {
+                    session.Advanced.ClusterTransaction.CreateCompareExchangeValue("foo", "bar");
+                    await session.SaveChangesAsync();
+
+                    var result = await session.Advanced.ClusterTransaction.GetCompareExchangeValueAsync<string>("foo");
+                    session.Advanced.ClusterTransaction.DeleteCompareExchangeValue(result);
+                    await session.SaveChangesAsync();
+                }
+
+                var server2 = GetNewServer();
+                var server2Url = server2.ServerStore.GetNodeHttpServerUrl();
+                Servers.Add(server2);
+
+                using (var requestExecutor = ClusterRequestExecutor.CreateForShortTermUse(leader.WebUrl, null, DocumentConventions.DefaultForServer))
+                using (requestExecutor.ContextPool.AllocateOperationContext(out var ctx))
+                {
+                    await requestExecutor.ExecuteAsync(new AddClusterNodeCommand(server2Url, watcher: true), ctx);
+
+                    var addDatabaseNode = new AddDatabaseNodeOperation(store.Database);
+                    await store.Maintenance.Server.SendAsync(addDatabaseNode);
+                }
+
+                using (server2.ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext ctx))
+                using (ctx.OpenReadTransaction())
+                {
+                    Assert.True(server2.ServerStore.Cluster.HasCompareExchangeTombstones(ctx, store.Database));
+                }
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Subscriptions | RavenTestCategory.Cluster)]
+        public async Task CanSnapshotSubscriptionState()
+        {
+            var (_, leader) = await CreateRaftCluster(1, watcherCluster: true);
+
+            using (var store = GetDocumentStore(options: new Options
+            {
+                Server = leader
+            }))
+            {
+                var sub = await store.Subscriptions.CreateAsync<User>();
+
+                var worker = store.Subscriptions.GetSubscriptionWorker<User>(sub);
+
+                var waitForBatch = new ManualResetEvent(false);
+                var t = worker.Run((batch) => { waitForBatch.WaitOne(TimeSpan.FromSeconds(15)); });
+
+                using (var session = store.OpenAsyncSession())
+                {
+                    await session.StoreAsync(new User());
+                    await session.SaveChangesAsync();
+                }
+
+                var database = await leader.ServerStore.DatabasesLandlord.TryGetOrCreateResourceStore(store.Database);
+                database.SubscriptionStorage.GetSubscriptionFromServerStore(sub);
+
+
+                var server2 = GetNewServer();
+                var server2Url = server2.ServerStore.GetNodeHttpServerUrl();
+                Servers.Add(server2);
+
+                using (var requestExecutor = ClusterRequestExecutor.CreateForShortTermUse(leader.WebUrl, null, DocumentConventions.DefaultForServer))
+                using (requestExecutor.ContextPool.AllocateOperationContext(out var ctx))
+                {
+                    await requestExecutor.ExecuteAsync(new AddClusterNodeCommand(server2Url, watcher: true), ctx);
+
+                    var addDatabaseNode = new AddDatabaseNodeOperation(store.Database);
+                    await store.Maintenance.Server.SendAsync(addDatabaseNode);
+                    await WaitAndAssertForValueAsync(() => GetMembersCount(store), 2);
+                }
+
+                database = await server2.ServerStore.DatabasesLandlord.TryGetOrCreateResourceStore(store.Database);
+                var state = database.SubscriptionStorage.GetSubscriptionFromServerStore(sub);
+
+                using (server2.ServerStore.Engine.ContextPool.AllocateOperationContext(out ClusterOperationContext context))
+                using (context.OpenReadTransaction())
+                {
+                    Assert.Single(AbstractSubscriptionConnectionsState.GetResendItems(context, store.Database, state.SubscriptionId));
+                }
+
+                waitForBatch.Set();
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task ClientRequestExecutorTopologyWillUpdateWhenAddingNewNodeToCluster_RavenDB_20702()
+        {
+            var (nodes, leader) = await CreateRaftCluster(3, leaderIndex: 0, watcherCluster: true);
+
+            var executorB = ClusterRequestExecutor.Create(new string[] { leader.WebUrl }, null, DocumentConventions.Default);
+            
+            await WaitForValueAsync(() =>
+            {
+                foreach (var node in nodes)
+                {
+                    if (executorB?.TopologyNodes == null)
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }, true);
+            
+            var serverD = GetNewServer();
+            var serverDUrl = serverD.ServerStore.GetNodeHttpServerUrl();
+            Servers.Add(serverD);
+            using (var requestExecutor = ClusterRequestExecutor.CreateForShortTermUse(leader.WebUrl, null, DocumentConventions.DefaultForServer))
+            using (requestExecutor.ContextPool.AllocateOperationContext(out var ctx))
+            {
+                await requestExecutor.ExecuteAsync(new AddClusterNodeCommand(serverDUrl, "D", watcher: true), ctx);
+                await serverD.ServerStore.Engine.WaitForTopology(Leader.TopologyModification.NonVoter);
+            }
+
+            using (var ctx = JsonOperationContext.ShortTermSingleUse())
+            {
+                //first request to D will not work since the request executor did not update its topology
+                var error = await Assert.ThrowsAnyAsync<RequestedNodeUnavailableException>(async () => await executorB.ExecuteAsync(new GetDatabasesCommand("D"), ctx));
+                Assert.Contains("Could not find requested node", error.Message);
+                //first request will update the topology
+                await executorB.ExecuteAsync(new GetDatabasesCommand("B"), ctx);
+                //second will request straight to D will already have it in the topology
+                await executorB.ExecuteAsync(new GetDatabasesCommand("D"), ctx);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task DatabaseRequestExecutorTopologyWillUpdateWhenAddingNewNode_RavenDB_20702()
+        {
+            var name = GetDatabaseName();
+            var (nodes, leader) = await CreateRaftCluster(4, leaderIndex: 0, watcherCluster: true);
+            var (index ,dbNodes) = await CreateDatabaseInCluster(name, replicationFactor: 3, leader.WebUrl);
+
+            var dbNodeTags = dbNodes.Select(x => x.ServerStore.NodeTag);
+
+            //find the one node without a replica
+            var emptyNode = nodes.Single(x => dbNodeTags.Contains(x.ServerStore.NodeTag) == false);
+            var dbNode = nodes.First(x => dbNodeTags.Contains(x.ServerStore.NodeTag));
+
+            using (var store = GetDocumentStore(new Options()
+                   {
+                       Server = dbNode,
+                       CreateDatabase = false,
+                       ModifyDatabaseName = _=> name
+                   }))
+            {
+                Assert.NotEqual(emptyNode.ServerStore.NodeTag, dbNode.ServerStore.NodeTag);
+
+                var database = await GetDocumentDatabaseInstanceForAsync(store.Database, dbNode);
+
+                await WaitForValueAsync(async () =>
+                {
+                    foreach (var node in dbNodes)
+                    {
+                        var db = await GetDocumentDatabaseInstanceForAsync(store.Database, node);
+                        if (db.RequestExecutor?.TopologyNodes?.Count == 3)
+                        {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }, true);
+
+                //add D to the database
+                await store.Maintenance.Server.SendAsync(new AddDatabaseNodeOperation(store.Database, emptyNode.ServerStore.NodeTag));
+                
+                await AssertWaitForValueAsync(async () =>
+                {
+                    foreach (var node in nodes)
+                    {
+                        var db = await GetDocumentDatabaseInstanceForAsync(store.Database, node);
+                        if (db.RequestExecutor?.TopologyNodes.Count != 4)
+                        {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }, true);
+
+                using (var ctx = JsonOperationContext.ShortTermSingleUse())
+                {
+                    await database.RequestExecutor.ExecuteAsync(new GetIndexesProgressCommand("D"), ctx);
+                }
+            }
+        }
+
+        internal class GetDatabasesCommand : RavenCommand
+        {
+            public GetDatabasesCommand(string nodeTag)
+            {
+                SelectedNodeTag = nodeTag;
+            }
+
+            public override bool IsReadRequest => false;
+
+            public override HttpRequestMessage CreateRequest(JsonOperationContext ctx, ServerNode node, out string url)
+            {
+                url = $"{node.Url}/databases";
+                
+                return new HttpRequestMessage
+                {
+                    Method = HttpMethod.Get
+                };
+            }
+
+            public override void SetResponse(JsonOperationContext context, BlittableJsonReaderObject response, bool fromCache)
+            {
+                if (response == null)
+                    return;
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Cluster)]
+        public async Task ThrowForSelectedNodeTagOperationWhenNodeIsInRehab()
+        {
+            var name = GetDatabaseName();
+            var (nodes, leader) = await CreateRaftCluster(3, leaderIndex: 0, watcherCluster: true);
+            var (index, dbNodes) = await CreateDatabaseInCluster(name, replicationFactor: 3, leader.WebUrl);
+
+            var dbNode = nodes.First(x => x.ServerStore.NodeTag != leader.ServerStore.NodeTag);
+
+            using (var store = new DocumentStore()
+                   {
+                       Urls = new string[] { leader.WebUrl },
+                       Database = name,
+                       Conventions = new DocumentConventions()
+                       {
+                           DisableTopologyUpdates = false
+                       }
+                   })
+            {
+                store.Initialize();
+                //take down node
+                await DisposeServerAndWaitForFinishOfDisposalAsync(dbNode);
+
+                var re = store.GetRequestExecutor(store.Database);
+                await AssertWaitForTrueAsync(() =>
+                {
+                    return Task.FromResult(re.TopologyNodes != null &&
+                                           re.TopologyNodes.Count == 3);
+                });
+
+                //wait for it to enter rehab
+                await AssertWaitForValueAsync(async () =>
+                {
+                    var record = await store.Maintenance.Server.SendAsync(new GetDatabaseRecordOperation(store.Database));
+                    if (record.Topology.Rehabs.Contains(dbNode.ServerStore.NodeTag))
+                        return true;
+
+                    return false;
+                }, true);
+                
+                var error = await Assert.ThrowsAnyAsync<RavenException>(async () => await store.Maintenance.SendAsync(new GetStatisticsOperation("test", dbNode.ServerStore.NodeTag)));
+                Assert.True(error.Message.Contains("No connection could be made because the target machine actively refused it") ||
+                            error.Message.Contains("Connection refused"));
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task AddNodeToClusterWithoutError()
+        {
+            var (_, leader) = await CreateRaftCluster(1);
+
+            var server2 = GetNewServer();
+            var server2Url = server2.ServerStore.GetNodeHttpServerUrl();
+            Servers.Add(server2);
+
+            using (var requestExecutor = ClusterRequestExecutor.CreateForShortTermUse(leader.WebUrl, null, DocumentConventions.DefaultForServer))
+            using (requestExecutor.ContextPool.AllocateOperationContext(out var ctx))
+            {
+                await requestExecutor.ExecuteAsync(new AddClusterNodeCommand(server2Url, watcher: true), ctx);
+                await server2.ServerStore.Engine.WaitForTopology(Leader.TopologyModification.NonVoter);
+            }
+
+            using (server2.ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext ctx))
+            {
+                var logs = ctx.ReadObject(server2.ServerStore.Engine.InMemoryDebug.ToJson(), "watcher-logs").ToString();
+                Assert.False(logs.Contains("Exception"), logs);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task AddingNodeToClusterUpdatesClusterRequestExecutorTopology_RavenDB_20702()
+        {
+            var (nodes, leader) = await CreateRaftCluster(3, leaderIndex: 0, watcherCluster: true);
+            
+            var tops = new IReadOnlyList<ServerNode>[nodes.Count];
+
+            var val = await WaitForValueAsync(() =>
+            {
+                for (int i = 0; i < nodes.Count; i++)
+                {
+                    RavenServer node = nodes[i];
+                    tops[i] = node.ServerStore.ClusterRequestExecutor?.TopologyNodes;
+                }
+
+                for (int i = 0; i < nodes.Count; i++)
+                {
+                    var top = tops[i];
+                    if (top == null)
+                        return false;
+
+                    if (top.Count != 3)
+                        return false;
+                }
+
+                return true;
+            }, true);
+
+            Assert.True(val, GenerateMessage(tops));
+
+            var serverD = GetNewServer();
+            var serverDUrl = serverD.ServerStore.GetNodeHttpServerUrl();
+            Servers.Add(serverD);
+            using (var requestExecutor = ClusterRequestExecutor.CreateForSingleNode(leader.WebUrl, null, DocumentConventions.DefaultForServer))
+            using (requestExecutor.ContextPool.AllocateOperationContext(out var ctx))
+            {
+                await requestExecutor.ExecuteAsync(new AddClusterNodeCommand(serverDUrl, "D", watcher: true), ctx);
+                await serverD.ServerStore.Engine.WaitForTopology(Leader.TopologyModification.NonVoter);
+            }
+
+            var res = WaitForValue(() =>
+            {
+                if (nodes[1].ServerStore.ClusterRequestExecutor?.TopologyNodes?.Count != 4)
+                {
+                    return false;
+                }
+
+                return true;
+            }, true);
+            Assert.True(res);
+            return;
+
+            string GenerateMessage(IReadOnlyList<ServerNode>[] tops)
+            {
+                var sb = new StringBuilder();
+                for (int i = 0; i < tops.Length; i++)
+                {
+                    IReadOnlyList<ServerNode> top = tops[i];
+                    var node = nodes[i];
+                    sb.AppendLine($"Node: {node.ServerStore.NodeTag} had topology of {string.Join(",", top.Select(x => x.ClusterTag))}");
+                }
+
+                return sb.ToString();
+            }
+        }
+
+        [RavenFact(RavenTestCategory.ClusterTransactions)]
+        public async Task ResetServerShouldPreserveTopology()
+        {
+            var cluster = await CreateRaftCluster(3, shouldRunInMemory: false);
+            var followers = cluster.Nodes.Where(x => x != cluster.Leader);
+            DebuggerAttachedTimeout.DisableLongTimespan = true;
+
+            foreach (var follower in followers)
+            {
+                await cluster.Leader.ServerStore.Engine.ModifyTopologyAsync(follower.ServerStore.NodeTag, follower.ServerStore.Engine.Url,
+                    Leader.TopologyModification.NonVoter);
+            }
+
+            var result = await DisposeServerAndWaitForFinishOfDisposalAsync(cluster.Leader);
+            cluster.Leader = GetNewServer(new ServerCreationOptions
+            {
+                DeletePrevious = false,
+                RunInMemory = false,
+                DataDirectory = result.DataDirectory,
+                CustomSettings = new Dictionary<string, string>
+                {
+                    [RavenConfiguration.GetKey(x => x.Core.ServerUrls)] = result.Url
+                }
+            });
+
+            var topology = cluster.Leader.ServerStore.GetClusterTopology();
+            Assert.Equal(3, topology.AllNodes.Count);
+        }
+
+        [RavenFact(RavenTestCategory.Cluster)]
+        public async Task UseProperCommandVersionWhenSingleMember()
+        {
+            var (_, raft1) = await CreateRaftCluster(1, shouldRunInMemory: false);
+
+            await raft1.ServerStore.AddNodeToClusterAsync("http://foo.bar", "B", validateNotInTopology: false);
+            await raft1.ServerStore.AddNodeToClusterAsync("http://foo.baz", "C", validateNotInTopology: false);
+
+            var result = await DisposeServerAndWaitForFinishOfDisposalAsync(raft1);
+
+            raft1 = Servers[0] = GetNewServer(new ServerCreationOptions
+            {
+                CustomSettings = new Dictionary<string, string>
+                {
+                    { RavenConfiguration.GetKey(x => x.Core.PublicServerUrl), result.Url }, 
+                    { RavenConfiguration.GetKey(x => x.Core.ServerUrls), result.Url }
+                },
+                RunInMemory = false,
+                DeletePrevious = false,
+                DataDirectory = result.DataDirectory
+            });
+
+            using (var store = GetDocumentStore(new Options { Server = raft1, }))
+            {
+
+            }
+        }
+    }
+}

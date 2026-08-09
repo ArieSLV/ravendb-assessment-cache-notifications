@@ -1,0 +1,329 @@
+﻿# Changes API frames observed by capture sockets
+2026-08-09T10:39:53.4192044+00:00 frame_received frame=1 connection=capture-1 bytes=56
+2026-08-09T10:39:53.4310765+00:00 frame_received frame=2 connection=capture-1 bytes=34
+2026-08-09T10:39:53.4406389+00:00 frame_received frame=3 connection=capture-2 bytes=56
+2026-08-09T10:39:53.4437007+00:00 frame_received frame=4 connection=capture-2 bytes=34
+2026-08-09T10:39:53.4499396+00:00 frame_received frame=5 connection=capture-3 bytes=56
+2026-08-09T10:39:53.4509487+00:00 frame_received frame=6 connection=capture-3 bytes=34
+2026-08-09T10:39:53.4571058+00:00 frame_received frame=7 connection=capture-4 bytes=56
+2026-08-09T10:39:53.4578303+00:00 frame_received frame=8 connection=capture-4 bytes=34
+2026-08-09T10:39:53.5702828+00:00 frame_received frame=9 connection=capture-4 bytes=41
+2026-08-09T10:39:53.5706558+00:00 frame_received frame=11 connection=capture-3 bytes=55
+2026-08-09T10:39:53.5703038+00:00 frame_received frame=10 connection=capture-2 bytes=41
+2026-08-09T10:39:53.5708508+00:00 frame_received frame=12 connection=capture-1 bytes=64
+2026-08-09T10:39:53.5717918+00:00 frame_classified notification=1 connection=capture-4 sequence=unknown fields=<empty> contract=ignored
+2026-08-09T10:39:53.5750121+00:00 frame_classified notification=3 connection=capture-2 sequence=unknown fields=<empty> contract=ignored
+2026-08-09T10:39:53.5750495+00:00 frame_classified notification=2 connection=capture-3 sequence=1 fields=Generation contract=ignored
+2026-08-09T10:39:53.5786730+00:00 frame_classified notification=4 connection=capture-1 sequence=unknown fields=Reason contract=ignored
+2026-08-09T10:39:53.7546379+00:00 frame_received frame=14 connection=capture-2 bytes=55
+2026-08-09T10:39:53.7546379+00:00 frame_received frame=13 connection=capture-3 bytes=79
+2026-08-09T10:39:53.7548561+00:00 frame_received frame=15 connection=capture-4 bytes=55
+2026-08-09T10:39:53.7549260+00:00 frame_received frame=16 connection=capture-1 bytes=103
+2026-08-09T10:39:53.7552683+00:00 frame_classified notification=5 connection=capture-2 sequence=2 fields=Generation contract=ignored
+2026-08-09T10:39:53.7671317+00:00 frame_classified notification=6 connection=capture-3 sequence=2 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:53.7683091+00:00 frame_classified notification=7 connection=capture-4 sequence=2 fields=Generation contract=ignored
+2026-08-09T10:39:53.7695023+00:00 frame_classified notification=8 connection=capture-1 sequence=2 fields=Generation|Reason|Reason contract=accepted
+2026-08-09T10:39:56.8821166+00:00 frame_received frame=18 connection=capture-1 bytes=79
+2026-08-09T10:39:56.8821190+00:00 frame_received frame=19 connection=capture-3 bytes=79
+2026-08-09T10:39:56.8821154+00:00 frame_received frame=17 connection=capture-2 bytes=79
+2026-08-09T10:39:56.8824188+00:00 frame_received frame=20 connection=capture-4 bytes=79
+2026-08-09T10:39:56.8831235+00:00 frame_classified notification=9 connection=capture-1 sequence=3 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.8909125+00:00 frame_classified notification=12 connection=capture-4 sequence=3 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.8862928+00:00 frame_classified notification=10 connection=capture-3 sequence=3 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.8892757+00:00 frame_classified notification=11 connection=capture-2 sequence=3 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.8937114+00:00 frame_received frame=21 connection=capture-1 bytes=79
+2026-08-09T10:39:56.9013532+00:00 frame_received frame=22 connection=capture-4 bytes=79
+2026-08-09T10:39:56.9004261+00:00 frame_classified notification=13 connection=capture-1 sequence=4 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9146070+00:00 frame_classified notification=14 connection=capture-4 sequence=4 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9184375+00:00 frame_received frame=24 connection=capture-3 bytes=79
+2026-08-09T10:39:56.9136388+00:00 frame_received frame=23 connection=capture-2 bytes=79
+2026-08-09T10:39:56.9207395+00:00 frame_classified notification=16 connection=capture-2 sequence=4 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9198332+00:00 frame_classified notification=15 connection=capture-3 sequence=4 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9239517+00:00 frame_received frame=25 connection=capture-2 bytes=79
+2026-08-09T10:39:56.9252202+00:00 frame_classified notification=17 connection=capture-2 sequence=5 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9239517+00:00 frame_received frame=26 connection=capture-1 bytes=79
+2026-08-09T10:39:56.9291172+00:00 frame_received frame=28 connection=capture-3 bytes=79
+2026-08-09T10:39:56.9322828+00:00 frame_classified notification=19 connection=capture-3 sequence=5 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9309856+00:00 frame_classified notification=18 connection=capture-1 sequence=5 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9241979+00:00 frame_received frame=27 connection=capture-4 bytes=79
+2026-08-09T10:39:56.9351488+00:00 frame_received frame=29 connection=capture-2 bytes=79
+2026-08-09T10:39:56.9376784+00:00 frame_received frame=31 connection=capture-3 bytes=79
+2026-08-09T10:39:56.9362693+00:00 frame_classified notification=20 connection=capture-4 sequence=5 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9374876+00:00 frame_classified notification=21 connection=capture-2 sequence=6 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9360041+00:00 frame_received frame=30 connection=capture-1 bytes=79
+2026-08-09T10:39:56.9386730+00:00 frame_classified notification=22 connection=capture-3 sequence=6 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9438909+00:00 frame_classified notification=23 connection=capture-1 sequence=6 fields=Generation|Reason contract=accepted
+2026-08-09T10:39:56.9487702+00:00 frame_received frame=32 connection=capture-4 bytes=79
+2026-08-09T10:39:56.9510167+00:00 frame_classified notification=24 connection=capture-4 sequence=6 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:00.0770313+00:00 frame_received frame=33 connection=capture-2 bytes=79
+2026-08-09T10:40:00.0770327+00:00 frame_received frame=34 connection=capture-3 bytes=79
+2026-08-09T10:40:00.0770502+00:00 frame_received frame=35 connection=capture-1 bytes=55
+2026-08-09T10:40:00.0771439+00:00 frame_received frame=36 connection=capture-4 bytes=79
+2026-08-09T10:40:00.0774245+00:00 frame_classified notification=25 connection=capture-2 sequence=7 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:00.0903490+00:00 frame_classified notification=28 connection=capture-4 sequence=7 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:00.0951030+00:00 frame_received frame=37 connection=capture-2 bytes=79
+2026-08-09T10:40:00.0835290+00:00 frame_classified notification=26 connection=capture-3 sequence=7 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:00.1096991+00:00 frame_classified notification=29 connection=capture-2 sequence=8 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:00.1128555+00:00 frame_received frame=39 connection=capture-3 bytes=55
+2026-08-09T10:40:00.0881819+00:00 frame_classified notification=27 connection=capture-1 sequence=7 fields=Generation contract=ignored
+2026-08-09T10:40:00.0983287+00:00 frame_received frame=38 connection=capture-4 bytes=79
+2026-08-09T10:40:00.1148969+00:00 frame_classified notification=30 connection=capture-3 sequence=8 fields=Generation contract=ignored
+2026-08-09T10:40:00.1169424+00:00 frame_received frame=40 connection=capture-1 bytes=79
+2026-08-09T10:40:00.1181241+00:00 frame_classified notification=31 connection=capture-4 sequence=8 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:00.1206767+00:00 frame_classified notification=32 connection=capture-1 sequence=8 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2121834+00:00 frame_received frame=43 connection=capture-4 bytes=79
+2026-08-09T10:40:03.2121834+00:00 frame_received frame=41 connection=capture-3 bytes=79
+2026-08-09T10:40:03.2121835+00:00 frame_received frame=42 connection=capture-2 bytes=55
+2026-08-09T10:40:03.2123188+00:00 frame_received frame=44 connection=capture-1 bytes=79
+2026-08-09T10:40:03.2127111+00:00 frame_classified notification=33 connection=capture-4 sequence=9 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2352356+00:00 frame_received frame=45 connection=capture-4 bytes=80
+2026-08-09T10:40:03.2373909+00:00 frame_classified notification=37 connection=capture-4 sequence=10 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2281602+00:00 frame_classified notification=36 connection=capture-1 sequence=9 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2262874+00:00 frame_classified notification=35 connection=capture-2 sequence=9 fields=Generation contract=ignored
+2026-08-09T10:40:03.2197509+00:00 frame_classified notification=34 connection=capture-3 sequence=9 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2565398+00:00 frame_received frame=47 connection=capture-2 bytes=80
+2026-08-09T10:40:03.2559954+00:00 frame_received frame=46 connection=capture-4 bytes=80
+2026-08-09T10:40:03.2604533+00:00 frame_received frame=48 connection=capture-3 bytes=80
+2026-08-09T10:40:03.2660315+00:00 frame_classified notification=38 connection=capture-2 sequence=10 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2695300+00:00 frame_received frame=49 connection=capture-1 bytes=80
+2026-08-09T10:40:03.2727859+00:00 frame_classified notification=40 connection=capture-3 sequence=10 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2785456+00:00 frame_classified notification=41 connection=capture-1 sequence=10 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2692721+00:00 frame_classified notification=39 connection=capture-4 sequence=11 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2912329+00:00 frame_received frame=52 connection=capture-1 bytes=80
+2026-08-09T10:40:03.2876222+00:00 frame_received frame=51 connection=capture-4 bytes=80
+2026-08-09T10:40:03.2825774+00:00 frame_received frame=50 connection=capture-3 bytes=104
+2026-08-09T10:40:03.2914121+00:00 frame_classified notification=42 connection=capture-1 sequence=11 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2976514+00:00 frame_classified notification=44 connection=capture-3 sequence=11 fields=Generation|Reason|Reason contract=accepted
+2026-08-09T10:40:03.3015371+00:00 frame_received frame=54 connection=capture-1 bytes=80
+2026-08-09T10:40:03.2944041+00:00 frame_classified notification=43 connection=capture-4 sequence=12 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.3051619+00:00 frame_classified notification=45 connection=capture-1 sequence=12 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.2946957+00:00 frame_received frame=53 connection=capture-2 bytes=80
+2026-08-09T10:40:03.3049176+00:00 frame_received frame=55 connection=capture-3 bytes=80
+2026-08-09T10:40:03.3125421+00:00 frame_classified notification=46 connection=capture-2 sequence=11 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.3152632+00:00 frame_classified notification=47 connection=capture-3 sequence=12 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:03.3233251+00:00 frame_received frame=56 connection=capture-2 bytes=80
+2026-08-09T10:40:03.3234879+00:00 frame_classified notification=48 connection=capture-2 sequence=12 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:06.4000346+00:00 frame_received frame=57 connection=capture-1 bytes=80
+2026-08-09T10:40:06.4002346+00:00 frame_received frame=58 connection=capture-2 bytes=80
+2026-08-09T10:40:06.4002819+00:00 frame_received frame=59 connection=capture-4 bytes=80
+2026-08-09T10:40:06.4003085+00:00 frame_received frame=60 connection=capture-3 bytes=80
+2026-08-09T10:40:06.4263972+00:00 frame_classified notification=52 connection=capture-3 sequence=13 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:06.4004704+00:00 frame_classified notification=49 connection=capture-1 sequence=13 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:06.4326867+00:00 frame_received frame=61 connection=capture-3 bytes=80
+2026-08-09T10:40:06.4125550+00:00 frame_classified notification=50 connection=capture-2 sequence=13 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:06.4195608+00:00 frame_classified notification=51 connection=capture-4 sequence=13 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:06.4361764+00:00 frame_received frame=62 connection=capture-1 bytes=80
+2026-08-09T10:40:06.4363694+00:00 frame_classified notification=53 connection=capture-3 sequence=14 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:06.4407964+00:00 frame_classified notification=54 connection=capture-1 sequence=14 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:06.4487037+00:00 frame_received frame=63 connection=capture-2 bytes=80
+2026-08-09T10:40:06.4507738+00:00 frame_received frame=64 connection=capture-4 bytes=80
+2026-08-09T10:40:06.4509787+00:00 frame_classified notification=55 connection=capture-2 sequence=14 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:06.4522097+00:00 frame_classified notification=56 connection=capture-4 sequence=14 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.5576711+00:00 frame_received frame=65 connection=capture-4 bytes=80
+2026-08-09T10:40:09.5577006+00:00 frame_received frame=68 connection=capture-1 bytes=80
+2026-08-09T10:40:09.5576880+00:00 frame_received frame=66 connection=capture-2 bytes=80
+2026-08-09T10:40:09.5576972+00:00 frame_received frame=67 connection=capture-3 bytes=80
+2026-08-09T10:40:09.5580157+00:00 frame_classified notification=57 connection=capture-4 sequence=15 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.5701263+00:00 frame_classified notification=60 connection=capture-3 sequence=15 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.5610379+00:00 frame_classified notification=58 connection=capture-1 sequence=15 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.5791944+00:00 frame_received frame=71 connection=capture-1 bytes=80
+2026-08-09T10:40:09.5662460+00:00 frame_classified notification=59 connection=capture-2 sequence=15 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.5801420+00:00 frame_classified notification=61 connection=capture-1 sequence=16 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.5876009+00:00 frame_received frame=72 connection=capture-2 bytes=80
+2026-08-09T10:40:09.5771708+00:00 frame_received frame=69 connection=capture-4 bytes=80
+2026-08-09T10:40:09.6075530+00:00 frame_classified notification=63 connection=capture-4 sequence=16 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.6059161+00:00 frame_classified notification=62 connection=capture-2 sequence=16 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.6104156+00:00 frame_received frame=74 connection=capture-4 bytes=80
+2026-08-09T10:40:09.6100366+00:00 frame_received frame=73 connection=capture-1 bytes=80
+2026-08-09T10:40:09.6175656+00:00 frame_classified notification=65 connection=capture-1 sequence=17 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.6147945+00:00 frame_received frame=75 connection=capture-2 bytes=80
+2026-08-09T10:40:09.6152609+00:00 frame_classified notification=64 connection=capture-4 sequence=17 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.6208975+00:00 frame_classified notification=66 connection=capture-2 sequence=17 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.6253879+00:00 frame_received frame=77 connection=capture-2 bytes=56
+2026-08-09T10:40:09.5772698+00:00 frame_received frame=70 connection=capture-3 bytes=80
+2026-08-09T10:40:09.6265869+00:00 frame_classified notification=67 connection=capture-2 sequence=18 fields=Generation contract=ignored
+2026-08-09T10:40:09.6294002+00:00 frame_classified notification=68 connection=capture-3 sequence=16 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.6301464+00:00 frame_received frame=78 connection=capture-1 bytes=80
+2026-08-09T10:40:09.6348234+00:00 frame_received frame=79 connection=capture-3 bytes=80
+2026-08-09T10:40:09.6231286+00:00 frame_received frame=76 connection=capture-4 bytes=80
+2026-08-09T10:40:09.6430311+00:00 frame_classified notification=71 connection=capture-4 sequence=18 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.6401656+00:00 frame_classified notification=70 connection=capture-3 sequence=17 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:09.6513296+00:00 frame_received frame=80 connection=capture-3 bytes=104
+2026-08-09T10:40:09.6526017+00:00 frame_classified notification=72 connection=capture-3 sequence=18 fields=Generation|Reason|Reason contract=accepted
+2026-08-09T10:40:09.6373903+00:00 frame_classified notification=69 connection=capture-1 sequence=18 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.7507516+00:00 frame_received frame=81 connection=capture-1 bytes=80
+2026-08-09T10:40:12.7507566+00:00 frame_received frame=82 connection=capture-2 bytes=80
+2026-08-09T10:40:12.7509312+00:00 frame_received frame=83 connection=capture-4 bytes=80
+2026-08-09T10:40:12.7627055+00:00 frame_classified notification=75 connection=capture-4 sequence=19 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.7509356+00:00 frame_received frame=84 connection=capture-3 bytes=80
+2026-08-09T10:40:12.7673427+00:00 frame_classified notification=76 connection=capture-3 sequence=19 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.7594793+00:00 frame_classified notification=74 connection=capture-2 sequence=19 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.7510789+00:00 frame_classified notification=73 connection=capture-1 sequence=19 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.7662251+00:00 frame_received frame=85 connection=capture-4 bytes=80
+2026-08-09T10:40:12.7766044+00:00 frame_received frame=87 connection=capture-3 bytes=80
+2026-08-09T10:40:12.7734597+00:00 frame_received frame=86 connection=capture-2 bytes=80
+2026-08-09T10:40:12.7864210+00:00 frame_classified notification=79 connection=capture-2 sequence=20 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.7835173+00:00 frame_classified notification=78 connection=capture-3 sequence=20 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.7797280+00:00 frame_classified notification=77 connection=capture-4 sequence=20 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.7795228+00:00 frame_received frame=88 connection=capture-1 bytes=80
+2026-08-09T10:40:12.8001278+00:00 frame_classified notification=80 connection=capture-1 sequence=20 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8032496+00:00 frame_received frame=90 connection=capture-4 bytes=80
+2026-08-09T10:40:12.8160323+00:00 frame_classified notification=81 connection=capture-4 sequence=21 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8032853+00:00 frame_received frame=91 connection=capture-3 bytes=56
+2026-08-09T10:40:12.8029606+00:00 frame_received frame=89 connection=capture-2 bytes=80
+2026-08-09T10:40:12.8158474+00:00 frame_received frame=92 connection=capture-1 bytes=80
+2026-08-09T10:40:12.8199867+00:00 frame_received frame=93 connection=capture-4 bytes=80
+2026-08-09T10:40:12.8294301+00:00 frame_classified notification=85 connection=capture-4 sequence=22 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8213135+00:00 frame_classified notification=82 connection=capture-3 sequence=21 fields=Generation contract=ignored
+2026-08-09T10:40:12.8321613+00:00 frame_received frame=94 connection=capture-4 bytes=80
+2026-08-09T10:40:12.8407815+00:00 frame_classified notification=86 connection=capture-4 sequence=23 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8240465+00:00 frame_classified notification=83 connection=capture-2 sequence=21 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8439670+00:00 frame_received frame=96 connection=capture-4 bytes=80
+2026-08-09T10:40:12.8264624+00:00 frame_classified notification=84 connection=capture-1 sequence=21 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8620048+00:00 frame_received frame=97 connection=capture-2 bytes=80
+2026-08-09T10:40:12.8666580+00:00 frame_classified notification=88 connection=capture-2 sequence=22 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8691393+00:00 frame_received frame=99 connection=capture-2 bytes=80
+2026-08-09T10:40:12.8621959+00:00 frame_classified notification=87 connection=capture-4 sequence=24 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8646111+00:00 frame_received frame=98 connection=capture-1 bytes=80
+2026-08-09T10:40:12.8701766+00:00 frame_classified notification=89 connection=capture-2 sequence=23 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8765941+00:00 frame_classified notification=90 connection=capture-1 sequence=22 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8792759+00:00 frame_received frame=100 connection=capture-2 bytes=80
+2026-08-09T10:40:12.8830528+00:00 frame_classified notification=91 connection=capture-2 sequence=24 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8405858+00:00 frame_received frame=95 connection=capture-3 bytes=80
+2026-08-09T10:40:12.8880257+00:00 frame_classified notification=92 connection=capture-3 sequence=22 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8821479+00:00 frame_received frame=101 connection=capture-1 bytes=80
+2026-08-09T10:40:12.8922398+00:00 frame_classified notification=93 connection=capture-1 sequence=23 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.8904955+00:00 frame_received frame=102 connection=capture-3 bytes=80
+2026-08-09T10:40:12.9096893+00:00 frame_received frame=103 connection=capture-1 bytes=80
+2026-08-09T10:40:12.9099127+00:00 frame_classified notification=94 connection=capture-3 sequence=23 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9132676+00:00 frame_classified notification=95 connection=capture-1 sequence=24 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9217101+00:00 frame_received frame=106 connection=capture-1 bytes=80
+2026-08-09T10:40:12.9260559+00:00 frame_classified notification=96 connection=capture-1 sequence=25 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9295917+00:00 frame_received frame=107 connection=capture-1 bytes=80
+2026-08-09T10:40:12.9315505+00:00 frame_classified notification=97 connection=capture-1 sequence=26 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9162622+00:00 frame_received frame=105 connection=capture-2 bytes=80
+2026-08-09T10:40:12.9387166+00:00 frame_classified notification=98 connection=capture-2 sequence=25 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9459473+00:00 frame_received frame=109 connection=capture-2 bytes=80
+2026-08-09T10:40:12.9400097+00:00 frame_received frame=108 connection=capture-3 bytes=80
+2026-08-09T10:40:12.9162619+00:00 frame_received frame=104 connection=capture-4 bytes=80
+2026-08-09T10:40:12.9461448+00:00 frame_classified notification=99 connection=capture-2 sequence=26 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9559708+00:00 frame_received frame=111 connection=capture-2 bytes=80
+2026-08-09T10:40:12.9464214+00:00 frame_received frame=110 connection=capture-1 bytes=80
+2026-08-09T10:40:12.9585987+00:00 frame_classified notification=103 connection=capture-1 sequence=27 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9490126+00:00 frame_classified notification=100 connection=capture-3 sequence=24 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9526200+00:00 frame_classified notification=101 connection=capture-4 sequence=25 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9690269+00:00 frame_received frame=114 connection=capture-3 bytes=80
+2026-08-09T10:40:12.9655559+00:00 frame_received frame=113 connection=capture-4 bytes=80
+2026-08-09T10:40:12.9565172+00:00 frame_classified notification=102 connection=capture-2 sequence=27 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9705819+00:00 frame_classified notification=105 connection=capture-4 sequence=26 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9758921+00:00 frame_received frame=116 connection=capture-4 bytes=80
+2026-08-09T10:40:12.9773038+00:00 frame_classified notification=106 connection=capture-4 sequence=27 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9809537+00:00 frame_received frame=117 connection=capture-4 bytes=56
+2026-08-09T10:40:12.9823359+00:00 frame_classified notification=107 connection=capture-4 sequence=28 fields=Generation contract=ignored
+2026-08-09T10:40:12.9691845+00:00 frame_classified notification=104 connection=capture-3 sequence=25 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9729719+00:00 frame_received frame=115 connection=capture-2 bytes=80
+2026-08-09T10:40:12.9895954+00:00 frame_classified notification=108 connection=capture-2 sequence=28 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9883430+00:00 frame_received frame=118 connection=capture-3 bytes=80
+2026-08-09T10:40:12.9935799+00:00 frame_classified notification=109 connection=capture-3 sequence=26 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9970412+00:00 frame_received frame=119 connection=capture-3 bytes=80
+2026-08-09T10:40:12.9620791+00:00 frame_received frame=112 connection=capture-1 bytes=80
+2026-08-09T10:40:13.0013180+00:00 frame_classified notification=111 connection=capture-1 sequence=28 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:12.9981919+00:00 frame_classified notification=110 connection=capture-3 sequence=27 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:13.0095095+00:00 frame_received frame=120 connection=capture-3 bytes=80
+2026-08-09T10:40:13.0112522+00:00 frame_classified notification=112 connection=capture-3 sequence=28 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.0988480+00:00 frame_received frame=121 connection=capture-1 bytes=80
+2026-08-09T10:40:16.0991313+00:00 frame_received frame=123 connection=capture-2 bytes=80
+2026-08-09T10:40:16.1054979+00:00 frame_classified notification=114 connection=capture-2 sequence=29 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.0990992+00:00 frame_received frame=122 connection=capture-3 bytes=80
+2026-08-09T10:40:16.1159649+00:00 frame_classified notification=115 connection=capture-3 sequence=29 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.0992989+00:00 frame_received frame=124 connection=capture-4 bytes=80
+2026-08-09T10:40:16.1211811+00:00 frame_classified notification=116 connection=capture-4 sequence=29 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.1149976+00:00 frame_received frame=125 connection=capture-2 bytes=80
+2026-08-09T10:40:16.0991429+00:00 frame_classified notification=113 connection=capture-1 sequence=29 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.1485086+00:00 frame_received frame=128 connection=capture-1 bytes=80
+2026-08-09T10:40:16.1486404+00:00 frame_classified notification=118 connection=capture-1 sequence=30 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.1302199+00:00 frame_received frame=127 connection=capture-3 bytes=80
+2026-08-09T10:40:16.1565329+00:00 frame_classified notification=119 connection=capture-3 sequence=30 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.1303674+00:00 frame_classified notification=117 connection=capture-2 sequence=30 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.1257179+00:00 frame_received frame=126 connection=capture-4 bytes=80
+2026-08-09T10:40:16.1652520+00:00 frame_classified notification=120 connection=capture-4 sequence=30 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.1683357+00:00 frame_received frame=131 connection=capture-3 bytes=80
+2026-08-09T10:40:16.1723867+00:00 frame_classified notification=121 connection=capture-3 sequence=31 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.1764275+00:00 frame_received frame=133 connection=capture-3 bytes=80
+2026-08-09T10:40:16.1774773+00:00 frame_classified notification=122 connection=capture-3 sequence=32 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.1681765+00:00 frame_received frame=130 connection=capture-2 bytes=80
+2026-08-09T10:40:16.1835271+00:00 frame_classified notification=123 connection=capture-2 sequence=31 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.1863459+00:00 frame_received frame=134 connection=capture-2 bytes=56
+2026-08-09T10:40:16.1872874+00:00 frame_classified notification=124 connection=capture-2 sequence=32 fields=Generation contract=ignored
+2026-08-09T10:40:16.1695938+00:00 frame_received frame=132 connection=capture-4 bytes=80
+2026-08-09T10:40:16.1913329+00:00 frame_classified notification=125 connection=capture-4 sequence=31 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.1951657+00:00 frame_received frame=135 connection=capture-4 bytes=56
+2026-08-09T10:40:16.1976051+00:00 frame_classified notification=126 connection=capture-4 sequence=32 fields=Generation contract=ignored
+2026-08-09T10:40:16.1679592+00:00 frame_received frame=129 connection=capture-1 bytes=80
+2026-08-09T10:40:16.2027293+00:00 frame_classified notification=127 connection=capture-1 sequence=31 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2052025+00:00 frame_received frame=138 connection=capture-4 bytes=80
+2026-08-09T10:40:16.2125047+00:00 frame_classified notification=128 connection=capture-4 sequence=33 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2051629+00:00 frame_received frame=136 connection=capture-3 bytes=80
+2026-08-09T10:40:16.2051913+00:00 frame_received frame=137 connection=capture-2 bytes=80
+2026-08-09T10:40:16.2176151+00:00 frame_classified notification=130 connection=capture-2 sequence=33 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2185930+00:00 frame_received frame=140 connection=capture-4 bytes=80
+2026-08-09T10:40:16.2162404+00:00 frame_classified notification=129 connection=capture-3 sequence=33 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2223129+00:00 frame_classified notification=131 connection=capture-4 sequence=34 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2246156+00:00 frame_received frame=142 connection=capture-3 bytes=80
+2026-08-09T10:40:16.2290722+00:00 frame_classified notification=132 connection=capture-3 sequence=34 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2064211+00:00 frame_received frame=139 connection=capture-1 bytes=56
+2026-08-09T10:40:16.2198299+00:00 frame_received frame=141 connection=capture-2 bytes=80
+2026-08-09T10:40:16.2464353+00:00 frame_classified notification=134 connection=capture-2 sequence=34 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2503009+00:00 frame_received frame=145 connection=capture-2 bytes=80
+2026-08-09T10:40:16.2513664+00:00 frame_classified notification=135 connection=capture-2 sequence=35 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2458411+00:00 frame_received frame=143 connection=capture-3 bytes=80
+2026-08-09T10:40:16.2458442+00:00 frame_received frame=144 connection=capture-4 bytes=80
+2026-08-09T10:40:16.2586185+00:00 frame_classified notification=137 connection=capture-4 sequence=35 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2430199+00:00 frame_classified notification=133 connection=capture-1 sequence=32 fields=Generation contract=ignored
+2026-08-09T10:40:16.2650607+00:00 frame_received frame=148 connection=capture-1 bytes=80
+2026-08-09T10:40:16.2656186+00:00 frame_classified notification=138 connection=capture-1 sequence=33 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2545621+00:00 frame_received frame=146 connection=capture-2 bytes=80
+2026-08-09T10:40:16.2567149+00:00 frame_classified notification=136 connection=capture-3 sequence=35 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2747097+00:00 frame_received frame=150 connection=capture-3 bytes=80
+2026-08-09T10:40:16.2769706+00:00 frame_classified notification=140 connection=capture-3 sequence=36 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2615328+00:00 frame_received frame=147 connection=capture-4 bytes=80
+2026-08-09T10:40:16.2686506+00:00 frame_received frame=149 connection=capture-1 bytes=80
+2026-08-09T10:40:16.2868828+00:00 frame_classified notification=142 connection=capture-1 sequence=34 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2914094+00:00 frame_received frame=151 connection=capture-1 bytes=80
+2026-08-09T10:40:16.2939688+00:00 frame_classified notification=143 connection=capture-1 sequence=35 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2843596+00:00 frame_classified notification=141 connection=capture-4 sequence=36 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.2697175+00:00 frame_classified notification=139 connection=capture-2 sequence=36 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:16.3002472+00:00 frame_received frame=152 connection=capture-1 bytes=80
+2026-08-09T10:40:16.3167210+00:00 frame_classified notification=144 connection=capture-1 sequence=36 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:19.3790991+00:00 frame_received frame=153 connection=capture-1 bytes=80
+2026-08-09T10:40:19.3791087+00:00 frame_received frame=154 connection=capture-2 bytes=80
+2026-08-09T10:40:19.3791149+00:00 frame_received frame=155 connection=capture-3 bytes=80
+2026-08-09T10:40:19.3794313+00:00 frame_received frame=156 connection=capture-4 bytes=80
+2026-08-09T10:40:19.3795511+00:00 frame_classified notification=145 connection=capture-1 sequence=37 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:19.3938158+00:00 frame_classified notification=148 connection=capture-4 sequence=37 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:19.3864143+00:00 frame_classified notification=146 connection=capture-2 sequence=37 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:19.3972392+00:00 frame_received frame=157 connection=capture-1 bytes=80
+2026-08-09T10:40:19.4136481+00:00 frame_received frame=158 connection=capture-2 bytes=80
+2026-08-09T10:40:19.3904607+00:00 frame_classified notification=147 connection=capture-3 sequence=37 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:19.4219556+00:00 frame_classified notification=150 connection=capture-2 sequence=38 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:19.4270736+00:00 frame_received frame=160 connection=capture-3 bytes=80
+2026-08-09T10:40:19.4349385+00:00 frame_classified notification=151 connection=capture-3 sequence=38 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:19.4175466+00:00 frame_classified notification=149 connection=capture-1 sequence=38 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:19.4172747+00:00 frame_received frame=159 connection=capture-4 bytes=80
+2026-08-09T10:40:19.4470169+00:00 frame_classified notification=152 connection=capture-4 sequence=38 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:22.5955854+00:00 frame_received frame=161 connection=capture-1 bytes=80
+2026-08-09T10:40:22.5959152+00:00 frame_classified notification=153 connection=capture-1 sequence=39 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:22.5961294+00:00 frame_received frame=164 connection=capture-4 bytes=80
+2026-08-09T10:40:22.5959447+00:00 frame_received frame=162 connection=capture-2 bytes=80
+2026-08-09T10:40:22.5961119+00:00 frame_received frame=163 connection=capture-3 bytes=80
+2026-08-09T10:40:22.6105213+00:00 frame_classified notification=156 connection=capture-3 sequence=39 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:22.6138095+00:00 frame_received frame=166 connection=capture-3 bytes=80
+2026-08-09T10:40:22.6172399+00:00 frame_classified notification=157 connection=capture-3 sequence=40 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:22.6052501+00:00 frame_received frame=165 connection=capture-1 bytes=80
+2026-08-09T10:40:22.6074812+00:00 frame_classified notification=155 connection=capture-2 sequence=39 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:22.6043463+00:00 frame_classified notification=154 connection=capture-4 sequence=39 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:22.6250745+00:00 frame_classified notification=158 connection=capture-1 sequence=40 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:22.6307423+00:00 frame_received frame=167 connection=capture-2 bytes=80
+2026-08-09T10:40:22.6360545+00:00 frame_received frame=168 connection=capture-4 bytes=104
+2026-08-09T10:40:22.6420039+00:00 frame_classified notification=159 connection=capture-2 sequence=40 fields=Generation|Reason contract=accepted
+2026-08-09T10:40:22.6463646+00:00 frame_classified notification=160 connection=capture-4 sequence=40 fields=Generation|Reason|Reason contract=accepted

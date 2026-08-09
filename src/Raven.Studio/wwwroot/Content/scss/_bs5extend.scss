@@ -1,0 +1,772 @@
+@use "sass:color";
+@use "Content/scss/colors";
+@use "Content/scss/variables";
+
+// TODO replace all panels widh cards -> remove css
+.panel {
+    background-color: $panel-bg-1;
+    color: $text-color;
+}
+
+.small-label {
+    font-size: 0.6rem;
+    color: $text-muted-var;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    line-height: 1.1em;
+    font-weight: 600;
+}
+
+.md-label {
+    font-size: 0.875em;
+    color: var(--text-color);
+    line-height: 1.1em;
+    font-weight: 600;
+    margin-bottom: $gutter-xs;
+    i {
+        margin-left: $gutter-xxs * 0.5;
+    }
+}
+
+// DASHED NEW ITEM PLACEHOLDER
+.item-new {
+    background-color: transparent !important;
+    border: $border-width dashed $border-color-light;
+}
+
+.item-disabled {
+    cursor: not-allowed;
+    filter: contrast(85%);
+    mix-blend-mode: luminosity;
+    opacity: 0.4;
+    transition: all 0.2s $global-easing;
+}
+
+.item-busy {
+    filter: contrast(75%) brightness(0.75);
+    mix-blend-mode: luminosity;
+    cursor: progress;
+}
+
+.item-reorder {
+    cursor: move;
+    outline: 1px dashed $border-color;
+    outline-offset: 3px;
+}
+
+// Button Group With Label
+.btn-group-label {
+    border-top: 1px solid $gray-300;
+    margin-top: -5px;
+    padding-top: 4px;
+    position: relative;
+    &:before {
+        content: attr(data-label);
+        position: absolute;
+        top: -14px;
+        color: $gray-300;
+        font-size: 10px;
+        line-height: 10px;
+        text-transform: uppercase;
+    }
+}
+
+// Separate two buttons that are in a group
+.btn-group {
+    > :not(.btn-check:first-child) + .btn,
+    > .btn-group:not(:first-child) {
+        margin-left: 1px;
+    }
+}
+
+.popover-container-fix {
+    position: absolute;
+    width: 100%;
+    z-index: $zindex-popover;
+}
+
+// Fix caret margin for dropdowns with no text (no support on firefox)
+.dropdown-toggle:has(.visually-hidden) {
+    &::after {
+        margin-left: 0;
+    }
+}
+
+// Spinner with primary color gradient
+.spinner-gradient {
+    $spinner-width: 3px;
+    border: none;
+    background-image: conic-gradient(
+        rgba(112, 105, 238, 0) 30deg,
+        rgba(112, 105, 238, 0.33) 90deg,
+        rgba(112, 105, 238, 0.66) 150deg,
+        rgba(var(--bs-primary-rgb), 0.75) 240deg,
+        rgba(var(--bs-primary-rgb), 1) 360deg
+    );
+    -webkit-mask: radial-gradient(
+        farthest-side,
+        transparent calc(100% - ($spinner-width + 1px)),
+        #fff calc(100% - $spinner-width),
+        #fff calc(100% - 1px),
+        transparent 100%
+    );
+    mask: radial-gradient(
+        farthest-side,
+        transparent calc(100% - ($spinner-width + 1px)),
+        #fff calc(100% - $spinner-width),
+        #fff calc(100% - 1px),
+        transparent 100%
+    );
+    animation: spin 1.3s infinite cubic-bezier(0.85, 0.2, 0.2, 0.85);
+}
+
+.spinner-border-xs {
+    width: $spinner-width-xs;
+    height: $spinner-height-xs;
+    border-width: $spinner-border-width-xs;
+}
+
+.input-group {
+    .input-group-text ~ div > .input-group > input {
+        border-radius: 0 $input-border-radius $input-border-radius 0;
+    }
+}
+
+.form-control,
+.form-select {
+    min-height: 40px;
+}
+
+.clearable-input {
+    position: relative;
+
+    .clear-button {
+        position: absolute;
+        right: 0;
+        top: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 4px;
+        align-text: center;
+
+        button {
+            flex-grow: 1;
+            border-radius: $gutter;
+            font-size: 0.75em;
+            box-shadow: none;
+            border-width: initial;
+            border-style: none;
+            border-color: initial;
+            border-image: initial;
+
+            &:not(:hover) {
+                background-color: transparent;
+            }
+        }
+    }
+}
+
+// Vertical separator inside the badge
+.badge {
+    .vr {
+        margin: -2px 6px;
+        width: 2px;
+    }
+}
+
+.absolute-fill {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.well {
+    background-color: $well-bg-var;
+}
+
+.border-radius-xs {
+    border-radius: $gutter-xs;
+}
+
+.border-radius-xxs {
+    border-radius: $gutter-xxs;
+}
+
+.table-inner-border {
+    tr {
+        td {
+            border: none;
+        }
+
+        & + tr {
+            border-top: solid $border-width $border-color-light;
+        }
+    }
+}
+
+.btn .kbd {
+    font-size: 10px;
+}
+
+kbd {
+    border: 1px solid $border-color-light-var;
+}
+
+.carousel-auto-height {
+    transition: height 1s $global-easing-in-out;
+}
+.card-tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, max-content));
+
+    .card-tab {
+        $border-offset: 2px;
+        $bulge-width: 3px;
+        cursor: pointer;
+        position: relative;
+        transition: box-shadow 0.25s $global-easing;
+
+        .badge {
+            position: absolute;
+            top: $gutter-sm;
+            right: $gutter-sm;
+        }
+
+        img {
+            width: 61%;
+            margin: auto;
+            margin-top: $gutter-xs;
+            margin-bottom: $gutter-sm;
+        }
+
+        &:hover,
+        &.active {
+            filter: $hover-filter;
+        }
+
+        &.active {
+            box-shadow:
+                0px 0px 0px $border-offset rgba($body-bg-var, 1),
+                0px 0px 0px ($border-offset + $border-width) $primary-var,
+                0px (($bulge-width + $border-offset)) 0px ($border-offset + $border-width) $primary-var;
+        }
+    }
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus {
+    -webkit-text-fill-color: $input-focus-color;
+    -webkit-box-shadow: 0 0 0 30px $input-focus-bg inset !important;
+}
+
+input,
+select {
+    &:disabled {
+        pointer-events: all !important;
+        cursor: not-allowed !important;
+    }
+}
+
+.form-dropdown-select {
+    display: flex;
+    flex-grow: 1;
+    min-width: 200px;
+
+    .dropdown-toggle {
+        flex-grow: 1;
+    }
+
+    .dropdown {
+        max-width: 100%;
+
+        .dropdown-toggle {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+    }
+}
+
+// box-shadow for modals
+@each $key, $value in $theme-colors {
+    .modal-border.bulge-#{$key} {
+        --bulge-color: #{$value};
+        box-shadow:
+            0 0 0 3px rgba(var(--bs-body-bg-rgb), 1),
+            0px -4px 0px 2px var(--bulge-color);
+    }
+}
+
+// custom alerts colors
+@each $key, $value in $theme-colors {
+    $bg: color.mix($panel-bg-1, $value, 80%);
+    $border-color: color.mix($text-emphasis-color, $value, 30%);
+    $color: color-contrast($bg);
+    $title-color: color.mix($text-emphasis-color, $value, 30%);
+
+    .alert-#{$key} {
+        --#{$prefix}alert-color: #{$color};
+        --#{$prefix}alert-bg: #{$bg};
+        --#{$prefix}alert-border-color: #{$border-color};
+
+        > h3,
+        .title-icon {
+            color: $title-color;
+        }
+
+        a:not(.btn) {
+            color: $title-color;
+            text-decoration: underline;
+        }
+    }
+}
+
+.w-fit-content {
+    width: fit-content;
+}
+
+.accordion-item {
+    color: $text-color-var !important;
+}
+
+.select-btn {
+    color: $input-color;
+    background-color: $input-bg;
+    border: $input-border-width solid $input-border-color;
+}
+
+// rounded corners for virtual grid
+.virtual-grid {
+    border-radius: $gutter-xs;
+    .viewport {
+        border-radius: $gutter-xxs;
+    }
+}
+
+// Ensure dropdown menus are not clipped by sibling items in virtualized lists
+.virtual-item:has(.dropdown.show) {
+    z-index: 1;
+}
+
+// remove padding top from modal footer
+.modal-footer {
+    padding-top: 0;
+}
+
+// badge visible whenever view is license restricted
+.license-restricted-badge {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0;
+    text-transform: capitalize;
+    &.professional {
+        background-color: var(--faded-professional) !important;
+        color: var(--license-professional);
+    }
+    &.enterprise {
+        background-color: var(--faded-enterprise) !important;
+        color: var(--license-enterprise);
+    }
+    &.enterprise-ai {
+        background-color: var(--faded-enterprise-ai) !important;
+        color: var(--license-enterprise-ai);
+    }
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+// index load error popover message
+.error-message {
+    max-height: 180px;
+    overflow-y: scroll;
+    position: relative;
+}
+
+.simple-item-list {
+    .hstack {
+        transition: background-color 0.1s ease;
+        border-radius: $border-radius;
+        &:hover {
+            background-color: color.adjust($well-bg, $lightness: 5%);
+        }
+    }
+}
+
+//Override bootstrap 5.3 CSS custom properties theming errors
+.accordion-button {
+    &::after {
+        content: "chevron-down" !important;
+        font-family: "icomoon" !important;
+        text-align: center;
+    }
+}
+
+.open-modal-button {
+    &::after {
+        content: "open-modal" !important;
+        transform: none !important;
+    }
+}
+
+.btn-close {
+    &::after {
+        content: "\f117" !important;
+        font-family: "icomoon" !important;
+        text-align: center;
+    }
+}
+
+.modal-content {
+    background-color: $panel-bg-1-var;
+    color: $text-color-var;
+}
+
+// react-select placed inside input group text (see: Revert Revisions > Time Window)
+.input-group-text {
+    .react-select-container {
+        border: none;
+
+        .react-select__control {
+            background: transparent;
+            min-height: unset;
+        }
+        .react-select__indicators {
+            .react-select__indicator {
+                padding: 0;
+            }
+        }
+        .react-select__menu {
+            text-align: left;
+            min-width: 120px;
+            width: auto;
+        }
+    }
+}
+
+.input-group {
+    .react-datepicker-wrapper {
+        display: flex;
+        flex-grow: 1;
+        input {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+    }
+}
+
+[class$="-indicatorContainer"] {
+    color: var(--border-color-light) !important;
+    &:hover {
+        color: var(--border-color) !important;
+    }
+}
+
+.max-paragraph-width {
+    max-width: 50em;
+}
+
+//Styling for eye button that allows to preview password
+.preview-password {
+    border-top-right-radius: $border-radius-sm !important;
+    border-bottom-right-radius: $border-radius-sm !important;
+}
+
+.input-btn {
+    position: absolute !important;
+    z-index: 5 !important;
+    right: 0;
+    height: 100%;
+}
+
+//Checkbox that activates input, e.g. Client Configuration form
+.toggle-field-checkbox {
+    @extend .input-group-text;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    + .position-relative {
+        input,
+        .react-select-container {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+    }
+}
+
+//Better positioning for position absolute
+.top-gutter-xs {
+    top: $gutter-xs;
+}
+
+.end-gutter-xs {
+    right: $gutter-xs;
+}
+
+//Remove shadow from all btn-close on focus
+.btn-close:focus {
+    box-shadow: none;
+}
+
+//Styling for accordions inside modal, e.g. ConnectionTestError.tsx
+.accordion-inside-modal {
+    .description {
+        font-size: 0.75rem;
+        color: $text-muted-var;
+    }
+    .tab-icon {
+        top: 3px;
+        font-size: 1.5rem;
+    }
+    .accordion-button {
+        border-radius: $border-radius-md !important;
+        align-items: baseline;
+        transition: background-color 0.4s ease;
+        background-color: $panel-bg-2-var;
+        &:focus {
+            outline: none;
+            box-shadow: none;
+        }
+        &:not(.collapsed) {
+            background: transparent;
+            box-shadow: none;
+        }
+        h4 {
+            color: $text-emphasis-var;
+        }
+    }
+    .accordion-item {
+        background-color: $panel-bg-2-var;
+        border-radius: $border-radius-md;
+        .accordion-body {
+            padding: $gutter-xs $gutter-sm $gutter $gutter-sm;
+            pre {
+                margin-bottom: 0;
+            }
+        }
+    }
+}
+
+.well {
+    .accordion-inside-modal {
+        .accordion-button {
+            background-color: $panel-header-bg-var;
+        }
+        .accordion-item {
+            background-color: $panel-header-bg-var;
+        }
+    }
+}
+
+//Better positioning for position absolute
+.top-gutter-xs {
+    top: $gutter-xs;
+}
+
+.end-gutter-xs {
+    right: $gutter-xs;
+}
+
+//Remove shadow from all btn-close on focus
+.btn-close:focus {
+    box-shadow: none;
+}
+
+.validation-message {
+    order: 3;
+    white-space: normal;
+    z-index: 10;
+    .badge {
+        white-space: normal;
+    }
+}
+
+.nobr {
+    white-space: nowrap;
+    display: inline !important;
+}
+
+// Classes for different panel colors
+$panels: (
+    1: --panel-bg-1,
+    2: --panel-bg-2,
+    3: --panel-bg-3,
+);
+
+@each $key, $color in $panels {
+    .panel-bg-#{$key} {
+        background-color: var(#{$color});
+    }
+}
+
+.button-dropdown-pill {
+    .button-dropdown-btn {
+        border-top-left-radius: $border-radius-pill;
+        border-bottom-left-radius: $border-radius-pill;
+    }
+    .button-dropdown-toggle {
+        border-top-right-radius: $border-radius-pill;
+        border-bottom-right-radius: $border-radius-pill;
+    }
+}
+
+$filtering-input-baseheight: 35px !default;
+$filtering-input-bg: $input-bg-var !default;
+$filtering-input-border-radius: $filtering-input-baseheight !default;
+$filtering-input-bg: $toggle-bg !default;
+
+// Text inputs for filtering that will go in pair with multi-toggle component
+.form-control.filtering-input {
+    background: $filtering-input-bg;
+    border-radius: $filtering-input-border-radius;
+    border: $border-width solid $border-color-light-var;
+    height: $filtering-input-baseheight;
+    font-size: 0.8rem;
+    min-width: 20em;
+    padding-left: $gutter-sm;
+    padding-right: $gutter-sm;
+}
+
+.hover-filter {
+    &:hover {
+        filter: $hover-filter-var;
+        transition: $global-easing-in-out;
+    }
+}
+
+.list-group-item {
+    &.disabled {
+        cursor: unset;
+        pointer-events: unset;
+        background-color: $panel-bg-1-var;
+        color: $text-muted-var;
+    }
+}
+
+// Classes for bg-striped-*
+@each $key, $value in $theme-colors {
+    $striped-bg: repeating-linear-gradient(
+        45deg,
+        $value,
+        $value $gutter-xs,
+        shade-color($value, 10%) $gutter-xs,
+        shade-color($value, 10%) $gutter-sm
+    );
+
+    .bg-striped-#{$key} {
+        @extend .bg-#{$key};
+        background: #{$striped-bg};
+    }
+}
+
+// Lower opacity for disabled inputs and text addons
+.form-control {
+    &:disabled {
+        opacity: 0.5;
+        + .input-group-text {
+            opacity: 0.5;
+        }
+    }
+}
+
+.border-dotted {
+    border-style: dotted;
+}
+
+.border-dashed {
+    border-style: dashed;
+}
+
+.icon-info-new {
+    font-size: 100%;
+    opacity: 0.6;
+    transition: $transition-base;
+    margin-left: $gutter-xxxs;
+    margin-right: 0 !important;
+
+    &:hover {
+        opacity: 1;
+        transition: none;
+    }
+}
+
+.content-padding {
+    width: 100%;
+    height: 100%;
+}
+
+.input-group {
+    .react-select__control {
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+
+    .input-group-text {
+        z-index: 1;
+    }
+}
+
+.icon-info-new {
+    font-size: 100%;
+    opacity: 0.6;
+    transition: $transition-base;
+    margin-left: $gutter-xxxs;
+    margin-right: 0 !important;
+
+    &:hover {
+        opacity: 1;
+        transition: none;
+    }
+}
+
+.ai-gradient::before {
+    background: var(--ai-gradient);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.border-color-light {
+    border-color: $border-color-light-var !important;
+}
+
+.text-muted {
+    color: colors.$text-muted-var !important;
+}
+
+.tokens-usage-progress-bar {
+    background-color: colors.$gray-700;
+
+    .progress-bar {
+        background: linear-gradient(135deg, #2fb4d2 0%, #6972ee 100%);
+    }
+}
+
+[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 14px;
+    width: 14px;
+    background-image: url(data:image/svg+xml;base64,PCEtLSBHZW5lcmF0ZWQgYnkgSWNvTW9vbi5pbyAtLT4NCjxzdmcgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiPg0KPHRpdGxlPjwvdGl0bGU+DQo8ZyBpZD0iaWNvbW9vbi1pZ25vcmUiPg0KPC9nPg0KPHBhdGggZD0iTTYzOC40IDUxMmwyMzYuOC0yMzUuMi0xMjgtMTI2LjQtMjM1LjIgMjM1LjItMjM1LjItMjM2LjgtMTI4IDEyOCAyMzYuOCAyMzUuMi0yMzUuMiAyMzUuMiAxMjYuNCAxMjYuNCAyMzUuMi0yMzUuMiAyMzUuMiAyMzYuOCAxMjgtMTI4eiI+PC9wYXRoPg0KPC9zdmc+DQo=);
+    background-size: 14px 14px;
+    opacity: 0.5;
+    transition: $transition-base;
+    cursor: pointer;
+
+    // Default image color is black. Invert it for white inputs
+    body[data-theme="dark"] &,
+    body[data-theme="classic"] & {
+        filter: invert(1);
+    }
+
+    &:hover {
+        opacity: 1;
+    }
+}

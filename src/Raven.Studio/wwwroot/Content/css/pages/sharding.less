@@ -1,0 +1,64 @@
+﻿@sharding-color: @color-4;
+
+.sharding-control {
+    display: flex;
+    align-items: center;
+    right: @gutter-xxs;
+    top: @gutter-xxs;
+    color: var(--text-emphasis);
+    background-color: var(--bs-shard);
+
+    &.pinned {
+        position: static;
+        right: auto;
+        top: auto;
+        background-color: var(--bs-shard);
+        color: var(--text-emphasis);
+        margin-bottom: 0;
+    }
+
+    .sharding-message {
+        text-transform: uppercase;
+        padding: @gutter-xxs @gutter;
+        font-weight: 800;
+        font-size: 11px;
+        letter-spacing: .15em;
+        line-height: 1em;
+
+        .separator {
+            display: inline-block;
+            margin: 0 @gutter-sm;
+        }
+    }
+
+    .shard-selector {
+        display: flex;
+        text-transform: uppercase;
+        padding: @gutter-xxs @gutter-xs;
+        font-weight: 800;
+        font-size: 11px;
+        letter-spacing: .15em;
+        line-height: 1em;
+        align-items: center;
+
+        i {
+            font-size: 18px;
+            margin-right: @gutter-xxs;
+            top: auto;
+        }
+    }
+
+    .btn {
+        border: none;       
+    }
+}
+
+.shard-aware-container {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+
+    &.pinned {
+        box-shadow: 0 0 0 2px inset var(--bs-shard);
+    }
+}

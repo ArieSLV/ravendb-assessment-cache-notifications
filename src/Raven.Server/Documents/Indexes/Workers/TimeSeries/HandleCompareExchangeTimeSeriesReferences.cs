@@ -1,0 +1,75 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Raven.Client.Documents.Indexes;
+using Raven.Server.Config.Categories;
+using Raven.Server.Documents.Indexes.Persistence;
+using Raven.Server.Documents.TimeSeries;
+using Raven.Server.ServerWide.Context;
+using Sparrow.Server.Utils;
+using Voron;
+
+namespace Raven.Server.Documents.Indexes.Workers.TimeSeries
+{
+    public sealed class HandleCompareExchangeTimeSeriesReferences : HandleCompareExchangeReferences
+    {
+        private readonly HashSet<string> _collectionsWithCompareExchangeReferences;
+        private readonly TimeSeriesStorage _timeSeriesStorage;
+
+        public HandleCompareExchangeTimeSeriesReferences(Index index, HashSet<string> collectionsWithCompareExchangeReferences, TimeSeriesStorage timeSeriesStorage, DocumentsStorage documentsStorage, IndexStorage indexStorage, IndexingConfiguration configuration)
+            : base(index, collectionsWithCompareExchangeReferences, documentsStorage, indexStorage, configuration)
+        {
+            _collectionsWithCompareExchangeReferences = collectionsWithCompareExchangeReferences;
+            _timeSeriesStorage = timeSeriesStorage;
+        }
+
+        protected override IndexItem GetItem(DocumentsOperationContext databaseContext, Slice key)
+        {
+            var timeSeries = _timeSeriesStorage.GetTimeSeries(databaseContext, key, TimeSeriesSegmentEntryFields.ForIndexing);
+            if (timeSeries == null)
+                return null;
+            return new TimeSeriesIndexItem(timeSeries.LuceneKey, timeSeries.DocId, timeSeries.Etag, default, timeSeries.Name, timeSeries.SegmentSize, timeSeries);
+        }
+
+        protected override string GetNextItemId(IndexItem indexItem)
+        {
+            return indexItem.LowerSourceDocumentId;
+        }
+
+        public override void HandleDelete(Tombstone tombstone, string collection, Lazy<IndexWriteOperationBase> writer, TransactionOperationContext indexContext, IndexingStatsScope stats)
+        {
+            using (DocumentIdWorker.GetLoweredIdSliceFromId(indexContext, tombstone.LowerId, out Slice documentIdPrefixWithTsKeySeparator, SpecialChars.RecordSeparator))
+            using (stats.For(IndexingOperation.Storage.UpdateReferences))
+                _referencesStorage.RemoveReferencesByPrefix(documentIdPrefixWithTsKeySeparator, collection, null, indexContext.Transaction);
+        }
+
+        protected override IEnumerable<Reference> GetItemReferences(QueryOperationContext queryContext, CollectionName referencedCollection, long lastEtag, long pageSize)
+        {
+            return _documentsStorage.DocumentDatabase.CompareExchangeStorage.GetCompareExchangeFromPrefix(queryContext.Server, lastEtag + 1, pageSize)
+                .Select(x =>
+                {
+                    _reference.Key = x.Key.StorageKey;
+                    _reference.Etag = x.Index;
+
+                    return _reference;
+                });
+        }
+
+        protected override IEnumerable<Reference> GetTombstoneReferences(QueryOperationContext queryContext, CollectionName referencedCollection, long lastEtag, long pageSize)
+        {
+            return _documentsStorage.DocumentDatabase.CompareExchangeStorage.GetCompareExchangeTombstonesByKey(queryContext.Server, lastEtag + 1, pageSize)
+                .Select(x =>
+                {
+                    _reference.Key = x.Key.StorageKey;
+                    _reference.Etag = x.Index;
+
+                    return _reference;
+                });
+        }
+
+        protected override bool TryGetReferencedCollectionsFor(string collection, out HashSet<CollectionName> referencedCollections)
+        {
+            return TryGetReferencedCollectionsFor(_collectionsWithCompareExchangeReferences, collection, out referencedCollections);
+        }
+    }
+}

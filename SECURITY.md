@@ -1,0 +1,25 @@
+# Security Policy
+
+## Supported Versions
+
+| Version | Supported          |
+| ------- | ------------------ |
+| 7.2.x   | :white_check_mark: |
+| 7.1.x   | :white_check_mark: |
+| 7.0.x   | :x:                |
+| 6.2.x   | :white_check_mark: |
+| 6.0.x   | :x:                |
+| 5.4.x   | :x:                |
+| 5.3.x   | :x:                |
+| 5.2.x   | :x:                |
+| 5.1.x   | :x:                |
+| 5.0.x   | :x:                |
+| 4.2.x   | :x:                |
+| 4.1.x   | :x:                |
+| 4.0.x   | :x:                |
+| 3.5.x   | :x:                |
+| <= 3.0  | :x:                |
+
+## Reporting a Vulnerability
+
+Please report security vulnerabilities to security@ravendb.net

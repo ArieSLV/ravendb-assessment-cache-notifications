@@ -1,0 +1,120 @@
+﻿// Required
+@import "~boostrap5/scss/functions";
+
+// Default variable overrides
+@import "../scss/bs5variables";
+
+// Required
+@import "~boostrap5/scss/variables";
+@import "~boostrap5/scss/maps";
+@import "~boostrap5/scss/mixins";
+@import "~boostrap5/scss/utilities";
+@import "../scss/root";
+
+.bs5 {
+    // Optional Bootstrap components
+    @import "../scss/reboot";
+    @import "../scss/type";
+    @import "~boostrap5/scss/images";
+    @import "~boostrap5/scss/containers";
+    @import "~boostrap5/scss/grid";
+    @import "~boostrap5/scss/tables";
+    @import "~boostrap5/scss/forms";
+    @import "~boostrap5/scss/buttons";
+    @import "~boostrap5/scss/transitions";
+    @import "~boostrap5/scss/dropdown";
+    @import "~boostrap5/scss/button-group";
+    @import "~boostrap5/scss/nav";
+    @import "~boostrap5/scss/navbar";
+    @import "~boostrap5/scss/card";
+    @import "~boostrap5/scss/accordion";
+    @import "~boostrap5/scss/breadcrumb";
+    @import "~boostrap5/scss/pagination";
+    @import "~boostrap5/scss/badge";
+    @import "~boostrap5/scss/alert";
+    @import "~boostrap5/scss/progress";
+    @import "~boostrap5/scss/list-group";
+    @import "~boostrap5/scss/close";
+    @import "~boostrap5/scss/toasts";
+    @import "~boostrap5/scss/modal";
+    @import "~boostrap5/scss/carousel";
+    @import "~boostrap5/scss/spinners";
+    @import "~boostrap5/scss/offcanvas";
+    //Custom components and mods
+    @import "../../../typescript/components/common/Background.scss";
+    @import "../../../typescript/components/common/Buttons.scss";
+    @import "../../../typescript/components/common/Icon.scss";
+    @import "../../../typescript/components/common/Type.scss";
+    // Helpers
+    @import "~boostrap5/scss/helpers";
+    // Utilities
+    @import "~boostrap5/scss/utilities/api";
+
+    // Pages
+    @import "../scss/pages/stats.scss";
+
+    @import "../scss/bs5extend";
+}
+
+@import "../scss/pages/cluster-dashboard.scss";
+@import "../../../typescript/components/common/LazyLoad";
+@import "../scss/custom-properties";
+@import "../scss/fonts";
+@import "../scss/main-menu";
+@import "~boostrap5/scss/popover";
+@import "~boostrap5/scss/tooltip";
+@import "../scss/qrcode.scss";
+@import "../scss/navbar";
+
+//Reduce tooltip ul size, TODO move to different scss when bs3 is removed
+
+.tooltip {
+    ul {
+        margin: $gutter-xs;
+        margin-left: 0;
+        padding-left: $gutter-sm;
+        text-align: left;
+        line-height: 1.1em;
+        li + li {
+            margin-top: $gutter-xxs;
+        }
+    }
+}
+
+// Check $font-size-base not working TODO
+body {
+    font-size: 14px;
+}
+
+.word-break {
+    word-break: break-all;
+}
+
+// bs3 popover fix - move to scoped or component after bs3 removal
+.popover-lg {
+    max-width: 560px;
+}
+
+// bs3 row fix - remove when we drop bs3 TODO
+.row,
+.form-group {
+    &::after {
+        content: "";
+        display: block;
+        clear: both;
+    }
+}
+
+//Move to scss ace styles after PR merge
+.ace_editor.disabled {
+    filter: saturate(0.2);
+    opacity: 0.7;
+}
+
+input::placeholder,
+textarea::placeholder {
+    opacity: 0.5 !important;
+}
+
+// Custom Utilities
+@import "../scss/layout-tools.scss";

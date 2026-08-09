@@ -1,0 +1,88 @@
+import { FormPathSelector } from "components/common/Form";
+import { useServices } from "components/hooks/useServices";
+import React from "react";
+import { useFormContext, useWatch } from "react-hook-form";
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
+import { CreateDatabaseFromBackupFormData as FormData } from "../../createDatabaseFromBackupValidation";
+import CreateDatabaseFromBackupRestorePoint from "components/pages/resources/databases/partials/create/formBackup/steps/source/RestorePointField";
+import { useRestorePointUtils } from "components/pages/resources/databases/partials/create/formBackup/steps/source/useRestorePointUtils";
+import { useAsyncDebounce } from "components/hooks/useAsyncDebounce";
+import EncryptionField from "components/pages/resources/databases/partials/create/formBackup/steps/source/EncryptionField";
+import RestorePointsFields, {
+    RestorePointElementProps,
+} from "components/pages/resources/databases/partials/create/formBackup/steps/source/RestorePointsFields";
+
+export default function BackupSourceLocal() {
+    const { resourcesService } = useServices();
+    const { control } = useFormContext<FormData>();
+
+    const getLocalFolderPathsProvider = (path: string) => {
+        return async () => {
+            const dto = await resourcesService.getFolderPathOptions_ServerLocal(path, true);
+            return dto?.List || [];
+        };
+    };
+
+    return (
+        <>
+            <Row className="mt-2">
+                <Col lg="3">
+                    <label className="col-form-label">Directory Path</label>
+                </Col>
+                <Col>
+                    <FormPathSelector
+                        control={control}
+                        name="sourceStep.sourceData.local.directory"
+                        selectorTitle="Select backup directory path"
+                        placeholder="Enter backup directory path"
+                        getPathsProvider={(path: string) => getLocalFolderPathsProvider(path)}
+                        getPathDependencies={(path: string) => [path]}
+                    />
+                </Col>
+            </Row>
+            <RestorePointsFields restorePointElement={SourceRestorePoint} />
+            <EncryptionField sourceType="local" />
+        </>
+    );
+}
+
+function SourceRestorePoint({ index, remove }: RestorePointElementProps) {
+    const { resourcesService } = useServices();
+    const { control } = useFormContext<FormData>();
+    const { mapToSelectOptions } = useRestorePointUtils();
+
+    const {
+        basicInfoStep: { isSharded },
+        sourceStep: {
+            sourceData: {
+                local: { directory },
+            },
+        },
+    } = useWatch({
+        control,
+    });
+
+    const asyncGetRestorePointsOptions = useAsyncDebounce(async () => {
+        if (!directory) {
+            return [];
+        }
+
+        const dto = await resourcesService.getRestorePoints_Local(
+            _.trim(directory),
+            null,
+            true,
+            isSharded ? index : undefined
+        );
+        return mapToSelectOptions(dto);
+    }, [directory, isSharded]);
+
+    return (
+        <CreateDatabaseFromBackupRestorePoint
+            index={index}
+            restorePointsOptions={asyncGetRestorePointsOptions.result ?? []}
+            isLoading={asyncGetRestorePointsOptions.loading}
+            remove={remove}
+        />
+    );
+}

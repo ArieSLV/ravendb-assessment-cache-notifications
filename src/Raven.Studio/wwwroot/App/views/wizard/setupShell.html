@@ -1,0 +1,11 @@
+        <div>
+  <div class="bs5">
+    <div id="page-host">
+      <div data-bind="react: $root.setupWizardView" style="height: 100vh;"></div>
+        </div>
+        </div>
+            
+  <div data-bind="if: displayUsageStatsInfo()">
+    <div data-bind="compose: usageStatsView" class="bs3"></div>
+                </div>
+</div>

@@ -1,0 +1,63 @@
+name: tests/fast
+
+on:
+  push:
+    branches:
+        - feature/*
+        - release/**
+        - 'v[4-9]+.[0-9]+'
+
+  pull_request:
+    branches:
+        - feature/*
+        - release/**
+        - 'v[4-9]+.[0-9]+'
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+        matrix:
+          os: [ ubuntu-latest, windows-latest ]
+        fail-fast: false
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        global-json-file: global.json
+
+    - name: Install dependencies
+      run: dotnet restore
+
+    - name: Test - Release
+      run: dotnet test --configuration Release --no-restore
+      env: # Or as an environment variable
+        RAVEN_LICENSE: ${{ secrets.RAVEN_LICENSE }}
+        RAVEN_MAX_RUNNING_TESTS: 1
+      working-directory: ./test/FastTests
+
+  debug:
+    runs-on: ${{ matrix.os }}
+    strategy:
+        matrix:
+          os: [ ubuntu-latest, windows-latest ]
+        fail-fast: false
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        global-json-file: global.json
+
+    - name: Install dependencies
+      run: dotnet restore
+
+    - name: Test - Debug
+      run: dotnet test --configuration Debug --no-restore
+      env: # Or as an environment variable
+        RAVEN_LICENSE: ${{ secrets.RAVEN_LICENSE }}
+        RAVEN_MAX_RUNNING_TESTS: 1
+      working-directory: ./test/FastTests

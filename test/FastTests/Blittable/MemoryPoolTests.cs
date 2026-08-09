@@ -1,0 +1,77 @@
+﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Raven.Server.Logging;
+using Raven.Server.ServerWide;
+using Sparrow.Json;
+using Sparrow.Logging;
+using Tests.Infrastructure;
+using Xunit.Abstractions;
+
+namespace FastTests.Blittable
+{
+    public class MemoryPoolTests(ITestOutputHelper output) : NoDisposalNeeded(output)
+    {
+        [RavenFact(RavenTestCategory.Memory)]
+        public void SerialAllocationAndRelease()
+        {
+            using (var pool = new UnmanagedBuffersPoolWithLowMemoryHandling(RavenLogManager.Instance.CreateNullLogger(), string.Empty))
+            {
+                var allocatedMemory = new List<AllocatedMemoryData>();
+                for (var i = 0; i < 1000; i++)
+                {
+                    allocatedMemory.Add(pool.Allocate(i));
+                }
+                foreach (var data in allocatedMemory)
+                {
+                    pool.Return(data);
+                }
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void ParallelAllocationAndReleaseSeperately()
+        {
+            using (var pool = new UnmanagedBuffersPoolWithLowMemoryHandling(RavenLogManager.Instance.CreateNullLogger(), string.Empty))
+            {
+                var allocatedMemory = new global::Sparrow.Collections.ConcurrentSet<AllocatedMemoryData>();
+                Parallel.For(0, 100, RavenTestHelper.DefaultParallelOptions, x =>
+                {
+                    for (var i = 0; i < 10; i++)
+                    {
+                        allocatedMemory.Add(pool.Allocate(i));
+                    }
+                });
+
+                Parallel.ForEach(allocatedMemory, RavenTestHelper.DefaultParallelOptions, item =>
+                {
+                    pool.Return(item);
+                });
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Memory)]
+        public void ParallelSerialAllocationAndRelease()
+        {
+            using (var pool = new UnmanagedBuffersPoolWithLowMemoryHandling(RavenLogManager.Instance.CreateNullLogger(), string.Empty))
+            {
+                var allocatedMemory = new BlockingCollection<AllocatedMemoryData>();
+                Task.Run(() =>
+                {
+                    for (var i = 0; i < 100; i++)
+                    {
+                        allocatedMemory.Add(pool.Allocate(i));
+                    }
+                    allocatedMemory.CompleteAdding();
+                });
+
+                while (allocatedMemory.IsCompleted == false)
+                {
+                    AllocatedMemoryData tuple;
+                    if (allocatedMemory.TryTake(out tuple, 100))
+                        pool.Return(tuple);
+                }
+            }
+        }
+    }
+}

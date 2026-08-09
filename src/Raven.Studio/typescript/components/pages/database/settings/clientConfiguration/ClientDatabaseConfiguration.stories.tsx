@@ -1,0 +1,58 @@
+import React from "react";
+import { Meta, StoryFn } from "@storybook/react-webpack5";
+import { withStorybookContexts, withBootstrap5 } from "test/storybookTestUtils";
+import ClientDatabaseConfiguration from "./ClientDatabaseConfiguration";
+import { mockServices } from "test/mocks/services/MockServices";
+import { mockStore } from "test/mocks/store/MockStore";
+
+export default {
+    title: "Pages/Settings/Client Configuration",
+    component: ClientDatabaseConfiguration,
+    decorators: [withStorybookContexts, withBootstrap5],
+    parameters: {
+        design: {
+            type: "figma",
+            url: "https://www.figma.com/design/TOJ0FF1XExPQIpoNeQiLw0/Pages---Client-Configuration?node-id=0-1&t=gNtHEztMYTI77w0T-1",
+        },
+    },
+} satisfies Meta<typeof ClientDatabaseConfiguration>;
+
+function commonInit() {
+    const { accessManager, license, databases } = mockStore;
+    const { manageServerService } = mockServices;
+
+    databases.withActiveDatabase_NonSharded_SingleNode();
+    accessManager.with_securityClearance("ClusterAdmin");
+    license.with_License();
+    manageServerService.withGetDatabaseClientConfiguration();
+}
+
+export const WithGlobalConfiguration: StoryFn<typeof ClientDatabaseConfiguration> = () => {
+    commonInit();
+
+    const { manageServerService } = mockServices;
+    manageServerService.withGetGlobalClientConfiguration();
+
+    return <ClientDatabaseConfiguration />;
+};
+
+export const WithoutGlobalConfiguration: StoryFn<typeof ClientDatabaseConfiguration> = () => {
+    commonInit();
+
+    const { manageServerService } = mockServices;
+    manageServerService.withThrowingGetGlobalClientConfiguration();
+
+    return <ClientDatabaseConfiguration />;
+};
+
+export const LicenseRestricted: StoryFn<typeof ClientDatabaseConfiguration> = () => {
+    commonInit();
+
+    const { manageServerService } = mockServices;
+    const { license } = mockStore;
+
+    manageServerService.withGetGlobalClientConfiguration();
+    license.with_LicenseLimited({ HasClientConfiguration: false });
+
+    return <ClientDatabaseConfiguration />;
+};

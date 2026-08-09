@@ -1,0 +1,48 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Sparrow.Json.Parsing;
+
+namespace Raven.Client.Documents.Operations.TimeSeries
+{
+    public sealed class TimeSeriesStatistics
+    {
+        public string DocumentId { get; set; }
+        
+        public List<TimeSeriesItemDetail> TimeSeries { get; set; }
+
+        public TimeSeriesStatistics()
+        {
+            TimeSeries = new List<TimeSeriesItemDetail>();
+        }
+        
+        public DynamicJsonValue ToJson()
+        {
+            return new DynamicJsonValue
+            {
+                [nameof(DocumentId)] = DocumentId,
+                [nameof(TimeSeries)] = new DynamicJsonArray(TimeSeries.Select(x => x.ToJson()))
+            };
+        }
+    }
+
+    public sealed class TimeSeriesItemDetail
+    {
+        public string Name { get; set; }
+        public long NumberOfEntries { get; set; }
+        public DateTime StartDate { get; set; }
+        public DateTime EndDate { get; set; }
+
+        public DynamicJsonValue ToJson()
+        {
+            return new DynamicJsonValue
+            {
+                [nameof(Name)] = Name,
+                [nameof(NumberOfEntries)] = NumberOfEntries,
+                [nameof(StartDate)] = StartDate,
+                [nameof(EndDate)] = EndDate
+            };
+        }
+        
+    }
+}

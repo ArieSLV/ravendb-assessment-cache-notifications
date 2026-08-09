@@ -1,0 +1,88 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>rvn is a CLI utility for RavenDB</Description>
+    <Authors>RavenDB</Authors>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeFrameworkVersion>10.0.2</RuntimeFrameworkVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageTags>database;nosql;doc db</PackageTags>
+    <PackageProjectUrl>https://ravendb.net</PackageProjectUrl>
+    <RuntimeIdentifiers>win-x64;win-x86;linux-x64</RuntimeIdentifiers>
+    <CodeAnalysisRuleSet>..\..\RavenDB.ruleset</CodeAnalysisRuleSet>
+    <DefineConstants>$(DefineConstants);RVN</DefineConstants>
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+    <EnablePreviewFeatures>True</EnablePreviewFeatures>
+    <GenerateRequiresPreviewFeaturesAttribute>True</GenerateRequiresPreviewFeaturesAttribute>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\Raven.Server\Commercial\CompleteClusterConfigurationResult.cs" Link="Server\Commercial\CompleteClusterConfigurationResult.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\GetSetupZipFileParameters.cs" Link="Server\Commercial\GetSetupZipFileParameters.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\SetupMode.cs" Link="Server\Commercial\SetupMode.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\SetupWizard\CompleteAuthorizationAndGetCertificateParameters.cs" Link="Server\Commercial\SetupWizard\CompleteAuthorizationAndGetCertificateParameters.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\SetupWizard\LetsEncryptSetupUtils.cs" Link="Server\Commercial\SetupWizard\LetsEncryptSetupUtils.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\SetupWizard\UnsecuredSetupUtils.cs" Link="Server\Commercial\SetupWizard\UnsecuredSetupUtils.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Attributes\ConfigurationEntryAttribute.cs" Link="Server\Config\Attributes\ConfigurationEntryAttribute.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Attributes\MinValueAttribute.cs" Link="Server\Config\Attributes\MinValueAttribute.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Attributes\SizeUnitAttribute.cs" Link="Server\Config\Attributes\SizeUnitAttribute.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Attributes\TimeUnitAttribute.cs" Link="Server\Config\Attributes\TimeUnitAttribute.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Categories\ConfigurationCategory.cs" Link="Server\Config\Categories\ConfigurationCategory.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Categories\ConfigurationCategoryAttribute.cs" Link="Server\Config\Categories\ConfigurationCategoryAttribute.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Categories\ConfigurationCategoryType.cs" Link="Server\Config\Categories\ConfigurationCategoryType.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Categories\CoreConfiguration.cs" Link="Server\Config\Categories\CoreConfiguration.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Categories\LogsConfiguration.cs" Link="Server\Config\Categories\LogsConfiguration.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Categories\SecurityConfiguration.cs" Link="Server\Config\Categories\SecurityConfiguration.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\ConfigurationEnumValueException.cs" Link="Server\Config\ConfigurationEnumValueException.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Categories\LicenseConfiguration.cs" Link="Server\Config\Categories\LicenseConfiguration.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\RavenConfiguration.cs" Link="Server\Config\RavenConfiguration.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Settings\PathSetting.cs" Link="Server\Config\Settings\PathSetting.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Settings\TimeSetting.cs" Link="Server\Config\Settings\TimeSetting.cs" />
+    <Compile Include="..\..\src\Raven.Server\Config\Settings\UriSetting.cs" Link="Server\Config\Settings\UriSetting.cs" />
+    <Compile Include="..\..\src\Raven.Server\Logging\RavenLogManagerServerExtensions.cs" Link="Server\Logging\RavenLogManagerServerExtensions.cs" />
+    <Compile Include="..\..\src\Raven.Server\ServerWide\ResourceType.cs" Link="Server\ServerWide\ResourceType.cs" />
+    <Compile Include="..\..\src\Raven.Server\ServerWide\SecretProtection.cs" Link="Server\ServerWide\SecretProtection.cs" />
+    <Compile Include="..\..\src\Raven.Server\ServerWide\SodiumSubKeyId.cs" Link="Server\ServerWide\SodiumSubKeyId.cs" />
+    <Compile Include="..\..\src\Raven.Server\ServerWide\ServerVersion.cs" Link="Server\ServerWide\ServerVersion.cs" />
+    <Compile Include="..\..\src\Raven.Server\Utils\Cli\RavenCli.cs" Link="Server\Utils\Cli\RavenCli.cs" />
+    <Compile Include="..\..\src\Raven.Server\Utils\Features\FeaturesAvailability.cs" Link="Server\Utils\Features\FeaturesAvailability.cs" />
+    <Compile Include="..\..\src\Raven.Server\Utils\IOExtensions.cs" Link="Server\Utils\IOExtensions.cs" />
+    <Compile Include="..\..\src\Raven.Server\Utils\Pipes.cs" Link="Server\Utils\Pipes.cs" />
+    <Compile Include="..\..\src\Raven.Server\Utils\RavenHttpClient.cs" Link="Server\Utils\RavenHttpClient.cs" />
+    <Compile Include="..\..\src\Raven.Server\Utils\UrlUtil.cs" Link="Server\Utils\UrlUtil.cs" />
+    <Compile Include="..\..\src\Raven.Server\Utils\JsonStringHelper.cs" Link="Server\Utils\JsonStringHelper.cs" />
+    <Compile Include="..\..\src\Raven.Server\Utils\Cli\WelcomeMessage.cs" Link="Server\Utils\Cli\WelcomeMessage.cs" />
+    <Compile Include="..\..\src\Raven.Server\Utils\Cli\ConsoleMessage.cs" Link="Server\Utils\Cli\ConsoleMessage.cs" />
+    <Compile Include="..\..\src\Raven.Server\Utils\CertificateUtils.cs" Link="Server\Utils\CertificateUtils.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\LetsEncrypt\SettingsZipFileHelper.cs" Link="Server\Commercial\LetsEncrypt\SettingsZipFileHelper.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\LetsEncrypt\RavenDnsRecordHelper.cs" Link="Server\Commercial\LetsEncrypt\RavenDnsRecordHelper.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\LetsEncrypt\LetsEncryptCertificateUtil.cs" Link="Server\Commercial\LetsEncrypt\LetsEncryptCertificateUtil.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\LetsEncrypt\UpdateDnsRecordParameters.cs" Link="Server\Commercial\LetsEncrypt\UpdateDnsRecordParameters.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\LetsEncrypt\CompleteClusterConfigurationParameters.cs" Link="Server\Commercial\LetsEncrypt\CompleteClusterConfigurationParameters.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\SetupWizard\OwnCertificateSetupUtils.cs" Link="Server\Commercial\SetupWizard\OwnCertificateSetupUtils.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\SetupWizard\SetupWizardUtils.cs" Link="Server\Commercial\SetupWizard\SetupWizardUtils.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\SetupInfo.cs" Link="Server\Commercial\SetupInfo.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\SetupInfoBase.cs" Link="Server\Commercial\SetupInfoBase.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\CreateSetupPackageParameters.cs" Link="Server\Commercial\CreateSetupPackageParameters.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\License.cs" Link="Server\Commercial\License.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\LicenseType.cs" Link="Server\Commercial\LicenseType.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\LetsEncryptClient.cs" Link="Server\Commercial\LetsEncryptClient.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\EmailValidator.cs" Link="Server\Commercial\EmailValidator.cs" />
+    <Compile Include="..\..\src\Raven.Server\Commercial\ApiHttpClient.cs" Link="Server\Commercial\ApiHttpClient.cs" />
+    <Compile Include="..\..\src\Raven.Server\Smuggler\Documents\Processors\BuildVersion.cs" Link="Server\Smuggler\Documents\Processors\BuildVersion.cs" />
+    <Compile Include="..\..\src\CommonAssemblyInfo.cs" Link="Properties\CommonAssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="DasMulli.Win32.ServiceUtils.Signed" />
+    <PackageReference Include="McMaster.Extensions.CommandLineUtils" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="Polly" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" />
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Raven.Client\Raven.Client.csproj" />
+    <ProjectReference Include="..\..\src\Voron\Voron.csproj" />
+  </ItemGroup>
+</Project>

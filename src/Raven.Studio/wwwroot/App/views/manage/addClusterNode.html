@@ -1,0 +1,105 @@
+<div class="content-margin">
+    <div class="row flex-row absolute-fill">
+        <form class="col-xs-12 col-lg-6 flex-vertical">
+            <div class="flex-header">
+                <button class="btn btn-primary" title="Saves the new cluster node" data-bind="click: save, disable: spinners.save, css: { 'btn-spinner': spinners.save }">
+                    <i class="icon-plus"></i> <span>Add</span>
+                </button>
+                <button class="btn btn-default" title="Cancel" data-bind="click: cancelOperation"><i class="icon-cancel"></i> <span>Cancel</span></button>
+            </div>
+            <div class="panel">
+                <div class="flex-form">
+                    <div class="panel-body" data-bind="with: model">
+                        <div class="form-group">
+                            <label for="url" class="control-label">URL</label>
+                            <div class="flex-grow">
+                                <div data-bind="validationElement: serverUrl">
+                                    <input autocomplete="off" type="text" class="form-control" data-bind="textInput: serverUrl" id="url" placeholder="Enter server url">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="tag" class="control-label">Tag</label>
+                            <div class="flex-grow">
+                                <div data-bind="validationElement: nodeTag">
+                                    <input autocomplete="off" type="text" class="form-control" data-bind="textInput: nodeTag" id="tag" placeholder="Manually specify the node tag (optional)" maxlength="4">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="control-label"></label>
+                            <div class="flex-grow">
+                                <div class="toggle">
+                                    <input id="toggleWatcher" type="checkbox" data-bind="checked: addAsWatcher" />
+                                    <label for="toggleWatcher"><small>Add node as Watcher <i class="icon-info text-info js-watcher-info"></i></small></label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="control-label"></label>
+                            <div class="flex-grow">
+                                <div class="toggle">
+                                    <input id="toggleAutoAssign" type="checkbox" data-bind="checked: useAvailableCores" />
+                                    <label for="toggleAutoAssign"><small>Use available cores</small></label>
+                                </div>
+                            </div>
+                        </div>
+                        <div data-bind="collapse: !useAvailableCores()">
+                            <div class="form-group">
+                                <label for="max-utilized-cores" class="control-label">Maximum cores to use</label>
+                                <div class="flex-grow">
+                                    <div data-bind="validationElement: maxUtilizedCores">
+                                        <input autocomplete="off" type="number" class="form-control" min="1"
+                                               data-bind="numericInput: maxUtilizedCores, disable: useAvailableCores" id="max-utilized-cores"
+                                               placeholder="Enter the maximum number of cores to be used by the new node">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-horizontal">
+                            <div class="flex-grow">
+                            </div>
+                            <div>
+                                <button type="submit" class="btn btn-default" title="Test connection to newly created node"
+                                        data-bind="click: $root.testConnection, disable: $root.spinners.test, css: { 'btn-spinner': $root.spinners.test }">
+                                    <i class="icon-rocket"></i>
+                                    <span>Test connection</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-addon" data-bind="with: $root.testConnectionResult">
+                    <div class="padding bg-success small" data-bind="visible: Success">
+                        <div>Successfully connected to node</div>
+                    </div>
+                    <div data-bind="if: !Success">
+                        <div class="padding bg-danger small">
+                            <h2>Connection test failed!</h2>
+                            <span data-bind="text: $root.fullErrorDetailsVisible() ? Error : $root.shortErrorText()"></span>
+                            <div>
+                                <a href="#" data-bind="click: $root.fullErrorDetailsVisible.toggle.bind($root.fullErrorDetailsVisible), text: $root.fullErrorDetailsVisible() ? 'hide details' : 'show details'"></a>
+                            </div>
+                        </div>
+                        <div class="padding bg-info small">
+                            <h2>About this error</h2>
+                            <div>Each RavenDB server has both HTTP and TCP endpoints. While the first one is used for system management and client-server rest request, the second is used for inter-server and advanced client-server communications.</div>
+                            <div>The connection tests the TCP endpoint only after a successful HTTP connection.</div>
+                            <div data-bind="visible: HTTPSuccess">It appears that the current server was able to connect to the desired server through HTTP, but failed connecting to it using TCP.</div>
+                            <div data-bind="visible: !HTTPSuccess">It appears that the current server could not connect to the desired node through HTTP.</div>
+                            <div>
+                                Please verify that:
+                                <ul>
+                                    <li>The URL is correct</li>
+                                    <li>Both RavenDB and the target machine are up and running</li>
+                                    <li>There is no firewall settings on either machine blocking usage of that URL</li>
+                                    <li>There is no network configurations that prevent communication</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

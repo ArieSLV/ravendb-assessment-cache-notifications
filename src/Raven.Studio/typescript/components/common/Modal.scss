@@ -1,0 +1,12 @@
+@use "Content/scss/bs5variables";
+
+@for $i from 1 through 6 {
+    $zIndexBackdrop: #{bs5variables.$zindex-modal + (5 * $i)};
+    $zIndexContent: #{bs5variables.$zindex-modal + (5 * $i) + 2};
+    .modal-backdrop.show:nth-of-type(#{$i}) {
+        z-index: $zIndexBackdrop;
+    }
+    div[role="dialog"]:nth-of-type(#{$i}) {
+        z-index: $zIndexContent !important;
+    }
+}

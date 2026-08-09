@@ -1,0 +1,309 @@
+<div class="flex-window patch content-margin" id="patchContainer">
+    <div class="flex-window-head">
+        <div id="patch-target" >
+            <div class="clearfix toolbar">
+                <div class="pull-right-sm flex-horizontal">
+                    <div class="input-group patch-save" data-bind="css: { active: inSaveMode }, validationOptions: { insertMessages: false }, validationElement: patchSaveName">
+                        <input class="form-control" style="display: none" placeholder="Patch name" data-bind="textInput: patchSaveName, hasFocus: patchSaveFocus">
+                        <span class="input-group-btn">
+                            <button class="btn btn-success" data-class="active" type="button" data-bind="click: savePatch, css: { 'btn-spinner': spinners.save }" title="Save patch under given name">
+                                <i class="icon-save"></i> <span data-bind="text: inSaveMode() ? 'Save' : 'Save...'"></span>
+                            </button>
+                        </span>
+                    </div>
+                    <div class="dropdown dropdown-right loadpatch" data-bind="template: { name: 'saved-patches-dialog' }">
+                    </div>
+                </div>
+            </div>
+            <div class="form-horizontal">
+                <div class="row">
+                    <div class="col-sm-3 col-lg-2">
+                        <h2 class="on-base-background">Patch</h2>
+                        <a href="#" class="syntax-help" data-bind="click: syntaxHelp"><small>Syntax <i class="icon-help"></i></small></a>
+                    </div>
+                    <div class="col-sm-9 col-lg-10 margin-bottom">
+                        <div class="patch-container">
+                            <div class="patch-main">
+                                <div class="btn-group btn-group-sm pull-right" role="group">
+                                    <div class="dropdown">
+                                        <button class="btn btn-default btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                                            <i class="icon-settings"></i><span>Settings</span>
+                                            <span class="caret"></span>
+                                        </button>
+                                        <div class="dropdown-menu settings-menu" data-bind="dropdownPanel: true, template: { name: 'settings-template' }">
+                                        </div>
+                                    </div>
+                                </div>
+                                <pre class="form-control editor query-source"
+                                     data-bind="aceEditor: { code: patchDocument().query, allowResize: false, minHeight: 300, maxHeight: 300, lang:'ace/mode/rql', completer: languageService.complete }, validationOptions: { errorsAsTitle: false }, validationElement: patchDocument().query"></pre>
+                                <div data-bind="validationOptions: { errorsAsTitle: false }, validationElement: patchDocument().query">
+                                    <div class="help-block" data-bind="validationMessage: patchDocument().query"></div>
+                                </div>
+                            </div>
+                            <div class="patch-controls">
+                                <div class="flex-separator"></div>
+                                <span class="has-disable-reason" data-bind="attr: { title: spinners.countMatchingDocuments() ? 'Calculating matching documents before patching' : 'Execute patch' }">
+                                    <button class="btn btn-primary btn-block btn-lg text-center"
+                                            data-bind="click: runPatch, css: { 'btn-spinner': spinners.countMatchingDocuments }, disable: spinners.countMatchingDocuments">
+                                        <i class="icon-play2 icon-lg"></i><br />
+                                        <small class="kbd"><kbd>ctrl</kbd> <strong>+</strong> <kbd>enter</kbd></small>
+                                    </button>
+                                </span>
+                                <button class="btn btn-default btn-block text-center margin-top-sm" data-bind="click: test.enterTestMode" title="Dry patch run. No data is modified.">
+                                    <i class="icon-rocket"></i><span>Test</span>
+                                </button>
+                            </div>
+                            <div class="test-controls">
+                                <div class="flex-separator"></div>
+                                <button class="btn btn-primary btn-block btn-lg text-center" data-bind="click: test.runTest, css: { 'btn-spinner' : test.spinners.testing }, disable: test.spinners.testing" title="Test the patch script on the selected document">
+                                    <i class="icon-rocket"></i><span>Test</span><br />
+                                    <small class="kbd"><kbd>ctrl</kbd> <strong>+</strong> <kbd>enter</kbd></small>
+                                </button>
+                                <button class="btn btn-default btn-block text-center test-close" data-bind="click: test.closeTestMode" title="Leave test mode">
+                                    <i class="icon-check"></i><span>Done</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="test-container" data-bind="template: { name: 'test-component' }, collapse: test.testMode()"></div>
+</div>
+<div class="backdrop"></div>
+
+<script type="text/html" id="test-component">
+    <div class="row margin-bottom form-horizontal" data-bind="with: test">
+        <label class="control-label col-sm-offset-3 col-lg-offset-2 col-sm-2 col-lg-1">Document ID</label>
+        <div class="col-sm-8 col-lg-9">
+            <div class="row">
+                <div class="col-sm-8">
+                    <div class="input-group" data-bind="validationOptions: { insertMessages: false }, validationElement: documentId">
+                        <input type="text" id="documentId" data-bind="textInput: documentId, disable: spinners.testing"
+                               class="form-control" placeholder="Enter document id for the patch test" autocomplete="off" />
+                        <span class="help-block" data-bind="validationMessage: documentId"></span>
+                        <ul class="documentIdAutocomplete dropdown-menu autocomplete-list" role="menu" 
+                             data-bind="autoComplete: '#documentId', foreach: docsIdsAutocompleteResults">
+                            <li role="presentation" data-bind="click: _.partial($parent.onAutocompleteOptionSelected, $data)">
+                                <a role="menuitem" tabindex="-1" href="#">
+                                    <span data-bind="text: $data"></span>
+                                </a>
+                            </li>
+                        </ul>
+                        <span class="input-group-btn" style="vertical-align:top">
+                            <button class="btn" type="button" title="Show document preview"
+                                    data-bind="click: previewDocument, css: { 'btn-spinner': spinners.autocomplete() || spinners.preview() },
+                                               disable: spinners.preview() || !documentId() || spinners.testing() || spinners.autocomplete()">
+                                <i class="icon-preview"></i>
+                            </button>
+                        </span>
+                        <button class="btn btn-default" title="Load document to the 'Before' view"
+                                data-bind="click: loadDocument, css: { 'btn-spinner': spinners.loadingDocument }, disable: spinners.loadingDocument() || !documentId() || spinners.testing()" >
+                            <i class="icon-import"></i>
+                            <span>Load document</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <!-- TODO: <small class="text-info"><i class="icon-info"></i> You can also paste your own document JSON to test</small>-->
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row tabs-left form-horizontal">
+        <div class="col-sm-3 col-lg-2">
+            <ul class="nav nav-tabs nav-stacked" data-bind="with: test">
+                <li data-bind="click: tabClicked('preview')">
+                    <a href="#preview" data-toggle="tab" title="Show document before and after patch">
+                        <i class="icon-preview"></i>
+                        <span>Document Preview</span>
+                    </a>
+                </li>
+                <li data-bind="click: tabClicked('loaded')">
+                    <a href="#loaded" data-toggle="tab" title="Show information about loaded items during test execution">
+                        <i class="icon-import"></i>
+                        <span>Loaded</span>
+                        <span class="label label-primary pull-right" data-bind="text: actions.loadedCount"></span>
+                    </a>
+                </li>
+                <li data-bind="click: tabClicked('modified')">
+                    <a href="#modified" data-toggle="tab" title="Show information about created/modified items during test execution">
+                        <i class="icon-export"></i>
+                        <span>Modified</span>
+                        <span class="label label-primary pull-right" data-bind="text: actions.modifiedCount"></span>
+                    </a>
+                </li>
+                <li data-bind="click: tabClicked('deleted')">
+                    <a href="#deleted" data-toggle="tab" title="Show information about deleted items during test execution">
+                        <i class="icon-trash"></i>
+                        <span>Deleted</span>
+                        <span class="label label-primary pull-right" data-bind="text: actions.deletedCount"></span>
+                    </a>
+                </li>
+                <li data-bind="click: tabClicked('output')">
+                    <a href="#output" data-toggle="tab" title="Show output generated during test execution"> 
+                        <i class="icon-administrator-js-console"></i>
+                        <span>Output</span>
+                        <span class="label label-primary pull-right" data-bind="text: output().length || ''"></span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        <div class="col-sm-9 col-lg-10">
+            <div class="panel">
+                <div data-bind="with: test">
+                    <div class="tab-content scroll">
+                        <div class="tab-pane fade in active" id="preview" data-bind="if: activeTestTab() === 'preview'">
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <h3>Before</h3>
+                                    <pre id="beforeDocEditor"
+                                         data-bind="aceEditor: { code: beforeDoc, fontSize:'14px', lang: 'ace/mode/raven_document', readOnly: true }"></pre>
+                                </div>
+                                <div class="col-sm-6">
+                                    <h3>After</h3>
+                                    <pre id="afterDocEditor"
+                                         data-bind="aceEditor: { code: afterDoc, fontSize:'14px', lang: 'ace/mode/raven_document', readOnly: true }"></pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade margin-bottom" id="loaded" data-bind="if: activeTestTab() === 'loaded'">
+                            <div data-bind="with: actions">
+                                <h2 class="text-center">Loaded Data</h2>
+                                <hr />
+                                <div data-bind="compose: $root.patchDebugActionsLoadedView"></div>    
+                            </div>
+                        </div>
+                        <div class="tab-pane fade margin-bottom" id="modified" data-bind="if: activeTestTab() === 'modified'">
+                            <div data-bind="with: actions">
+                                <h2 class="text-center">Modified Data</h2>
+                                <hr />
+                                <div data-bind="compose: $root.patchDebugActionsModifiedView"></div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade margin-bottom" id="deleted" data-bind="if: activeTestTab() === 'deleted'">
+                            <div data-bind="with: actions">
+                                <h2 class="text-center">Deleted Data</h2>
+                                <hr />
+                                <div data-bind="compose: $root.patchDebugActionsDeletedView"></div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade margin-bottom" id="output" data-bind="if: activeTestTab() === 'output'">
+                            <h2 class="text-center">Output Data</h2>
+                            <hr>
+                            <ul data-bind="foreach: output">
+                                <li>
+                                    <small data-bind="text: $data"></small>
+                                </li>
+                            </ul>
+                            <p data-bind="if: output().length === 0">No data available.</p>
+                        </div>
+                    </div>
+                    <div class="clearfix"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="saved-patches-dialog">
+    <button class="btn btn-default dropdown-toggle" type="button" id="dropdownLoadPatch" data-toggle="dropdown" data-bind="enable: savedPatches.hasAnySavedPatch, click: showFirstItemInPreviewArea" title="Load saved patch">
+        <i class="icon-patch"></i><span>Load patch</span>
+        <span class="caret"></span>
+    </button>
+    <div class="dropdown-menu slidein-style" aria-labelledby="dropdownLoadPatch" data-bind="dropdownPanel: true, with: savedPatches">
+        <div class="loadpatch-dropdown flex-vertical" data-bind="css: { 'show-preview': previewItem() }">
+            <div class="flex-grow loadpatch-container">
+                <div class="patch-preview-container flex-vertical">
+                    <div class="flex-header">
+                        <h2>Patch preview</h2>
+                    </div>
+                    <div class="flex-grow flex-vertical scroll">
+                        <div class="bg-info padding padding-sm">
+                            <div class="row">
+                                <div class="col-xs-9">
+                                   Name: &nbsp;<strong data-bind="text: previewItem() ? previewItem().Name : ''"></strong>
+                                </div>
+                                <div class="col-xs-3">
+                                    <span class="pull-right"> 
+                                        <button title="Load saved patch" class="btn btn-success btn-sm close-panel" data-bind="click: usePatch , enable: previewItem()">Load</button>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pre-container">
+<pre class="bg-info">
+<code data-bind="text: previewCode"></code>
+</pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="patch-list-container flex-vertical">
+                    <div class="flex-header">
+                        <div class="row">
+                            <div class="col-xs-6">
+                                <h2>Select patch</h2>
+                            </div>
+                            <div class="col-xs-6">
+                                <input type="search" class="form-control input-sm patch-filter" data-bind="textInput: filters.searchText" placeholder="filter" title="Filter saved patches by name">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-grow scroll">
+                        <ul class="patch-list" data-bind="foreach: filteredPatches">
+                            <li data-bind="css: { selected: $data === $parent.previewItem() }, event: { mouseenter: $parent.previewPatch }">                             
+                                <a href="#" class="patch-link close-panel" data-bind="click: $parent.usePatchItem.bind($parent, $data)">
+                                    <span class="name" data-bind="text: Name"></span>
+                                    <span class="modified flex-shrink-0" data-bind="text: ModificationDate"></span>
+                                </a>
+                                <a href="#" data-bind="click: $parent.removePatch" class="patch-remove"><i class="icon-trash"></i></a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="settings-template">
+    <div class="padding margin-left-sm margin-right-sm">
+        <strong><h4>Patching behavior for stale indexes:</h4></strong>
+        <div class="radio">
+            <input id="allowPatchingStaleIndex" type="radio" data-bind="checked: staleIndexBehavior" name="staleBehavior" value="patchStale">
+            <label for="allowPatchingStaleIndex">Patch immediately</label>
+        </div>
+        <div class="radio margin-bottom">
+            <input id="timeToWaitForNonStale" type="radio" data-bind="checked: staleIndexBehavior" name="staleBehavior" value="timeoutDefined">
+            <label for="timeToWaitForNonStale">Define timeout to wait for index to become non-stale</label>
+            <div class="margin-left" data-bind="collapse: staleIndexBehavior() === 'timeoutDefined'">
+                <input type="text" class="form-control" data-bind="durationPicker: staleTimeout, durationPickerOptions: { showDays: false, showSeconds: true }" />
+            </div>
+            <div class="margin-left margin-top margin-top-sm" data-bind="visible: staleIndexBehavior() === 'timeoutDefined'">
+                <small><i class="icon-warning"></i>  An exception is thrown when timeout has passed</small>
+            </div>
+        </div>
+        <hr>
+        <div>
+            <div class="toggle">
+                <input id="disableAutoIndex" type="checkbox" data-bind="checked: disableAutoIndexCreation">
+                <label for="disableAutoIndex">Don't create a new Auto-Index</label>
+            </div>
+            <div class="toggle">
+                <input id="ignoreMaxStepsForScript" type="checkbox" data-bind="checked: ignoreMaxStepsForScript">
+                <label for="ignoreMaxStepsForScript">Ignore maximum number of steps for script</label>
+            </div>
+            <div class="toggle">
+                <input id="maxOperations" class="styled" type="checkbox" data-bind="checked: defineMaxOperationsPerSecond">
+                <label for="maxOperations">Limit number of operations</label>
+            </div>
+            <div data-bind="collapse: defineMaxOperationsPerSecond">
+                <div class="input-group margin-right">
+                    <input id="operationsPerSecond" type="number" min="1" class="form-control input-border" data-bind="numericInput: maxOperationsPerSecond" placeholder="Max operations"/>
+                    <div class="input-group-addon input-border">per second</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>

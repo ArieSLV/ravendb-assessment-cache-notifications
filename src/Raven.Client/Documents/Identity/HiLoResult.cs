@@ -1,0 +1,31 @@
+﻿using System;
+
+namespace Raven.Client.Documents.Identity
+{
+    /// <summary>
+    /// The result of a NextHiLo operation
+    /// </summary>   
+    public sealed class HiLoResult
+    {
+        public string Prefix { get; set; }
+
+        public long Low { get; set; }
+
+        public long High { get; set; }
+
+        public long LastSize { get; set; }
+
+        /// <summary>
+        /// The tag of the server that allocated this range.
+        /// </summary>
+        public string ServerTag { get; set; }
+
+        public DateTime LastRangeAt { get; set; }
+
+    }
+
+    public sealed class HiloDocument
+    {
+        public long Max { get; set; }
+    }
+}

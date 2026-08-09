@@ -1,0 +1,178 @@
+#database-settings-view, #server-settings-view {
+    
+    @source-item-color: @database-settings-source-item-color;
+    @highlight-key-color: @database-origin-key-color;
+    
+    .all-entries {
+        overflow-x: hidden;
+        top: 50px;
+    }
+    
+    .description-text {
+        width: 500px;
+        word-break: break-word;
+    }
+    
+    .entries-grid {
+        margin-top: 0px;
+    }
+
+    .summary-buttons {
+        margin-right: 30px;
+    }
+    
+    .filter-entries {
+        min-width: 250px;
+    }
+    
+    .add-vertical-split {
+        &::before {
+            content: "";
+            background: @gray-dark;
+            position: absolute;
+            bottom: 15%;
+            left: 0;
+            height: 70%;
+            width: 1px;
+        }
+    }
+    
+    .dirty-item {
+        &::after {
+            content: '*';
+            color: @database-settings-dirty-item-color;
+            margin-left: 4px;
+            font-size: large;
+        }
+    }
+    
+    .invalid-item {
+        &::after {
+            content: "\f118";
+            color: @database-settings-invalid-item-color;
+            margin-left: 4px;
+            font-size: small;
+            font-family: 'icomoon' !important;
+        }
+    }
+    
+    .categories-list-container {
+        width: 310px;
+        position: relative;
+    }
+
+    .customized-entries-label {
+        background-color: @gray-dark;
+        width: 30px;
+        text-align: center;
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+    
+    .edit-entries-titles {
+        padding-left: 10px;
+    }
+    
+    .summary-list-container {
+        position: relative;
+        
+        .highlight-key {
+            color: @highlight-key-color;
+        }
+
+        .value-has-content {
+            color: darken(@color-1-2, 5%);
+        }
+        
+        .source-item {
+            color: @source-item-color;
+            padding-left: 25px;
+            
+            &::before {
+                font-family: @font-family-icon;
+                font-size: small;
+                margin-left: 5px;
+                padding-left: 10px;
+            }
+        }
+        
+        .source-item-default {
+            &::before {
+                content: "\f119";
+            }
+        }
+
+        .source-item-server {
+            &::before {
+                content: "\f11a";
+            }
+        }
+
+        .source-item-database {
+            &::before {
+                content: "\f113";
+            }
+        }
+
+        .no-color {
+            color: @database-settings-source-item-color;
+        }
+    }
+    
+    .entry-basic-template {
+        .panel-body {
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+    }
+    
+    .entry-content {
+        word-break: break-word;
+    }
+
+    .tooltip-inner {
+        max-width: 600px;
+        background-color: lighten(@gray-darker, 5%);
+        padding: 10px;
+        text-align: left;
+    }
+    
+    .override-options {
+        width: 100%;
+        padding-right: 30px;
+    }
+
+    .source-icon {
+        color: @source-item-color;
+        margin-right: 2px;
+    }
+    
+    .fix-icon-top {
+        top: 1px;
+    }
+    
+    .set-default {
+        width: 75px;
+        
+        a {
+            color: @gray-light;
+
+            &:hover
+            {
+                color: @gray-lighter;
+            }
+        }
+    }
+}
+
+#saveConfirmationDialog {
+    #warning-icon {
+        top: 12px;
+    }
+    
+    hr {
+        border-top-color: fade(@brand-warning-dark, 15%);
+    }
+}

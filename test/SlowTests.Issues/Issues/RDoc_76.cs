@@ -1,0 +1,114 @@
+﻿using System.Linq;
+using System.Threading.Tasks;
+using FastTests;
+using Raven.Client.Documents;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Issues
+{
+    public class RDoc_76 : RavenTestBase
+    {
+        public RDoc_76(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class Room
+        {
+            public string Sth { get; set; }
+        }
+
+        private class Kitchen : Room
+        {
+        }
+
+        private class Bedroom : Room
+        {
+        }
+
+        private class Guestroom : Bedroom
+        {
+        }
+
+        private class MasterBedroom : Bedroom
+        {
+        }
+
+        [RavenFact(RavenTestCategory.ClientApi)]
+        public void RegisterIdConventionShouldWorkProperlyForDerivedTypesAsync()
+        {
+            using (var store = GetDocumentStore(new Options
+            {
+                ModifyDocumentStore = s =>
+                {
+                    s.Conventions.RegisterAsyncIdConvention<Bedroom>((dbName, r) => Task.FromResult("b/" + r.Sth));
+                    s.Conventions.RegisterAsyncIdConvention<Guestroom>((dbName, r) => Task.FromResult("gr/" + r.Sth));
+                    s.Conventions.RegisterAsyncIdConvention<Room>((dbName, r) => Task.FromResult("r/" + r.Sth));
+                    s.Conventions.RegisterAsyncIdConvention<Kitchen>((dbName, r) => Task.FromResult("k/" + r.Sth));
+                    s.Conventions.RegisterAsyncIdConvention<MasterBedroom>((dbName, r) => Task.FromResult("mb/" + r.Sth));
+                }
+            }))
+            {
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new MasterBedroom { Sth = "1" });
+                    session.Store(new Guestroom { Sth = "2" });
+                    session.Store(new Bedroom { Sth = "3" });
+                    session.Store(new Room { Sth = "4" });
+                    session.Store(new Kitchen { Sth = "5" });
+
+                    session.SaveChanges();
+                }
+
+                using (var session = store.OpenSession())
+                {
+                    var mbs = session.Query<MasterBedroom>()
+                                     .Customize(x => x.WaitForNonStaleResults())
+                                     .ToList();
+                }
+
+                using (var commands = store.Commands())
+                {
+                    Assert.NotNull(commands.Get("mb/1"));
+                    Assert.NotNull(commands.Get("gr/2"));
+                    Assert.NotNull(commands.Get("b/3"));
+                    Assert.NotNull(commands.Get("r/4"));
+                    Assert.NotNull(commands.Get("k/5"));
+                }
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Querying)]
+        [RavenData(SearchEngineMode = RavenSearchEngineMode.All, DatabaseMode = RavenDatabaseMode.All)]
+        public async Task RegisteringConventionForSameTypeShouldOverrideOldOneAsync(Options options)
+        {
+            options.ModifyDocumentStore = s =>
+            {
+                s.Conventions.RegisterAsyncIdConvention<MasterBedroom>((dbName, r) => Task.FromResult("a/" + r.Sth));
+                s.Conventions.RegisterAsyncIdConvention<MasterBedroom>((dbName, r) => Task.FromResult("mb/" + r.Sth));
+            };
+            using (var store = GetDocumentStore(options))
+            {
+                using (var session = store.OpenAsyncSession())
+                {
+                    await session.StoreAsync(new MasterBedroom { Sth = "1" });
+                    await session.SaveChangesAsync();
+                }
+
+                using (var session = store.OpenAsyncSession())
+                {
+                    var mbs = await session.Query<MasterBedroom>()
+                                           .Customize(x => x.WaitForNonStaleResults())
+                                           .ToListAsync();
+                }
+
+                using (var commands = store.Commands())
+                {
+                    Assert.Null(await commands.GetAsync("a/1"));
+                    Assert.NotNull(await commands.GetAsync("mb/1"));
+                }
+            }
+        }
+    }
+}

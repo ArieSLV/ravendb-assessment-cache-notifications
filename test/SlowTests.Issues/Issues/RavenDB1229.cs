@@ -1,0 +1,40 @@
+﻿using System;
+using FastTests;
+using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Queries;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Issues
+{
+    public class RavenDB1229 : RavenTestBase
+    {
+        public RavenDB1229(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        [RavenFact(RavenTestCategory.Querying)]
+        public void DeleteByNotExistingIndex()
+        {
+            using (var store = GetDocumentStore())
+            {
+                try
+                {
+                    var op = store.Operations.Send(new DeleteByQueryOperation(new IndexQuery
+                    {
+                        Query = "FROM INDEX 'noSuchIndex' WHERE Tag = 'Animals'"
+                    }));
+
+                    op.WaitForCompletion(TimeSpan.FromSeconds(15));
+
+                    Assert.Fail("Should have thrown");
+                }
+                catch (Exception e)
+                {
+                    Assert.NotNull(e);
+                }
+            }
+        }
+    }
+}

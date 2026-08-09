@@ -1,0 +1,54 @@
+.traffic-watch {
+    .stats-container {
+        border-top: 1px solid @gray-dark;
+        position: relative;
+
+        &:before {
+            color: @gray;
+            position: absolute;
+            left: 0;
+            top: -14px;
+            line-height: 10px;
+            font-size: 10px;
+            text-transform: uppercase;
+            content: attr(data-label);
+        }
+        
+        .right-border {
+            border-right: solid 1px @gray-dark;
+        }
+    }
+
+    #trafficFilter {
+        width: 220px;
+    }
+    
+    
+    
+    .dropdown {
+        .dropdown-menu.stats-menu {
+            width: max-content;
+        }
+        
+        .property {
+            min-width: 90px;
+        }
+    }
+}
+
+
+.admin-logs-traffic-watch-dialog {
+    .flex-form .form-group .control-label {
+        width: 250px;
+    }
+
+    .toggle-margin {
+        margin-left: 43px;
+    }
+}
+
+.queries-dialog {
+    .queries-list {
+        max-height: 700px;
+    }
+}

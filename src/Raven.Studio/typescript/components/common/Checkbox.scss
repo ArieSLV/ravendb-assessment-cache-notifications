@@ -1,0 +1,103 @@
+﻿@use "sass:math";
+@use "Content/scss/bs5variables";
+
+input {
+    &[type="checkbox"],
+    &[type="radio"] {
+        cursor: pointer;
+    }
+}
+
+@mixin check-variant($color-name) {
+    .form-check-input {
+        border-color: rgb(var(--bs-#{$color-name}-rgb));
+
+        &:focus {
+            box-shadow: 0 0 bs5variables.$input-btn-focus-blur bs5variables.$input-btn-focus-width
+                rgba(var(--bs-#{$color-name}-rgb), bs5variables.$input-btn-focus-color-opacity);
+        }
+
+        &:checked {
+            background-color: rgb(var(--bs-#{$color-name}-rgb));
+            border-color: rgb(var(--bs-#{$color-name}-rgb));
+        }
+    }
+}
+
+.form-check,
+.form-check-reverse {
+    align-items: center;
+    line-height: 1.15em;
+    .form-check-input {
+        margin-top: 0;
+    }
+}
+
+.form-check {
+    display: inline-flex !important;
+    .form-check-input {
+        margin-top: 0;
+    }
+
+    .form-check-label {
+        margin-left: 0.75em;
+    }
+}
+
+.form-check-reverse {
+    display: flex;
+    flex-direction: row-reverse;
+    .form-check-label {
+        margin-right: 0.75em;
+    }
+}
+
+.form-switch {
+    .form-check-input {
+        &[disabled],
+        &:disabled {
+            background-image: escape-svg(
+                url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><path fill='#{bs5variables.$text-emphasis-color}' d='M0.1-2.9c-1.7,0-3,1.3-3,3s1.3,3,3,3s3-1.3,3-3S1.8-2.9,0.1-2.9z M0.1,2.3C-1,2.3-2,1.3-2,0.1S-1-2,0.1-2 s2.1,1,2.1,2.1S1.3,2.3,0.1,2.3z'/></svg>")
+            );
+            cursor: not-allowed;
+        }
+    }
+}
+
+@each $color, $value in bs5variables.$theme-colors {
+    .form-check-#{$color} {
+        @include check-variant($color);
+    }
+}
+@mixin check-size-variant($ratio, $name) {
+    .form-check-#{$name} {
+        min-height: bs5variables.$form-check-min-height * $ratio;
+        padding-left: bs5variables.$form-check-padding-start * $ratio;
+        margin-bottom: bs5variables.$form-check-margin-bottom * $ratio;
+
+        .form-check-input {
+            margin-left: bs5variables.$form-check-padding-start * -1 * $ratio;
+            width: bs5variables.$form-check-input-width * $ratio;
+            height: bs5variables.$form-check-input-width * $ratio;
+        }
+
+        &.form-switch {
+            .form-check-input {
+                width: bs5variables.$form-switch-width * $ratio * 0.8;
+                height: bs5variables.$form-check-input-width * $ratio * 0.8;
+            }
+        }
+
+        &.form-check-reverse {
+            padding-right: bs5variables.$form-check-padding-start * $ratio;
+            padding-left: 0;
+
+            .form-check-input {
+                margin-right: bs5variables.$form-check-padding-start * -1 * $ratio;
+            }
+        }
+    }
+}
+
+@include check-size-variant(1.61, "lg");
+@include check-size-variant(0.61, "sm");

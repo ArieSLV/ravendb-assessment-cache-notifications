@@ -1,0 +1,29 @@
+[Unit]
+Description=RavenDB NoSQL Database
+After=network.target
+
+[Service]
+LimitCORE=infinity
+LimitNOFILE=65535
+LimitRSS=infinity
+LimitAS=infinity
+LimitMEMLOCK=infinity
+TasksMax=infinity
+User=ravendb
+StartLimitBurst=0
+AmbientCapabilities=CAP_NET_BIND_SERVICE  
+Restart=on-failure
+Type=exec
+TimeoutStopSec=300
+Environment="RAVEN_DataDir=/var/lib/ravendb/data"
+Environment="RAVEN_Indexing_NugetPackagesPath=/var/lib/ravendb/packages/nuget/indexing"
+Environment="RAVEN_Logs_NuGet_PackagesPath=/var/lib/ravendb/packages/nuget/logging"
+Environment="RAVEN_Logs_Path=/var/log/ravendb/logs"
+Environment="RAVEN_Security_AuditLog_FolderPath=/var/log/ravendb/audit"
+Environment="RAVEN_Security_MasterKey_Path=/etc/ravendb/security/master.key"
+Environment="RAVEN_Setup_Certificate_Path=/etc/ravendb/security/server.pfx"
+Environment="HOME=/var/lib/ravendb"
+ExecStart=/usr/lib/ravendb/server/Raven.Server -c "/etc/ravendb/settings.json"
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,201 @@
+<div class="migrate-database">
+    <div class="panel padding padding-md" data-bind="visible: $root.activeDatabase().isSharded()">
+        <div>
+            <div class="empty-set text-center margin-top-sm margin-bottom-sm mx-auto">
+                <i class="icon-disabled text-warning icon-xl m-0"></i>
+                <div class="lead">
+                    <div class="vstack gap-3">
+                        <span>
+                            <div class="rounded-pill badge bg-faded-warning">
+                                Feature not available
+                            </div>
+                        </span>
+                        <span>
+                            Migrate data from another database is not available for
+                            <i class="icon-sharding text-shard m-0"></i> sharded databases
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="panel" data-bind="visible: !$root.activeDatabase().isSharded()">
+        <div class="panel-body">
+            <form class="flex-form" data-bind="submit: migrateDb" autocomplete="off">
+                <div class="row">
+                    <div class="col-sm-9 col-lg-7 col-xl-6">
+                        <h3>Migrate data from another database</h3>
+                        <div class="bg-warning text-warning padding padding-xs margin-top margin-bottom">
+                            <small><i class="icon-warning"></i><span>Note: Migration will overwrite any existing documents.</span></small>
+                        </div>
+                    </div>
+                </div>
+                <div class="row" data-bind="with: model">
+                    <div class="col-sm-8 col-lg-6 margin-top">
+                        <div class="form-group" data-bind="validationElement: migratorFullPath">
+                            <label class="control-label migrator-path">
+                                Migrator Path
+                                <small data-bind="visible: !migratorPathInConfiguration() && !$root.suggestDeployingToolsForCloudProduct()"><i class="icon-info text-info"></i></small>
+                            </label>
+                            <div class="flex-grow has-feedback">
+                                <div data-bind="visible: migratorPathInConfiguration" class="form-control-static">
+                                    <small><i class="icon-info margin-right-xs"></i>Path for Raven.Migrator executable was defined by administrator</small>
+                                </div>
+                                <div data-bind="visible: $root.suggestDeployingToolsForCloudProduct">
+                                    <small><i class="icon-info margin-right-xs"></i>Please deploy RavenDB Tools via <a href="https://cloud.ravendb.net/portal/" title="RavenDB Cloud">RavenDB Cloud Portal</a></small>
+                                </div>
+                                <input data-bind="textInput: migratorFullPath, visible: !migratorPathInConfiguration() && !$root.suggestDeployingToolsForCloudProduct()" 
+                                       id="migratorFullPath" type="text" class="form-control" placeholder="Enter the full path of the directory containing the Raven.Migrator executable" />
+                                <span class="glyphicon glyphicon-ok text-success form-control-feedback" title="Raven.Migrator was found under specified path" data-bind="visible: migratorFullPath() && migratorFullPath.isValid() && !migratorFullPath.isValidating()"></span>
+                                <ul class="dropdown-menu" role="menu"
+                                    data-bind="autoComplete: '#migratorFullPath', foreach: $root.migratorPathAutocomplete.createCompleter()">
+                                    <li role="presentation" data-bind="click: _.partial($root.migratorPathAutocomplete.complete, $data)">
+                                        <a role="menuitem" tabindex="-1" href="#">
+                                            <span data-bind="text: $data"></span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="form-group" data-bind="validationElement: selectMigrationOption, validationOptions: { insertMessages: false }">
+                            <label class="control-label">Database Source</label>
+                            <div>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-default"
+                                            data-bind="click: _.partial(selectMigrationOption, 'MongoDB'), css: { active: selectMigrationOption() === 'MongoDB' }">
+                                        MongoDB
+                                    </button>
+                                    <button type="button" class="btn btn-default"
+                                            data-bind="click: _.partial(selectMigrationOption, 'CosmosDB'), css: { active: selectMigrationOption() === 'CosmosDB' }">
+                                        CosmosDB
+                                    </button>
+                                </div>
+                                <div data-bind="validationOptions: { errorsAsTitle: false }, validationElement: selectMigrationOption">
+                                    <div class="help-block" data-bind="validationMessage: selectMigrationOption"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ko with: mongoDbConfiguration -->
+                        <div data-bind="visible: $parent.showMongoDbOptions">
+                            <div class="form-group" data-bind="validationElement: connectionString">
+                                <label class="control-label">Connection String</label>
+                                <div class="flex-grow">
+                                    <input data-bind="textInput: connectionString" type="text" class="form-control" placeholder="mongodb://[username:password@]host[:port]" />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label migrate-gridfs">
+                                    <small><i class="icon-info text-info"></i></small>
+                                </label>
+                                <div class="toggle">
+                                    <input class="styled" type="checkbox" id="migrate-gridfs" data-bind="checked: migrateGridFs">
+                                    <label for="migrate-gridfs">Migrate GridFS</label>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- /ko -->
+                        <!-- ko with: cosmosDbConfiguration -->
+                        <div data-bind="if: $parent.showCosmosDbOptions">
+                            <div class="form-group" data-bind="validationElement: azureEndpointUrl">
+                                <label class="control-label">Azure Endpoint URL</label>
+                                <div class="flex-grow">
+                                    <input data-bind="textInput: azureEndpointUrl" type="text" class="form-control" placeholder="Azure Endpoint URL" />
+                                </div>
+                            </div>
+                            <div class="form-group" data-bind="validationElement: primaryKey">
+                                <label class="control-label">Primary Key</label>
+                                <div class="flex-grow">
+                                    <input data-bind="textInput: primaryKey" type="text" class="form-control" placeholder="Primary Key" />
+                                </div>
+                            </div>
+                        </div>
+                        <!-- /ko -->
+                        <!-- ko with: activeConfiguration -->
+                        <div class="form-group" data-bind="validationElement: databaseName">
+                            <label class="control-label">
+                                <span data-bind="visible: $root.spinners.getDatabaseNames">
+                                    <i class="global-spinner spinner-xs"></i>
+                                </span>
+                                Database Name
+                            </label>
+                            <div class="flex-grow">
+                                <div class="dropdown btn-block">
+                                    <input type="text"
+                                           class="form-control dropdown-toggle"
+                                           data-toggle="dropdown"
+                                           id="database-name"
+                                           placeholder="Database Name"
+                                           data-bind="textInput: databaseName, hasFocus: $root.databaseNameHasFocus">
+                                    <ul class="dropdown-menu" data-bind="foreach: createDatabaseNamesAutoCompleter(), autoComplete: '#database-name'">
+                                        <li data-bind="click: $parent.selectDatabaseName.bind($parent, $data)">
+                                            <a href="#" data-bind="text: $data"></a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="control-label">
+                                <span data-bind="visible: $root.spinners.getCollectionNames">
+                                    <i class="global-spinner spinner-xs"></i>
+                                </span>
+                            </label>
+                            <div class="toggle">
+                                <input class="styled" type="checkbox" id="migrate-all-collections" data-bind="checked: migrateAllCollections, disable: !hasCollectionsToMigrate()">
+                                <label for="migrate-all-collections">
+                                    Migrate all collections
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-group" data-bind="if: hasCollectionsToMigrate && !migrateAllCollections()">
+                            <label class="control-label">Collections</label>
+                            <div class="flex-grow">
+                                <div class="prop-table">
+                                    <!-- ko foreach: collectionsToMigrate -->
+                                    <div class="prop-table-row">
+                                        <div class="checkbox">
+                                            <input class="styled" type="checkbox" data-bind="checked: migrateCollection, attr: { 'id': 'migrate-collection' + $index() }">
+                                            <label data-bind="attr: { 'for': 'migrate-collection' + $index() }"></label>
+                                        </div>
+                                        <div class="name" data-bind="text: name, attr:{ title: name }"></div>
+                                        <div class="arrow"><i class="icon-arrow-filled-right"></i></div>
+                                        <div class="inline-edit">
+                                            <div class="static">
+                                                <span class="raven-property-name" data-bind="text: newName, attr:{ title: newName }"></span> <span class="text-muted raven-property-type"></span>
+                                            </div>
+                                            <input class="form-control input-sm" data-bind="textInput: newName, disable: !migrateCollection()" />
+                                        </div>
+                                    </div>
+                                    <!-- /ko -->
+                                </div>
+                            </div>
+                        </div>
+                        <!-- /ko -->
+                        <div class="form-group" data-bind="visible: activeConfiguration">
+                            <label class="control-label" id="scriptPopover">
+                                <small><i class="icon-info text-info"></i></small>
+                            </label>
+                            <div class="toggle">
+                                <input class="styled" type="checkbox" id="use-transform-script" data-bind="checked: showTransformScript">
+                                <label for="use-transform-script" class="margin-right">Use Transform script</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="control-label"></label>
+                            <div class="flex-grow" data-bind="collapse: showTransformScript">
+                                <pre class="form-control editor query-source"
+                                     data-bind="aceEditor: { code: transformScript, allowResize: false, minHeight: 300, maxHeight: 300, lang:'ace/mode/javascript' }">
+                                </pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr />
+                <button class="btn btn-primary" type="submit" data-bind="css: { 'btn-spinner': spinners.migration() }, disable: spinners.migration() || !submitButtonEnabled()">
+                    <span class="icon-import"></span>
+                    <span data-bind="text: submitButtonText"></span>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,79 @@
+﻿using System;
+using Sparrow.Json.Parsing;
+
+namespace Raven.Client.Documents.Operations.AI;
+
+/// <summary>
+/// The configuration for the OpenAI API client.
+/// </summary>
+public sealed class OpenAiSettings : OpenAiBaseSettings
+{
+    public OpenAiSettings(string apiKey, string endpoint, string model, string organizationId = null, string projectId = null, int? dimensions = null, double? temperature = null) : base(apiKey, endpoint, model, dimensions, temperature)
+    {
+        OrganizationId = organizationId;
+        ProjectId = projectId;
+    }
+
+    public OpenAiSettings()
+    {
+        // deserialization
+    }
+
+    private static readonly Uri OpenAiBaseUri = new Uri("https://api.openai.com/");
+    public override Uri GetBaseEndpointUri()
+    {
+        var uri = base.GetBaseEndpointUri();
+        var uriBuilder = new UriBuilder(uri);
+
+        if (uri.Equals(OpenAiBaseUri))
+        {
+            uriBuilder.Path += "v1/";
+        }
+
+        return uriBuilder.Uri;
+    }
+
+    /// <summary>
+    /// The value to use for the <c>OpenAI-Organization</c> request header. Users who belong to multiple organizations
+    /// can set this value to specify which organization is used for an API request. Usage from these API requests will
+    /// count against the specified organization's quota. If not set, the header will be omitted, and the default
+    /// organization will be billed. You can change your default organization in your user settings.
+    /// <see href="https://platform.openai.com/docs/guides/production-best-practices/setting-up-your-organization">Learn more</see>.
+    /// </summary>
+    public string OrganizationId { get; set; }
+
+    /// <summary>
+    /// The value to use for the <c>OpenAI-Project</c> request header. Users who are accessing their projects through
+    /// their legacy user API key can set this value to specify which project is used for an API request. Usage from
+    /// these API requests will count as usage for the specified project. If not set, the header will be omitted, and
+    /// the default project will be accessed.
+    /// </summary>
+    public string ProjectId { get; set; }
+
+    public override AiSettingsCompareDifferences Compare(AbstractAiSettings other)
+    {
+        if (other is not OpenAiSettings openAiSettings)
+            return AiSettingsCompareDifferences.All;
+
+        var differences = base.Compare(other);
+
+        if (OrganizationId != openAiSettings.OrganizationId ||
+            ProjectId != openAiSettings.ProjectId)
+            differences |= AiSettingsCompareDifferences.AuthenticationSettings;
+
+        return differences;
+    }
+
+    public override DynamicJsonValue ToJson()
+    {
+        var json = base.ToJson();
+
+        if (string.IsNullOrWhiteSpace(OrganizationId) == false)
+            json[nameof(OrganizationId)] = OrganizationId;
+
+        if (string.IsNullOrWhiteSpace(ProjectId) == false)
+            json[nameof(ProjectId)] = ProjectId;
+
+        return json;
+    }
+}

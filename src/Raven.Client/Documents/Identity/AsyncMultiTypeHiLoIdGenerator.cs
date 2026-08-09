@@ -1,0 +1,176 @@
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Raven.Client.Documents.Conventions;
+
+namespace Raven.Client.Documents.Identity
+{
+    /// <summary>
+    /// Generate a hilo ID for each given type
+    /// </summary>
+    public class AsyncMultiTypeHiLoIdGenerator
+    {
+        private readonly SemaphoreSlim _generatorLock = new(1, 1);
+        private readonly ConcurrentDictionary<string, AsyncHiLoIdGenerator> _idGeneratorsByTag = new();
+        protected readonly DocumentStore Store;
+        protected readonly string DbName;
+        protected readonly DocumentConventions Conventions;
+        private char _identityPartsSeparator;
+
+        public AsyncMultiTypeHiLoIdGenerator(DocumentStore store, string dbName)
+        {
+            Store = store;
+            DbName = dbName;
+            Conventions = store.GetRequestExecutor(dbName).Conventions;
+            _identityPartsSeparator = Conventions.IdentityPartsSeparator;
+        }
+
+
+        [Obsolete("This method is deprecated and will be removed in RavenDB 8.0, use the overload with collectionName instead")]
+        public async Task<string> GenerateDocumentIdAsync(object entity)
+        {
+            var identityPartsSeparator = Conventions.IdentityPartsSeparator;
+            if (_identityPartsSeparator != identityPartsSeparator)
+                await MaybeRefresh(identityPartsSeparator).ConfigureAwait(false);
+
+            var typeTagName = Conventions.GetCollectionName(entity);
+            if (string.IsNullOrEmpty(typeTagName)) //ignore empty tags
+            {
+                return null;
+            }
+            var tag = Conventions.TransformTypeCollectionNameToDocumentIdPrefix(typeTagName);
+            if (_idGeneratorsByTag.TryGetValue(tag, out var value))
+            {
+                return await value.GenerateDocumentIdAsync(entity).ConfigureAwait(false);
+            }
+
+            await _generatorLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (_idGeneratorsByTag.TryGetValue(tag, out value))
+                    return await value.GenerateDocumentIdAsync(entity).ConfigureAwait(false);
+
+                value = CreateGeneratorFor(tag);
+                _idGeneratorsByTag.TryAdd(tag, value);
+            }
+            finally
+            {
+                _generatorLock.Release();
+            }
+
+            return await value.GenerateDocumentIdAsync(entity).ConfigureAwait(false);
+        }
+
+        public async Task<string> GenerateDocumentIdAsync(string collectionName)
+        {
+            var identityPartsSeparator = Conventions.IdentityPartsSeparator;
+            if (_identityPartsSeparator != identityPartsSeparator)
+                await MaybeRefresh(identityPartsSeparator).ConfigureAwait(false);
+
+            if (string.IsNullOrEmpty(collectionName)) //ignore empty tags
+            {
+                return null;
+            }
+            var tag = Conventions.TransformTypeCollectionNameToDocumentIdPrefix(collectionName);
+            if (_idGeneratorsByTag.TryGetValue(tag, out var value))
+            {
+                return await value.GenerateDocumentIdAsync(collectionName).ConfigureAwait(false);
+            }
+
+            await _generatorLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (_idGeneratorsByTag.TryGetValue(tag, out value))
+                    return await value.GenerateDocumentIdAsync(collectionName).ConfigureAwait(false);
+
+                value = CreateGeneratorFor(tag);
+                _idGeneratorsByTag.TryAdd(tag, value);
+            }
+            finally
+            {
+                _generatorLock.Release();
+            }
+
+            return await value.GenerateDocumentIdAsync(collectionName).ConfigureAwait(false);
+        }
+
+        private async Task MaybeRefresh(char identityPartsSeparator)
+        {
+            List<AsyncHiLoIdGenerator> idGenerators = null;
+            await _generatorLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (_identityPartsSeparator == identityPartsSeparator)
+                    return;
+
+                idGenerators = _idGeneratorsByTag.Values.ToList();
+
+                _idGeneratorsByTag.Clear();
+                _identityPartsSeparator = identityPartsSeparator;
+            }
+            finally
+            {
+                _generatorLock.Release();
+            }
+
+            if (idGenerators != null)
+            {
+                try
+                {
+                    await ReturnUnusedRange(idGenerators).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+        }
+
+
+        public async Task<long> GenerateNextIdForAsync(string collectionName)
+        {
+            collectionName = Conventions.TransformTypeCollectionNameToDocumentIdPrefix(collectionName);
+
+            if (_idGeneratorsByTag.TryGetValue(collectionName, out var value))
+            {
+                return (await value.GetNextIdAsync().ConfigureAwait(false)).Id;
+            }
+
+            await _generatorLock.WaitAsync().ConfigureAwait(false);
+
+            try
+            {
+                if (_idGeneratorsByTag.TryGetValue(collectionName, out value))
+                    return (await value.GetNextIdAsync().ConfigureAwait(false)).Id;
+
+                value = CreateGeneratorFor(collectionName);
+                _idGeneratorsByTag.TryAdd(collectionName, value);
+            }
+            finally
+            {
+                _generatorLock.Release();
+            }
+
+            return (await value.GetNextIdAsync().ConfigureAwait(false)).Id;
+        }
+
+        protected virtual AsyncHiLoIdGenerator CreateGeneratorFor(string tag)
+        {
+            return new AsyncHiLoIdGenerator(tag, Store, DbName, _identityPartsSeparator);
+        }
+
+        public async Task ReturnUnusedRange()
+        {
+            await ReturnUnusedRange(_idGeneratorsByTag.Values).ConfigureAwait(false);
+        }
+
+        private static async Task ReturnUnusedRange(IEnumerable<AsyncHiLoIdGenerator> generators)
+        {
+            foreach (var generator in generators)
+                await generator.ReturnUnusedRangeAsync().ConfigureAwait(false);
+        }
+    }
+}

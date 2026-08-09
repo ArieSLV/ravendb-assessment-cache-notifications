@@ -1,0 +1,90 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using FastTests;
+using Raven.Client.Documents.Linq;
+using Tests.Infrastructure;
+using Xunit.Abstractions;
+
+namespace SlowTests.MailingList
+{
+    public class AutoGenIndexLinqQuery : RavenTestBase
+    {
+        public AutoGenIndexLinqQuery(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class Book
+        {
+            public String Name { get; set; }
+
+            public List<BookPost> Posts { get; set; }
+        }
+
+        private class BookPost
+        {
+            public string Title { get; set; }
+
+            public BookPostType? Type { get; set; }
+
+            public enum BookPostType
+            {
+                BooPost1,
+                BooPost2,
+                BooPost3
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Querying)]
+        [RavenData(SearchEngineMode = RavenSearchEngineMode.All, DatabaseMode = RavenDatabaseMode.All)]
+        public void ShouldWork(Options options)
+        {
+            using (var documentStore = GetDocumentStore(options))
+            {
+                var bookName = "Book";
+                using (var session = documentStore.OpenSession())
+                {
+                    session.Store(new Book
+                    {
+                        Name = bookName,
+                        Posts = new List<BookPost> {new BookPost()
+                                    {
+                                        Title = "A post",
+                                        Type = BookPost.BookPostType.BooPost1
+                                    }
+                                }
+                    });
+
+                    session.Store(new Book
+                    {
+                        Name = bookName,
+                        Posts = new List<BookPost> {new BookPost()
+                                    {
+                                        Title = "A post",
+                                        Type = BookPost.BookPostType.BooPost2
+                                    }
+                                }
+                    });
+                    session.SaveChanges();
+                }
+
+                using (var session = documentStore.OpenSession())
+                {
+                    var ravenQueryable = session.Query<Book>().Customize(b => b.WaitForNonStaleResults()).ToList();
+                }
+
+                using (var session = documentStore.OpenSession())
+                {
+                    var bookToGet = new List<string>() { bookName };
+                    var bookPostToGet = new List<BookPost.BookPostType?> { BookPost.BookPostType.BooPost1 };
+                    var books = session.Query<Book>().Where(b => b.Name.In(bookToGet));
+                    books = books.Where(b => b.Posts.Any(p => p.Type.In(bookPostToGet)));
+
+                    var bookPage = books.ToList();
+
+                }
+            }
+
+        }
+    }
+}

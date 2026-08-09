@@ -1,0 +1,506 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using Corax.Querying;
+using Microsoft.AspNetCore.Connections.Features;
+using Raven.Client.Documents.Indexes;
+using Raven.Server.Documents.Indexes.MapReduce;
+using Raven.Server.Documents.Indexes.MapReduce.Auto;
+using Raven.Server.Documents.Indexes.MapReduce.Static;
+using Raven.Server.Documents.Indexes.Persistence;
+using Raven.Server.Documents.Indexes.Persistence.Corax;
+using Raven.Server.Documents.Queries;
+using Raven.Server.Documents.Queries.Results;
+using Raven.Server.Json;
+using Raven.Server.ServerWide;
+using Raven.Server.ServerWide.Context;
+using Raven.Server.Utils;
+using Sparrow.Binary;
+using Sparrow.Json;
+using Sparrow.Json.Parsing;
+using Sparrow.Server;
+using Sparrow.Server.Utils;
+using Voron;
+using Voron.Data;
+using Voron.Data.BTrees;
+using Voron.Data.Compression;
+using Voron.Data.Fixed;
+using Voron.Data.Graphs;
+using Voron.Data.Tables;
+using Constants = Raven.Client.Constants;
+
+namespace Raven.Server.Documents.Indexes.Debugging
+{
+    public static class IndexDebugExtensions
+    {
+        public static IDisposable GetIdentifiersOfMappedDocuments(this Index self, string startsWith, long start, long take, out IEnumerable<string> docIds)
+        {
+            if (self.Type.IsMapReduce() == false)
+                throw new NotSupportedException("Getting doc ids for map indexes is not supported");
+
+            using (var scope = new DisposableScope())
+            {
+                scope.EnsureDispose(self._contextPool.AllocateOperationContext(out TransactionOperationContext indexContext));
+
+                RavenTransaction tx;
+                scope.EnsureDispose(tx = indexContext.OpenReadTransaction());
+
+                var tree = tx.InnerTransaction.ReadTree(MapReduceIndexBase<MapReduceIndexDefinition, IndexField>.MapPhaseTreeName);
+
+                if (tree == null)
+                {
+                    docIds = Enumerable.Empty<string>();
+                    return scope;
+                }
+
+                TreeIterator it;
+                scope.EnsureDispose(it = tree.Iterate(false));
+
+                docIds = IterateKeys(it, startsWith, start, take, indexContext);
+
+                return scope.Delay();
+            }
+        }
+
+        private static IEnumerable<string> IterateKeys(IIterator it, string prefix, long start, long take, TransactionOperationContext context)
+        {
+            if (it.Seek(Slices.BeforeAllKeys) == false)
+                yield break;
+
+            ByteStringContext.InternalScope? scope = null;
+            try
+            {
+                if (string.IsNullOrEmpty(prefix) == false)
+                {
+                    if (SetupPrefix(it, prefix, context, out scope) == false)
+                        yield break;
+                }
+                else if (it.Seek(MapReduceIndexingContext.LastMapResultIdKey))
+                {
+                    if (it.MoveNext() == false)
+                        yield break;
+                }
+
+                do
+                {
+                    if (start > 0)
+                    {
+                        start--;
+                        continue;
+                    }
+
+                    if (--take < 0)
+                        yield break;
+
+                    yield return it.CurrentKey.ToString();
+                } while (it.MoveNext());
+            }
+            finally
+            {
+                if (scope != null)
+                    scope.Value.Dispose();
+            }
+        }
+
+        private static bool SetupPrefix(IIterator it, string prefix, TransactionOperationContext context,
+            out ByteStringContext.InternalScope? scope)
+        {
+            scope = Slice.From(context.Transaction.InnerTransaction.Allocator, prefix, out Slice prefixSlice);
+
+            it.SetRequiredPrefix(prefixSlice);
+
+            if (it.Seek(prefixSlice))
+                return true;
+
+            scope.Value.Dispose();
+            scope = null;
+
+            it.SetRequiredPrefix(Slices.Empty);
+
+            if (it.Seek(Slices.BeforeAllKeys) == false)
+                return false;
+
+            if (SliceComparer.Compare(it.CurrentKey, MapReduceIndexingContext.LastMapResultIdKey) == 0)
+            {
+                if (it.MoveNext() == false)
+                    return false;
+            }
+            var firstKey = it.CurrentKey.ToString();
+            if (it.Seek(Slices.AfterAllKeys) == false)
+                return false;
+            var lastKey = it.CurrentKey.ToString();
+
+            int index = -1;
+            for (int i = 0; i < Math.Min(firstKey.Length, lastKey.Length); i++)
+            {
+                if (firstKey[i] != lastKey[i])
+                {
+                    break;
+                }
+                index = i;
+            }
+            if (index == -1)
+                return false;
+
+            prefix = firstKey.Substring(0, index + 1) + prefix;
+
+            scope = Slice.From(context.Transaction.InnerTransaction.Allocator, prefix, out prefixSlice);
+
+            it.SetRequiredPrefix(prefixSlice);
+
+            if (it.Seek(prefixSlice) == false)
+            {
+                scope.Value.Dispose();
+                scope = null;
+                return false;
+            }
+            return true;
+        }
+
+        public static IDisposable GetReduceTree(this Index self, string[] docIds, out IEnumerable<ReduceTree> trees)
+        {
+            using (var scope = new DisposableScope())
+            {
+                scope.EnsureDispose(self._contextPool.AllocateOperationContext(out TransactionOperationContext indexContext));
+
+                RavenTransaction tx;
+                scope.EnsureDispose(tx = indexContext.OpenReadTransaction());
+
+                var mapPhaseTree = tx.InnerTransaction.ReadTree(MapReduceIndexBase<MapReduceIndexDefinition, IndexField>.MapPhaseTreeName);
+
+                if (mapPhaseTree == null)
+                {
+                    trees = Enumerable.Empty<ReduceTree>();
+                    return scope;
+                }
+
+                var reducePhaseTree = tx.InnerTransaction.ReadTree(MapReduceIndexBase<MapReduceIndexDefinition, IndexField>.ReducePhaseTreeName);
+
+                if (reducePhaseTree == null)
+                {
+                    trees = Enumerable.Empty<ReduceTree>();
+                    return scope;
+                }
+
+                var mapEntries = new List<FixedSizeTree>(docIds.Length);
+                foreach (var docId in docIds)
+                {
+                    FixedSizeTree mapEntriesTree = mapPhaseTree.FixedTreeFor(docId.ToLower(), sizeof(long));
+                    mapEntries.Add(mapEntriesTree);
+                }
+
+                FixedSizeTree typePerHash = reducePhaseTree.FixedTreeFor(MapReduceIndexBase<MapReduceIndexDefinition, IndexField>.ResultsStoreTypesTreeName, sizeof(byte));
+                trees = IterateTrees(self, mapEntries, reducePhaseTree, typePerHash, indexContext, scope);
+
+                return scope.Delay();
+            }
+        }
+        
+        public static void HnswOutput(this Index self, string field, AsyncBlittableJsonTextWriter writer)
+        {
+            using var _ = self._contextPool.AllocateOperationContext(out TransactionOperationContext indexContext);
+            using var tx = indexContext.OpenReadTransaction();
+            writer.WriteStartArray();
+            bool first = true;
+            var indexReader = (CoraxIndexReadOperation)self.IndexPersistence.OpenIndexReader(tx.InnerTransaction);
+            foreach (var node in Hnsw.IterateNodes(tx.InnerTransaction.LowLevelTransaction, field))
+            {
+                if (first is false)
+                {
+                    writer.WriteComma();
+                    writer.WriteRawString("\n"u8);
+                }
+                first = false;
+                var edges = new DynamicJsonArray();
+                for (int i = 0; i < node.EdgesByLevel.Length; i++)
+                {
+                    var lists = new DynamicJsonArray();
+                    for (int j = 0; j < node.EdgesByLevel[i].Length; j++)
+                    {
+                        (long NodeId, float Distance) = node.EdgesByLevel[i][j];
+                        lists.Add(new DynamicJsonValue
+                        {
+                            [nameof(NodeId)] = NodeId,
+                            [nameof(Distance)] = Distance
+                        });
+                    }
+                    edges.Add(new DynamicJsonValue
+                    {
+                        ["Level"] = i,
+                        ["Links"] = lists
+                    });
+                }
+
+                var djv = new DynamicJsonValue
+                {
+                    [nameof(node.NodeId)] = node.NodeId,
+                    [nameof(node.Entries)] = node.Entries.Select(indexReader.GetDocumentIdFor),
+                    [nameof(node.EdgesByLevel)] = edges
+                };
+                
+                indexContext.Write(writer, djv);
+            }
+            writer.WriteEndArray();
+        }
+
+
+        private static IEnumerable<ReduceTree> IterateTrees(Index self, List<FixedSizeTree> mapEntries,
+            Tree reducePhaseTree, FixedSizeTree typePerHash, TransactionOperationContext indexContext, DisposableScope scope)
+        {
+            var reduceKeys = new HashSet<ulong>();
+            var idToDocIdHash = new Dictionary<long, string>();
+
+            foreach (var tree in mapEntries)
+                foreach (var mapEntry in MapReduceIndexBase<MapReduceIndexDefinition, IndexField>.GetMapEntries(tree))
+                {
+                    reduceKeys.Add(mapEntry.ReduceKeyHash);
+                    idToDocIdHash[mapEntry.Id] = tree.Name.ToString();
+                }
+
+            foreach (var reduceKeyHash in reduceKeys)
+            {
+                MapReduceResultsStore store;
+
+                var mapReduceIndex = self as MapReduceIndex;
+
+                if (mapReduceIndex != null)
+                    store = mapReduceIndex.CreateResultsStore(typePerHash,
+                        reduceKeyHash, indexContext, false);
+                else
+                    store = ((AutoMapReduceIndex)self).CreateResultsStore(typePerHash,
+                        reduceKeyHash, indexContext, false);
+
+                using (store)
+                {
+                    ReduceTree tree;
+                    switch (store.Type)
+                    {
+                        case MapResultsStorageType.Tree:
+                            tree = RenderTree(store.Tree, reduceKeyHash, idToDocIdHash, self, indexContext);
+                            break;
+                        case MapResultsStorageType.Nested:
+                            tree = RenderNestedSection(store.GetNestedResultsSection(reducePhaseTree), reduceKeyHash, idToDocIdHash, self,
+                                indexContext);
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException(store.Type.ToString());
+                    }
+
+                    scope.EnsureDispose(tree);
+                    yield return tree;
+                }
+            }
+        }
+
+        private static unsafe ReduceTree RenderTree(Tree tree, ulong reduceKeyHash, Dictionary<long, string> idToDocIdHash, Index index, TransactionOperationContext context)
+        {
+            var stack = new Stack<ReduceTreePage>();
+            var rootPage = tree.GetReadOnlyTreePage(tree.State.Header.RootPageNumber);
+
+            var root = new ReduceTreePage(rootPage);
+
+            root.AggregationResult = GetReduceResult(reduceKeyHash, index, context);
+
+            stack.Push(root);
+
+            var table =
+                context.Transaction.InnerTransaction.OpenTable(
+                    ReduceMapResultsBase<MapReduceIndexDefinition>.ReduceResultsSchema,
+                    ReduceMapResultsBase<MapReduceIndexDefinition>.PageNumberToReduceResultTableName);
+
+            var tx = tree.Llt;
+            while (stack.Count > 0)
+            {
+                var node = stack.Pop();
+                var page = node.Page;
+
+                if (page.IsCompressed)
+                {
+                    var decompressed = tree.DecompressPage(page, DecompressionUsage.Read, true);
+
+                    node.DecompressedLeaf = decompressed;
+                    page = decompressed;
+                }
+
+                if (page.NumberOfEntries == 0 && page != rootPage)
+                    throw new InvalidOperationException($"The page {page.PageNumber} is empty");
+
+                for (var i = 0; i < page.NumberOfEntries; i++)
+                {
+                    if (page.IsBranch)
+                    {
+                        var p = page.GetNode(i)->PageNumber;
+
+                        var childNode = new ReduceTreePage(tree.GetReadOnlyTreePage(p));
+
+                        node.Children.Add(childNode);
+
+                        stack.Push(childNode);
+                    }
+                    else
+                    {
+                        var entry = new MapResultInLeaf();
+
+                        var valueReader = TreeNodeHeader.Reader(tx, page.GetNode(i));
+                        entry.Data = new BlittableJsonReaderObject(valueReader.Base, valueReader.Length, context);
+
+                        using (page.GetNodeKey(tx, i, out Slice s))
+                        {
+                            var mapEntryId = Bits.SwapBytes(*(long*)s.Content.Ptr);
+
+                            if (idToDocIdHash.TryGetValue(mapEntryId, out string docId))
+                                entry.Source = docId;
+                        }
+
+                        node.Entries.Add(entry);
+                    }
+                }
+
+                if (node != root)
+                    node.AggregationResult = GetAggregationResult(node.PageNumber, table, context);
+            }
+
+            ref readonly var state = ref tree.State.Header;
+            return new ReduceTree
+            {
+                DisplayName = GetTreeName(root.AggregationResult, index.Definition, context),
+                Name = tree.Name.ToString(),
+                Root = root,
+                Depth = state.Depth,
+                PageCount = state.PageCount,
+                NumberOfEntries = state.NumberOfEntries
+            };
+        }
+
+        private static string GetTreeName(BlittableJsonReaderObject reduceEntry, IndexDefinitionBaseServerSide indexDefinition, JsonOperationContext context)
+        {
+            Dictionary<string, CompiledIndexField> groupByFields;
+
+            if (indexDefinition is MapReduceIndexDefinition mapReduceIndexDefinition)
+                groupByFields = mapReduceIndexDefinition.GroupByFields;
+            else if (indexDefinition is AutoMapReduceIndexDefinition autoMapReduceIndexDefinition)
+                groupByFields = autoMapReduceIndexDefinition.GroupByFields
+                    .ToDictionary(x => x.Key, x => (CompiledIndexField)new SimpleField(x.Key));
+            else
+                throw new InvalidOperationException("Invalid map reduce index definition: " + indexDefinition.GetType());
+
+            foreach (var prop in reduceEntry.GetPropertyNames())
+            {
+                var skip = false;
+                foreach (var groupByField in groupByFields.Values)
+                {
+                    if (groupByField.IsMatch(prop))
+                    {
+                        skip = true;
+                        break;
+                    }
+                }
+
+                if (skip)
+                    continue;
+
+                if (reduceEntry.Modifications == null)
+                    reduceEntry.Modifications = new DynamicJsonValue(reduceEntry);
+
+                reduceEntry.Modifications.Remove(prop);
+            }
+
+            var reduceKey = context.ReadObject(reduceEntry, "debug: creating reduce tree name");
+
+            return reduceKey.ToString();
+        }
+
+        private static unsafe BlittableJsonReaderObject GetAggregationResult(long pageNumber, Table table, TransactionOperationContext context)
+        {
+            var tmp = Bits.SwapBytes(pageNumber);
+
+            using (Slice.External(context.Allocator, (byte*)&tmp, sizeof(long), out Slice pageNumberSlice))
+            {
+                table.ReadByKey(pageNumberSlice, out TableValueReader tvr);
+
+                var numberOfResults = *(int*)tvr.Read(ReduceMapResultsOfStaticIndex.NumberOfResultsPosition, out int _);
+
+                if (numberOfResults == 0)
+                    return context.ReadObject(new DynamicJsonValue(), "debug-reduce-result");
+
+                return new BlittableJsonReaderObject(tvr.Read(3, out int size), size, context);
+            }
+        }
+
+        private static ReduceTree RenderNestedSection(NestedMapResultsSection section, ulong reduceKeyHash, Dictionary<long, string> idToDocIdHash, Index index, TransactionOperationContext context)
+        {
+            var entries = new Dictionary<long, BlittableJsonReaderObject>();
+
+            var root = new ReduceTreePage(section.RelevantPage);
+
+            root.AggregationResult = GetReduceResult(reduceKeyHash, index, context);
+
+            section.GetResultsForDebug(context, entries);
+
+            foreach (var item in entries)
+            {
+                var entry = new MapResultInLeaf
+                {
+                    Data = item.Value
+                };
+
+                var id = Bits.SwapBytes(item.Key);
+
+                if (idToDocIdHash.TryGetValue(id, out string docId))
+                    entry.Source = docId;
+
+                root.Entries.Add(entry);
+            }
+
+            return new ReduceTree
+            {
+                DisplayName = GetTreeName(root.AggregationResult, index.Definition, context),
+                Name = section.Name.ToString(),
+                Root = root,
+                Depth = 1,
+                PageCount = 1,
+                NumberOfEntries = entries.Count
+            };
+        }
+
+        private static BlittableJsonReaderObject GetReduceResult(ulong reduceKeyHash, Index index, TransactionOperationContext context)
+        {
+            using (var reader = index.IndexPersistence.OpenIndexReader(context.Transaction.InnerTransaction))
+            using (index.DocumentDatabase.DocumentsStorage.ContextPool.AllocateOperationContext(out DocumentsOperationContext ctx))
+            using (ctx.OpenReadTransaction())
+            {
+                var queryParameters = context.ReadObject(new DynamicJsonValue
+                {
+                    ["p0"] = reduceKeyHash.ToString()
+                }, "query/parameters");
+                var query = new IndexQueryServerSide($"FROM INDEX '{index.Name}' WHERE '{Constants.Documents.Indexing.Fields.ReduceKeyHashFieldName}' = $p0", queryParameters);
+
+                var fieldsToFetch = new FieldsToFetch(query, index.Definition, index.Type);
+
+                var retriever = new MapReduceQueryResultRetriever(null, null, null, null, context, SearchEngineType.Lucene, fieldsToFetch, null, null, null);
+                var result = reader
+                     .Query(query, null, fieldsToFetch, new Reference<long>(), new Reference<long>(), new Reference<long>(), retriever, ctx, null, CancellationToken.None)
+                    .ToList();
+
+                if (result.Count == 0)
+                    return context.ReadObject(new DynamicJsonValue(), "debug-reduce-result");
+
+                if (result.Count > 1)
+                {
+                    var dvj = new DynamicJsonValue
+                    {
+                        ["MergedResults"] = true,
+                        ["TotalNumberOfResults"] = result.Count,
+                        ["Results"] = new DynamicJsonArray(result.Select(x=>x.Result.Data))
+                    };
+                    return context.ReadObject(dvj, "merged-map-reduce");
+                }
+
+                return result[0].Result.Data;
+            }
+        }
+    }
+}

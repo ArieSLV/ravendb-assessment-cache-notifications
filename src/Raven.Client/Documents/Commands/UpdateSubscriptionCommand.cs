@@ -1,0 +1,61 @@
+﻿using System;
+using System.Net.Http;
+using Raven.Client.Documents.Conventions;
+using Raven.Client.Documents.Subscriptions;
+using Raven.Client.Extensions;
+using Raven.Client.Http;
+using Raven.Client.Json;
+using Raven.Client.Json.Serialization;
+using Raven.Client.Util;
+using Sparrow.Json;
+
+namespace Raven.Client.Documents.Commands
+{
+    internal sealed class UpdateSubscriptionCommand : RavenCommand<UpdateSubscriptionResult>, IRaftCommand
+    {
+        private readonly DocumentConventions _conventions;
+        private readonly SubscriptionUpdateOptions _options;
+
+        public UpdateSubscriptionCommand(DocumentConventions conventions, SubscriptionUpdateOptions options)
+        {
+            _conventions = conventions ?? throw new ArgumentNullException(nameof(conventions));
+            _options = options;
+        }
+
+        public override HttpRequestMessage CreateRequest(JsonOperationContext ctx, ServerNode node, out string url)
+        {
+            url = $"{node.Url}/databases/{node.Database}/subscriptions/update";
+
+            var request = new HttpRequestMessage
+            {
+                Method = HttpMethod.Post,
+                Content = new BlittableJsonContent(async stream =>
+                {
+                    await using var writer = new AsyncBlittableJsonTextWriter(ctx, stream);
+                    writer.WriteSubscriptionUpdateOptions(_options);
+                }, _conventions)
+            };
+            return request;
+        }
+
+        public override void SetResponse(JsonOperationContext context, BlittableJsonReaderObject response, bool fromCache)
+        {
+            if (fromCache)
+            {
+                Result = new UpdateSubscriptionResult
+                {
+                    Name = _options.Name
+                };
+                return;
+            }
+
+            if (response == null)
+                ThrowInvalidResponse();
+
+            Result = JsonDeserializationClient.UpdateSubscriptionResult(response);
+        }
+
+        public override bool IsReadRequest => false;
+        public string RaftUniqueRequestId { get; } = RaftIdGenerator.NewId();
+    }
+}

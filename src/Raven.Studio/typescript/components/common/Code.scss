@@ -1,0 +1,39 @@
+@use "Content/scss/colors";
+@use "Content/scss/sizes";
+
+.code {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    border-radius: sizes.$gutter-xxs;
+    background-color: colors.$well-bg-var;
+
+    .code-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: sizes.$gutter-xxs sizes.$gutter-xs;
+        border-bottom: 1px solid colors.$panel-bg-1-var;
+        font-size: 0.875em;
+
+        .btn {
+            font-size: 0.875em;
+            padding: 0;
+        }
+    }
+
+    .code-classes {
+        height: unset;
+        padding: sizes.$gutter-sm;
+        background-color: colors.$well-bg-var;
+        border-radius: sizes.$gutter-xxs;
+
+        .wrapped {
+            white-space: pre-wrap; /* Since CSS 2.1 */
+            white-space: -moz-pre-wrap; /* Mozilla, since 1999 */
+            white-space: -pre-wrap; /* Opera 4-6 */
+            white-space: -o-pre-wrap; /* Opera 7 */
+            word-wrap: break-word;
+        }
+    }
+}

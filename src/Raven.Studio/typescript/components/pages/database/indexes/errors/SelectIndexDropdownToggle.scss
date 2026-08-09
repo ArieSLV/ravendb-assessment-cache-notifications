@@ -1,0 +1,15 @@
+@use "Content/scss/bs5variables";
+.select-index-errors-dropdown {
+    .dropdown-checkbox-group {
+        flex: 1;
+    }
+
+    &.show .select-index-errors-toggle {
+        background-color: bs5variables.$panel-bg-1-var !important;
+    }
+
+    .custom-dropdown-menu {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+}

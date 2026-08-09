@@ -1,0 +1,426 @@
+.database-item {
+    .member {
+        display: flex;
+        flex-wrap: wrap;
+
+        a {
+            color: @text-color;
+            margin: 0 @gutter / 4;
+            white-space: nowrap;
+
+            &:hover {
+                color: @text-emphasis;
+            }
+        }
+
+        div {
+            margin: 0 @gutter / 4;
+        }
+    }
+
+    .panel-addon {
+        .encryption {
+            min-width: @gutter + @gutter / 2;
+        }
+
+        .database-access {
+            min-width: @gutter*5;
+        }
+
+        .storage {
+            min-width: @gutter*4;
+        }
+
+        .documents {
+            min-width: @gutter*3;
+        }
+
+        .indexes {
+            min-width: @gutter*2 + 5px;
+        }
+
+        .uptime {
+            min-width: @gutter*5;
+        }
+
+        .backup {
+            min-width: @gutter*5;
+        }
+
+        .encryption,
+        .database-access,
+        .storage,
+        .documents,
+        .indexes,
+        .uptime,
+        .backup,
+        .indexing-errors,
+        .indexing-paused,
+        .indexing-disabled,
+        .alerts,
+        .performance-hints,
+        .clients-rejection {
+            line-height: 18px;
+            white-space: nowrap;
+            padding: @gutter / 4;
+            margin: 0 !important;
+
+            a {
+                color: @text-color;
+
+                &:hover {
+                    color: @text-emphasis;
+                }
+            }
+        }
+
+        .database-properties,
+        .database-properties-right {
+            display: flex;
+            flex-wrap: wrap;
+            flex-grow: 1;
+        }
+
+        .database-properties-right {
+            justify-content: flex-end;
+        }
+    }
+}
+
+.databases {
+
+    .panel.active .panel-addon {
+        border-bottom: solid 1px @brand-success-dark;
+        border-right: solid 1px @brand-success-dark;
+    }
+
+    .link-disabled {
+        pointer-events: none;
+        cursor: default;
+    }
+
+    .align-checkboxes {
+        margin-left: @gutter+ @gutter / 2;
+        margin-right: 0;
+        position: relative;
+        top: -2px;
+    }
+
+    .database-item {
+        padding-left: 30px;
+        position: relative;
+
+        .state-remote {
+            background-color: #43495e;
+        }
+
+        &:not(.relevant) {
+            background-color: darken(@gray-darker, 4%);
+
+            &:hover {
+                background-color: darken(@gray-darker, 2%);
+            }
+
+            border: 1px dashed @gray-dark;
+
+            &:not(:hover) {
+                .dbgroup-node-type,
+                .properties-item {
+                    opacity: 0.6;
+                }
+            }
+        }
+
+        .database-encryption-status {
+            text-align: center;
+            width: 21px;
+            margin-right: @grid-gutter-width / 4;
+            align-self: flex-start;
+        }
+
+        .database-info {
+            display: flex;
+            flex-wrap: wrap;
+
+            @media (max-width: @screen-xs-max) {
+                flex-direction: column;
+            }
+        }
+
+        .database-header {
+            display: flex;
+            flex-wrap: wrap;
+            margin: -@gutter-sm / 2;
+
+            .info-container,
+            .actions-container {
+                padding: @gutter-sm / 2;
+            }
+
+            .info-container {
+                font-size: 19px;
+                display: flex;
+                flex-grow: 1;
+
+                .checkbox {
+                    top: -3px;
+                    flex-shrink: 0;
+                }
+
+                .label {
+                    font-size: 11px;
+                    margin-right: @grid-gutter-width / 2;
+                    flex-shrink: 0;
+                }
+
+                .name {
+                    display: flex;
+                    flex-grow: 1;
+
+                    @media (min-width: @screen-md) {
+                        width: 270px;
+                        flex-grow: 0;
+                    }
+
+                    i {
+                        margin-right: @gutter / 4;
+                    }
+
+                    a,
+                    span {
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+                }
+            }
+
+            .actions-container {
+                flex-shrink: 0;
+                flex-grow: 1;
+                display: flex;
+                justify-content: flex-end;
+            }
+        }
+
+        .addons-container {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+
+        .checkbox {
+            position: relative;
+            margin: 0;
+        }
+
+        .state {
+        }
+
+        .state.state-warning {
+            cursor: auto;
+        }
+    }
+}
+
+#encryption_qrcode {
+    .padding;
+    position: relative;
+    display: inline-block;
+
+    &::before {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        -moz-transform: translateX(-50%) translateY(-50%);
+        -webkit-transform: translateX(-50%) translateY(-50%);
+        -o-transform: translateX(-50%) translateY(-50%);
+        -ms-transform: translateX(-50%) translateY(-50%);
+        transform: translateX(-50%) translateY(-50%);
+        content: "";
+        width: 90px;
+        height: 90px;
+        background-image: url(../../img/qr_logo.png);
+        background-size: contain;
+    }
+
+    img,
+    canvas {
+        padding: 30px;
+        background-color: white;
+    }
+}
+
+#newDatabase {
+    .restore-point-dropdown {
+        &.dropdown-menu {
+            padding: 0 !important;
+
+            .divider {
+                height: 0;
+            }
+        }
+
+        li > a {
+            padding: 3px 0px !important;
+        }
+
+        .dropdown-header {
+            padding: 3px 10px !important;
+            position: sticky;
+            top: 0;
+            min-height: 30px;
+            z-index: 1;
+
+            &.bg-info {
+                top: 30px;
+                z-index: 1;
+            }
+        }
+
+        li:nth-child(odd) {
+            background-color: @panel-bg;
+        }
+
+        li:nth-child(even) {
+            background-color: darken(@panel-bg, 3%);
+        }
+    }
+
+    .restore-point-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1px;
+        padding: @gutter / 6 @gutter / 3;
+        text-align: center;
+
+        .date {
+            flex-grow: 1;
+            font-weight: bold;
+            font-size: 12px;
+            color: @text-emphasis;
+        }
+
+        span {
+            display: block;
+            color: @text-emphasis;
+        }
+
+        .type {
+            flex-basis: 120px;
+
+            &.Full {
+                color: @color-3-1;
+            }
+
+            &.Incremental {
+                color: @color-2-3;
+            }
+        }
+
+        .node {
+            white-space: break-spaces;
+            flex-basis: 45px;
+        }
+
+        .files {
+            flex-basis: 60px;
+            white-space: break-spaces;
+        }
+
+        .node,
+        .files {
+            text-align: center;
+            line-height: 14px;
+        }
+
+        .type,
+        .node,
+        .files {
+            flex-shrink: 0;
+        }
+
+        .encryption {
+            flex-basis: 65px;
+            flex-shrink: 0;
+        }
+
+        .dropdown-header {
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+    }
+
+    .restore-point-row > div {
+        margin: 0 @gutter / 4;
+    }
+
+    .restore-point-legend {
+        padding: 2.5px 0 !important;
+
+        .encryption,
+        .date,
+        .type,
+        .node,
+        .files {
+            line-height: 11px;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.1em;
+            color: @text-color;
+        }
+
+        .date {
+            font-size: 9px !important;
+        }
+    }
+
+    .dropdown {
+        .dropdown-menu {
+            &.has-info {
+                .bg-info {
+                    padding: 3px 20px;
+                    text-align: unset;
+                }
+            }
+        }
+    }
+}
+
+ul.databases-list {
+    list-style: none;
+    padding: 0;
+
+    li {
+        display: inline-block;
+        border: 1px solid @brand-primary;
+        border-radius: 30px;
+        padding: 8px 18px;
+        line-height: 1em;
+        margin: 3px;
+    }
+}
+
+.more-nodes-tooltip {
+    max-width: 340px;
+
+    a {
+        color: @gray-light;
+
+        &:hover {
+            color: lighten(@gray-light, 25%);
+            transition: color 0.15s ease;
+        }
+    }
+}
+
+#restorePointSpinner {
+    margin-left: 10px;
+}
+
+#compactDatabaseDialog {
+    .limit-height {
+        max-height: 500px;
+    }
+}

@@ -1,0 +1,47 @@
+import { databaseAccessArgType, withBootstrap5, withStorybookContexts } from "test/storybookTestUtils";
+import { Meta, StoryObj } from "@storybook/react-webpack5";
+import RevisionsBinCleaner from "components/pages/database/settings/revisionsBinCleaner/RevisionsBinCleaner";
+import { mockServices } from "test/mocks/services/MockServices";
+import { mockStore } from "test/mocks/store/MockStore";
+import React from "react";
+import { DatabasesStubs } from "test/stubs/DatabasesStubs";
+
+export default {
+    title: "Pages/Settings/Revisions Bin Cleaner",
+    decorators: [withStorybookContexts, withBootstrap5],
+    parameters: {
+        design: {
+            type: "figma",
+            url: "https://www.figma.com/design/e2ooHVeo8xL6Wiat9XkV2Z/Pages---Revisions-Bin-Cleaner?node-id=2-7067&t=kyGqLSt1d9OvlGEX-1",
+        },
+    },
+} satisfies Meta;
+
+interface RevisionsBinCleanerStoryArgs {
+    databaseAccess: databaseAccessLevel;
+    revisionsBinCleanerDto: Raven.Client.Documents.Operations.Revisions.RevisionsBinConfiguration;
+}
+
+export const DefaultRevisionsBinCleaner: StoryObj<RevisionsBinCleanerStoryArgs> = {
+    name: "Revisions Bin Cleaner",
+    render: (args) => {
+        const { accessManager, databases } = mockStore;
+        const { databasesService } = mockServices;
+        const db = databases.withActiveDatabase_NonSharded_SingleNode();
+
+        databasesService.withRevisionsBinCleanerConfiguration(args.revisionsBinCleanerDto);
+
+        accessManager.with_databaseAccess({
+            [db.name]: args.databaseAccess,
+        });
+
+        return <RevisionsBinCleaner />;
+    },
+    argTypes: {
+        databaseAccess: databaseAccessArgType,
+    },
+    args: {
+        databaseAccess: "DatabaseAdmin",
+        revisionsBinCleanerDto: DatabasesStubs.revisionsBinCleaner(),
+    },
+};

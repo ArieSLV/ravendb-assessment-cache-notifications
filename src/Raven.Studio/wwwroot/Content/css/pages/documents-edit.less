@@ -1,0 +1,329 @@
+
+.fullScreen {
+    .edit-document {
+        .left-editor {
+            transform: none !important; // get rid of transform in fullscreen mode, as position fixed, does't work with transform    
+        }
+    }
+}
+
+.edit-document {
+    display: flex;
+    .absolute-fill;
+
+    .docEditor {
+        flex-grow: 1;
+    }
+
+    .differences_summary {
+        position: absolute;
+        bottom: -34px;
+    }
+
+    .editors-container {
+        z-index: 0;
+        overflow-x: hidden;
+
+        .right-editor {
+            left: 0;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            position: absolute;
+            transition: left .2s ease;
+        }
+
+        .left-editor {
+            left: 0;
+            right: 50%;
+            top: 0;
+            bottom: 0;
+            position: absolute;
+            transform: translateX(-100%);
+            opacity: 0;
+            transition: transform .2s ease, opacity .2s ease;
+        }
+    }
+
+    overflow: hidden;
+
+    #right-options-panel {
+        transform: translateX(0);
+        transition: transform .2s @menu-transition-ease, opacity .2s @menu-transition-ease, flex-basis .2s @menu-transition-ease, margin-right @menu-transition-ease;
+
+
+        .deleted-revision-compare {
+            display: none;
+        }
+    }
+
+    &.diff {
+        .right-editor {
+            left: 50%;
+        }
+
+        .left-editor {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        #right-options-panel {
+            margin-right: -440px;
+        }
+
+        overflow-x: hidden;
+    }
+
+    .documentId {
+        font-size: 25px;
+        margin-bottom: 8px;
+
+        .fav-object {
+            position: relative;
+            top: -5px;
+            width: 50%;
+        }
+
+        span.obj-name {
+            flex-shrink: 1;
+            flex-grow: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100px;
+        }
+
+        @obj-name-placeholder-color: darken(@gray,10%);
+
+        input.obj-name {
+            display: block;
+            width: 100%;
+            line-height: @line-height-computed;
+            background-color: transparent;
+            padding: 4px;
+            border: 1px solid @input-border;
+
+            &::-webkit-input-placeholder {
+                color: @obj-name-placeholder-color;
+            }
+
+            &:-moz-placeholder {
+                color: @obj-name-placeholder-color;
+            }
+
+            &::-moz-placeholder {
+                color: @obj-name-placeholder-color;
+            }
+
+            &:-ms-input-placeholder {
+                color: @obj-name-placeholder-color;
+            }
+
+            &::placeholder {
+                color: @obj-name-placeholder-color;
+            }
+        }
+
+        .span.obj-name {
+            display: inline-block;
+            padding: 3px;
+        }
+
+        .revision, .archived {
+            text-transform: uppercase;
+            font-size: 18px;
+            letter-spacing: 1pt;
+            margin-left: 5px;
+        }
+        /*
+        #obj-name {
+
+            .edit-inline {
+                border: 1px solid @gray-dark;
+                margin: -1px;
+
+                &:focus {
+                    border-color: @brand-primary;
+                }
+            }
+
+            .btn.edit-button {
+                margin-left: 12px;
+
+                .text::before {
+                    content: 'Change ID';
+                }
+            }
+
+            &.edit {
+                .btn.edit-button {
+                    display: none;
+                }
+            }
+        }*/
+    }
+
+    .btn-tabs {
+        .doc-related {
+            color: @color-related;
+        }
+
+        .doc-recent {
+            color: @color-recent;
+        }
+
+        .doc-attachments {
+            color: @color-attachments;
+
+            .badge {
+                background-color: @color-attachments;
+            }
+        }
+
+        .doc-revisions {
+            color: @color-revisions;
+
+            .badge {
+                background-color: @color-revisions;
+            }
+        }
+
+        .doc-counters {
+            color: @color-counters;
+
+            .badge {
+                background-color: @color-counters;
+            }
+        }
+
+        .doc-time-series {
+            color: @color-time-series;
+
+            .badge {
+                background-color: @color-time-series;
+            }
+        }
+
+
+        .btn i {
+            display: block;
+        }
+
+        &.btn-group-justified {
+
+            .badge {
+
+                &.kilo {
+                    &::after {
+                        content: 'k';
+                        margin-left: 2px;
+                        font-size: 11px;
+                    }
+                }
+
+                &.mega {
+                    &::after {
+                        content: 'm';
+                        margin-left: 2px;
+                        font-size: 11px;
+                    }
+                }
+
+                &.giga {
+                    &::after {
+                        content: 'b';
+                        margin-left: 2px;
+                        font-size: 11px;
+                    }
+                }
+
+                top: 0;
+                left: auto;
+                right: 0;
+            }
+        }
+    }
+
+    .objects-list-container {
+        .absolute-fill;
+    }
+
+    .filesize {
+        font-size: 10px;
+        align-self: baseline;
+    }
+
+    .tooltip {
+        .tooltip-inner {
+            max-width: 100%;
+        }
+    }
+
+    .document-properties {
+        .change-vector {
+            max-height: 60px;
+            overflow-y: auto;
+        }
+    }
+
+    .continue-ai-agent-conversation {
+        background: linear-gradient(135.89deg, #388EE9 0%, #7B51FF 85.4%);
+        color: @white
+    }
+}
+
+.virtual-row {
+    .typed-revision {
+        a {
+            color: lighten(desaturate(@link-color,60%),5%);
+
+            &:after {
+                margin-left: 5px;
+                .icon-style;
+            }
+        }
+    }
+    
+    .deleted-revision {
+        a {
+            &:after {
+                content: @trash;
+            }
+        }
+    }
+
+    .conflict-revision {
+        a {
+            color: lighten(desaturate(@brand-warning, 30%), 5%);
+
+            &:hover {
+                color: lighten(desaturate(@brand-warning, 2%), 3%);
+            }
+            
+            &:after {
+                content: @conflicts;
+            }
+        }
+    }
+
+    .resolved-revision {
+        a {
+            color: lighten(desaturate(@brand-success, 30%), 5%);
+
+            &:hover {
+                color: lighten(desaturate(@brand-success, 2%), 3%);
+            }
+            
+            &:after {
+                content: @tick-character;
+            }
+        }
+    }
+}
+
+.edit-document-warnings {
+    table {
+        .description {
+            white-space:pre-line;
+        }
+    }
+}

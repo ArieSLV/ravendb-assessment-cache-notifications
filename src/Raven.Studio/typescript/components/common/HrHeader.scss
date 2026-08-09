@@ -1,0 +1,20 @@
+﻿@use "Content/scss/sizes";
+
+.hr-title {
+    display: flex;
+    align-items: center;
+    margin-bottom: sizes.$gutter-sm;
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5 {
+        text-transform: uppercase;
+    }
+
+    hr {
+        flex-grow: 1;
+        margin: 0;
+    }
+}

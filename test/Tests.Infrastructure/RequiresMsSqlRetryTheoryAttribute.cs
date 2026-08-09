@@ -1,0 +1,52 @@
+﻿using System;
+using Tests.Infrastructure.ConnectionString;
+using xRetry;
+
+namespace Tests.Infrastructure;
+
+public class RequiresMsSqlRetryTheoryAttribute : RetryTheoryAttribute
+{
+    public RequiresMsSqlRetryTheoryAttribute(int maxRetries = 3, int delayBetweenRetriesMs = 0, params Type[] skipOnExceptions)
+        : base(maxRetries, delayBetweenRetriesMs, skipOnExceptions)
+    {
+
+    }
+
+    public override string Skip
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(base.Skip) == false)
+                return base.Skip;
+
+            ShouldSkip(out var skipMessage);
+            return skipMessage;
+        }
+
+        set => base.Skip = value;
+    }
+
+    private static bool ShouldSkip(out string skipMessage)
+    {
+        if (RavenTestHelper.SkipIntegrationTests)
+        {
+            skipMessage = RavenTestHelper.SkipIntegrationMessage;
+            return true;
+        }
+
+        if (RavenTestHelper.IsRunningOnCI)
+        {
+            skipMessage = null;
+            return false;
+        }
+
+        if (MsSqlConnectionString.Instance.CanConnect == false)
+        {
+            skipMessage = "Test requires MsSQL database";
+            return true;
+        }
+
+        skipMessage = null;
+        return false;
+    }
+}

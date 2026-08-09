@@ -1,0 +1,26 @@
+﻿using System.Collections.Generic;
+using System.Linq;
+using Raven.Client.Documents.Indexes;
+using Company = SlowTests.Core.Utils.Entities.Company;
+
+namespace SlowTests.Core.Utils.Indexes
+{
+    public class Companies_WithReferencedEmployees : AbstractIndexCreationTask<Company>
+    {
+        public class CompanyEmployees
+        {
+            public string Name { get; set; }
+            public List<string> Employees { get; set; }
+        }
+
+        public Companies_WithReferencedEmployees()
+        {
+            Map = companies => from company in companies
+                           select new
+                           {
+                               Name = company.Name,
+                               EmployeesIds = company.EmployeesIds
+                           };
+        }
+    }
+}

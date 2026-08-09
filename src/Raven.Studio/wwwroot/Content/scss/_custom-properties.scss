@@ -1,0 +1,141 @@
+@use "sass:color";
+
+// CSS custom properties for font color (outside .bs5 to fix regressions)
+$prefix: "bs-";
+
+:root {
+    --text-color: #{$base-text-color};
+    --text-muted: #{$base-text-muted-color};
+    --text-emphasis: #{$base-text-emphasis-color};
+    --border-color-light: #{$border-color-light};
+
+    --panel-header-bg: #{$base-panel-header-bg};
+    --panel-bg-1: #{$base-panel-bg-1};
+    --panel-bg-2: #{$base-panel-bg-2};
+    --panel-bg-3: #{$base-panel-bg-3};
+
+    --body-bg: #{$body-bg};
+    --well-bg: #{$base-well-bg};
+    --pre-bg: #{$pre-bg};
+    --ace-gutter-bg: #{$ace-gutter-bg};
+    --input-bg: #{$input-bg};
+    --tooltip-bg: #{$tooltip-bg};
+
+    --row-bg: #{$row-bg};
+    --row-even-bg: #{$row-even-bg};
+
+    --hover-filter: #{$hover-filter};
+    --transition-base: #{$transition-base};
+    --shadow-color: #{to-rgb($shadow-color)};
+
+    --link-color: #{$link-color};
+
+    --license-developer: #{$developer};
+    --license-cloud: #{$brand-cloud};
+    --license-community: #{$color-4};
+    --license-essential: #{$color-4};
+    --license-free: #{$color-4};
+    --license-professional: #{$color-4-2};
+    --license-enterprise: #{$color-5};
+    --license-production: #{$color-5};
+    --license-enterprise-ai: #{$brand-ai};
+    --ai-gradient: #{$ai-gradient};
+
+    --#{$prefix}dropdown-item-border-radius: #{$border-radius};
+    --#{$prefix}border-radius-md: #{$border-radius-md}; //fix missing size in bootstrap 5.3
+
+    @each $key, $value in $theme-colors {
+        --faded-#{$key}: #{color.mix($panel-bg-1, $value, 80%)};
+    }
+
+    @each $key, $value in $theme-colors {
+        --text-faded-#{$key}: #{color.mix($text-emphasis-color, $value, 30%)};
+    }
+
+    @each $key, $value in $zindexes {
+        --zindex-#{$key}: #{$value};
+    }
+
+    @each $key, $value in $tokens {
+        --token-#{$key}: #{$value};
+    }
+}
+
+.modal-content,
+.panel,
+.dropdown-menu,
+.card,
+.popup,
+.popover,
+.virtual-grid,
+.static-grid,
+.tab-content,
+[class^="bg-faded-"],
+[class*=" bg-faded-"] {
+    --text-color: #{$text-color};
+    --text-muted: #{$text-muted-color};
+    --text-emphasis: #{$text-emphasis-color};
+
+    --panel-header-bg: #{$panel-header-bg};
+    --panel-bg-1: #{$panel-bg-1};
+    --panel-bg-2: #{$panel-bg-2};
+    --panel-bg-3: #{$panel-bg-3};
+
+    --well-bg: #{$well-bg};
+
+    color: var(--text-color);
+}
+
+.wizard-content,
+.wizard-sidebar,
+.ai-agents-config,
+.ai-agents {
+    color: #{$base-text-color};
+
+    .input-group-text {
+        --panel-bg-2: #{$panel-bg-2};
+    }
+
+    .react-select-container .react-select__control .react-select__value-container * {
+        color: #{$text-color};
+    }
+
+    .ace-editor {
+        --text-color: #{$text-color};
+        --text-muted: #{$text-muted-color};
+
+        .ace_editor {
+            .ace_cursor {
+                color: var(--text-color);
+            }
+        }
+
+        .actions {
+            --panel-bg-2: #{$panel-bg-2};
+
+            .btn-link {
+                color: var(--text-color) !important;
+            }
+        }
+    }
+
+    .tab-content {
+        --text-emphasis: #{$text-emphasis-color};
+        --text-color: inherit;
+
+        .react-select-container {
+            --text-color: #{$text-color};
+
+            .react-select__menu {
+                --panel-bg-1: #{$panel-bg-1};
+                --border-color-light: #{$border-color-light};
+                --panel-bg-2: #{$panel-bg-2};
+                --text-emphasis: #{$text-emphasis-color};
+            }
+        }
+    }
+
+    .text-muted {
+        color: var(--text-muted) !important;
+    }
+}

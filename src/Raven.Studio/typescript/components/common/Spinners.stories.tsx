@@ -1,0 +1,76 @@
+﻿import { Meta } from "@storybook/react-webpack5";
+import React from "react";
+import { withBootstrap5, withStorybookContexts } from "test/storybookTestUtils";
+import Spinner from "react-bootstrap/Spinner";
+
+export default {
+    title: "Bits/Spinners",
+    decorators: [withStorybookContexts, withBootstrap5],
+    component: Spinner,
+    parameters: {
+        design: {
+            type: "figma",
+            url: "https://www.figma.com/design/ITHbe2U19Ok7cjbEzYa4cb/Design-System-RavenDB-Studio?node-id=15-506",
+        },
+    },
+} satisfies Meta<typeof Spinner>;
+
+export function allSpinners() {
+    return (
+        <div>
+            <h1>Spinners</h1>
+            <div className="d-flex flex-column gap-3">
+                <div className="d-flex flex-column">
+                    <h3>Small</h3>
+                    <AllSpinnerColors size="sm"></AllSpinnerColors>
+                </div>
+                <div className="d-flex flex-column">
+                    <h3>Normal</h3>
+                    <AllSpinnerColors></AllSpinnerColors>
+                </div>
+            </div>
+            <h1 className="mt-3">Spinner w/ gradient</h1>
+            <div className="d-flex flex-column gap-3">
+                <div className="d-flex flex-column">
+                    <h3>Small</h3>
+                    <Spinner size="sm" className="spinner-gradient"></Spinner>
+                </div>
+                <div className="d-flex flex-column">
+                    <h3>Normal</h3>
+                    <Spinner className="spinner-gradient"></Spinner>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+interface AllSpinnerColorsProps {
+    size?: Spinner.RavenSpinnerSizes;
+}
+
+function AllSpinnerColors(props: AllSpinnerColorsProps) {
+    const { size } = props;
+    const colors = [
+        "primary",
+        "secondary",
+        "success",
+        "warning",
+        "danger",
+        "info",
+        "progress",
+        "node",
+        "shard",
+        "dark",
+        "light",
+    ] as const;
+    return (
+        <div className="hstack gap-3">
+            {colors.map((color) => (
+                <div className="d-flex flex-column align-items-center">
+                    {color}
+                    <Spinner variant={color} size={size}></Spinner>
+                </div>
+            ))}
+        </div>
+    );
+}

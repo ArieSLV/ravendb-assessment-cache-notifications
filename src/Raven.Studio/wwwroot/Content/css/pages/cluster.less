@@ -1,0 +1,207 @@
+
+
+
+
+
+@cluster-voting-color: @color-4;
+@cluster-voting-text-color: lighten(@color-4, 15%);
+
+@cluster-waiting-color: @gray;
+@cluster-waiting-text-color: @gray-light;
+
+@cluster-disconnected-color: @color-1;
+
+@leader-color: @color-2-1;
+
+#clusterGraphContainer {
+    min-height: 400px;
+    cursor: move;
+
+    &.graphHidden > svg {
+        display: none;
+    }
+
+    .nodes {
+        .node {
+
+            .state {
+                text-anchor: middle;
+                font-size: 9px;
+            }
+
+            .node-tag {
+                font-size: 21px;
+                text-anchor: middle;
+                fill: @gray-base;
+                font-weight: bold;
+            }
+
+            .leader-stroke {
+                fill: none;
+                stroke-width: 2px;
+                stroke: @leader-color;
+                opacity: 0;
+            }
+
+            .voting-stroke {
+                fill: none;
+                stroke-width: 2px;
+                stroke: darken(@color-3-3, 10%);
+                stroke-dasharray: 30,17;
+                opacity: 0;
+            }
+
+            .node-icon {
+                text-anchor: middle;
+                font-size: 34px;
+                fill: @gray-lighter;
+            }
+
+            .node-bg {
+                transition: .2s fill ease-in-out;
+            }
+
+            .leader-stroke {
+                transition: .2s opacity ease-in-out;
+            }
+
+            &.leader {
+                .leader-stroke {
+                    opacity: 1;
+                }
+
+                .node-icon {
+                    fill: @cluster-leader-fg-color;
+                }
+            }
+
+            &.Member {
+                .node-bg {
+                    fill: @cluster-member-color;
+                }
+            }
+
+            &.Member.leader {
+                .node-bg {
+                    fill: @cluster-leader-bg-color;
+                }
+            }
+
+            &.Promotable {
+                .node-bg {
+                    fill: @cluster-promotable-color;
+                }
+            }
+
+            &.Watcher {
+                .node-bg {
+                    fill: @cluster-watcher-color;
+                }
+            }
+
+            &.disconnected {
+                .node-bg {
+                    fill: @cluster-disconnected-color;
+                }
+            }
+        }
+
+        &.voting {
+            .node-icon {
+                display: none;
+            }
+
+            .Member, .Promotable {
+                .node-bg {
+                    fill: @cluster-voting-color;
+                }
+
+                .state {
+                    fill: @cluster-voting-text-color;
+                }
+
+                .voting-stroke {
+                    opacity: 1;
+                }
+            }
+
+            .Watcher {
+                .node-bg {
+                    fill: @cluster-waiting-color;
+                }
+
+                .state {
+                    fill: @cluster-waiting-text-color;
+                }
+
+                .node-icon {
+                    display: block;
+                    fill: @cluster-waiting-text-color;
+                    font-size: 22px;
+                    transform: translate(0,-13px);
+                }
+
+                .voting-stroke {
+                    opacity: 0;
+                }
+            }
+
+            .node {
+                .node-tag {
+                    fill: @gray-lighter;
+                }
+
+                &.disconnected {
+                    .node-bg {
+                        fill: @cluster-disconnected-color;
+                    }
+
+                    .voting-stroke {
+                        opacity: 0;
+                    }
+
+                    .state {
+                        fill: @gray-lighter;
+                    }
+                }
+            }
+        }
+    }
+
+    .edges {
+
+        .edge-line {
+            stroke-opacity: 0;
+            stroke: @gray;
+            stroke-width: 1;
+
+            &.with-leader {
+                stroke-opacity: 1;
+                stroke: @color-3;
+                stroke-width: 2;
+
+                &.with-watcher {
+                    stroke: @cluster-watcher-color;
+                }
+
+                &.with-error {
+                    stroke: @cluster-disconnected-color;
+                }
+            }
+        }
+
+        &.voting {
+            .edge-line {
+                stroke-opacity: 1;
+            }
+
+            .with-error {
+                stroke: @cluster-disconnected-color;
+            }
+
+            .with-watcher {
+                stroke-opacity: 0;
+            }
+        }
+    }
+}

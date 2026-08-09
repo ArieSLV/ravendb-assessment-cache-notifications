@@ -1,0 +1,365 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using Raven.Client.Documents.Commands;
+using Raven.Client.Documents.Indexes;
+using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Smuggler;
+using Raven.Client.ServerWide;
+using Raven.Client.ServerWide.Operations;
+using Tests.Infrastructure;
+using Tests.Infrastructure.Entities;
+using Voron.Util;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace FastTests.Server.Documents
+{
+    public class DocCompression : RavenTestBase
+    {
+        public DocCompression(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class User
+        {
+            public string Desc;
+            public List<string> Items;
+        }
+
+        public static string RandomString(Random random, int length)
+        {
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            return new string(Enumerable.Repeat(chars, length)
+                .Select(s => s[random.Next(s.Length)]).ToArray());
+        }
+
+        [RavenFact(RavenTestCategory.Compression, LicenseRequired = true)]
+        public void Can_compact_from_no_compression_to_compressed()
+        {
+            var path = NewDataPath();
+            if (Directory.Exists(path))
+                Directory.Delete(path, true);
+            using var store = GetDocumentStore(new Options
+            {
+                Path = path,
+                RunInMemory = false,
+            });
+
+            store.Maintenance.Send(new CreateSampleDataOperation());
+
+            var executor = store.GetRequestExecutor();
+            using (var _ = executor.ContextPool.AllocateOperationContext(out var ctx))
+            {
+                var cmd = new GetDocumentSizeCommand("orders/830-A");
+                executor.Execute(cmd, ctx);
+                Assert.True(cmd.Result.ActualSize <= cmd.Result.AllocatedSize);
+            }
+
+            var record = store.Maintenance.Server.Send(new GetDatabaseRecordOperation(store.Database));
+            record.DocumentsCompression = new DocumentsCompressionConfiguration(true, "Orders");
+            store.Maintenance.Server.Send(new UpdateDatabaseOperation(record, record.Etag));
+
+            var op = store.Maintenance.Server.Send(new CompactDatabaseOperation(new CompactSettings
+            {
+                DatabaseName = store.Database,
+                Documents = true,
+            }));
+
+            op.WaitForCompletion(TimeSpan.FromMinutes(5));
+
+            Indexes.WaitForIndexing(store);
+
+            var operation = store.Maintenance.Send(new GetStatisticsOperation());
+
+            Assert.True(operation.Indexes.All(x => x.State == IndexState.Normal));
+
+            using (var _ = executor.ContextPool.AllocateOperationContext(out var ctx))
+            {
+                var cmd = new GetDocumentSizeCommand("orders/830-A");
+                executor.Execute(cmd, ctx);
+                Assert.True(cmd.Result.ActualSize > cmd.Result.AllocatedSize);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Compression, LicenseRequired = true)]
+        public void Can_compact_from_compression_to_not_compressed()
+        {
+            var path = NewDataPath();
+            if (Directory.Exists(path))
+                Directory.Delete(path, true);
+            using var store = GetDocumentStore(new Options
+            {
+                Path = path,
+                RunInMemory = false,
+                ModifyDatabaseRecord = r => r.DocumentsCompression = new DocumentsCompressionConfiguration(true, "Orders")
+            });
+
+            store.Maintenance.Send(new CreateSampleDataOperation());
+
+            var executor = store.GetRequestExecutor();
+            using (var _ = executor.ContextPool.AllocateOperationContext(out var ctx))
+            {
+                var cmd = new GetDocumentSizeCommand("orders/830-A");
+                executor.Execute(cmd, ctx);
+                Assert.True(cmd.Result.ActualSize > cmd.Result.AllocatedSize);
+            }
+
+            var record = store.Maintenance.Server.Send(new GetDatabaseRecordOperation(store.Database));
+            record.DocumentsCompression = new DocumentsCompressionConfiguration(true);
+            store.Maintenance.Server.Send(new UpdateDatabaseOperation(record, record.Etag));
+
+            var op = store.Maintenance.Server.Send(new CompactDatabaseOperation(new CompactSettings
+            {
+                DatabaseName = store.Database,
+                Documents = true,
+            }));
+
+            op.WaitForCompletion(TimeSpan.FromMinutes(5));
+
+            Indexes.WaitForIndexing(store);
+
+            var operation = store.Maintenance.Send(new GetStatisticsOperation());
+
+            Assert.True(operation.Indexes.All(x => x.State == IndexState.Normal));
+
+            using (var _ = executor.ContextPool.AllocateOperationContext(out var ctx))
+            {
+                var cmd = new GetDocumentSizeCommand("orders/830-A");
+                executor.Execute(cmd, ctx);
+                Assert.True(cmd.Result.ActualSize <= cmd.Result.AllocatedSize);
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Compression, LicenseRequired = true)]
+        public void Can_compact_db_with_compressed_collections()
+        {
+            var path = NewDataPath();
+            if (Directory.Exists(path))
+                Directory.Delete(path, true);
+            using var store = GetDocumentStore(new Options
+            {
+                Path = path,
+                RunInMemory = false,
+                ModifyDatabaseRecord = record => record.DocumentsCompression = new DocumentsCompressionConfiguration(true, "Orders"),
+            });
+
+            store.Maintenance.Send(new CreateSampleDataOperation());
+
+            var op = store.Maintenance.Server.Send(new CompactDatabaseOperation(new CompactSettings
+            {
+                DatabaseName = store.Database,
+                Documents = true,
+            }));
+
+            op.WaitForCompletion(TimeSpan.FromMinutes(5));
+
+            var f = Path.GetTempFileName();
+
+            using var _ = new DisposableAction(() => File.Delete(f));
+
+            var operation = store.Smuggler.ExportAsync(new DatabaseSmugglerExportOptions(), f, CancellationToken.None)
+                .Result;
+
+            using (var s = store.OpenSession())
+            {
+                s.Query<Order>().ToList();
+            }
+
+            // this verifies that all the data is fine
+
+            operation.WaitForCompletion(TimeSpan.FromMinutes(5));
+        }
+
+        [RavenFact(RavenTestCategory.Compression, LicenseRequired = true)]
+        public void Can_write_many_documents_without_breakage()
+        {
+            var random = new Random(654);
+            using var store = GetDocumentStore(new Options
+            {
+                ModifyDatabaseRecord = record => record.DocumentsCompression = new DocumentsCompressionConfiguration(true, "Users"),
+            });
+
+            var rnd = Enumerable.Range(1, 10)
+                .Select(i => RandomString(random, 16))
+                .ToList();
+            using var s = store.OpenSession();
+            for (int i = 0; i < 1024; i++)
+            {
+                s.Store(new User
+                {
+                    Desc = string.Join("-", Enumerable.Range(1, random.Next(1, 10)).Select(xi => rnd[xi]))
+                }, "users/" + i);
+            }
+            s.SaveChanges();
+
+        }
+
+        [RavenFact(RavenTestCategory.Compression, LicenseRequired = true)]
+        public void Can_set_collection_compressed_when_it_has_docs()
+        {
+            var random = new Random(343);
+            using var store = GetDocumentStore();
+
+            var rnd = Enumerable.Range(1, 10)
+                .Select(i => new string((char)(65 + i), 256))
+                .ToList();
+
+            using (var s = store.OpenSession())
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    s.Store(new User
+                    {
+                        Items = Enumerable.Range(1, random.Next(1, 10))
+                            .Select(x => rnd[x])
+                            .ToList()
+                    }, "users/" + i);
+                }
+
+                s.SaveChanges();
+            }
+
+            var record = store.Maintenance.Server.Send(new GetDatabaseRecordOperation(store.Database));
+            record.DocumentsCompression = new DocumentsCompressionConfiguration(true, "Users");
+            store.Maintenance.Server.Send(new UpdateDatabaseOperation(record, record.Etag));
+
+            using (var s = store.OpenSession())
+            {
+                for (int i = 5; i < 1024; i++)
+                {
+                    s.Store(new User
+                    {
+                        Items = Enumerable.Range(1, random.Next(1, 10))
+                            .Select(x => rnd[x])
+                            .ToList()
+                    }, "users/" + i);
+                }
+
+                s.SaveChanges();
+            }
+
+            var executor = store.GetRequestExecutor();
+            using var _ = executor.ContextPool.AllocateOperationContext(out var ctx);
+            var cmd = new GetDocumentSizeCommand("users/1000");
+            executor.Execute(cmd, ctx);
+
+            Assert.True(cmd.Result.ActualSize > cmd.Result.AllocatedSize);
+        }
+
+        [RavenFact(RavenTestCategory.Compression, LicenseRequired = true)]
+        public void Can_update_many_documents_without_breakage()
+        {
+            var random = new Random(654);
+            using var store = GetDocumentStore(new Options
+            {
+                ModifyDatabaseRecord = record => record.DocumentsCompression = new DocumentsCompressionConfiguration(true, "Users"),
+            });
+
+            var rnd = Enumerable.Range(1, 10)
+                .Select(i => RandomString(random, 16))
+                .ToList();
+
+            using (var s = store.OpenSession())
+            {
+                for (int i = 0; i < 1024; i++)
+                {
+                    s.Store(new User
+                    {
+                        Desc = string.Join("-", Enumerable.Range(1, random.Next(1, 10)).Select(xi => rnd[xi]))
+                    }, "users/" + i);
+                }
+
+                s.SaveChanges();
+            }
+
+            rnd = Enumerable.Range(1, 64)
+                .Select(i => RandomString(random, 512))
+                .ToList();
+
+            using (var s = store.OpenSession())
+            {
+                for (int i = 0; i < 1024; i++)
+                {
+                    s.Store(new User
+                    {
+                        Desc = string.Join("-", Enumerable.Range(1, random.Next(1, 64)).Select(xi => rnd[xi]))
+                    }, "users/" + i);
+                }
+
+                s.SaveChanges();
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Compression, LicenseRequired = true)]
+        public void Can_update_many_documents_without_breakage_to_be_smaller()
+        {
+            var random = new Random(654);
+            using var store = GetDocumentStore(new Options
+            {
+                ModifyDatabaseRecord = record => record.DocumentsCompression = new DocumentsCompressionConfiguration(true, "Users"),
+            });
+
+            var rnd = Enumerable.Range(1, 10)
+                .Select(i => RandomString(random, 16))
+                .ToList();
+
+            using (var s = store.OpenSession())
+            {
+                for (int i = 0; i < 1024; i++)
+                {
+                    s.Store(new User
+                    {
+                        Desc = string.Join("-", Enumerable.Range(1, random.Next(1, 10)).Select(xi => rnd[xi]))
+                    }, "users/" + i);
+                }
+
+                s.SaveChanges();
+            }
+
+            rnd = Enumerable.Range(1, 64)
+                .Select(i => RandomString(random, 512))
+                .ToList();
+
+            using (var s = store.OpenSession())
+            {
+                for (int i = 256; i < 1024; i++)
+                {
+                    s.Store(new User
+                    {
+                        Desc = string.Join("-", Enumerable.Range(1, random.Next(1, 64)).Select(xi => rnd[xi]))
+                    }, "users/" + i);
+                }
+
+                s.SaveChanges();
+            }
+
+            rnd = Enumerable.Range(1, 64)
+                .Select(i => RandomString(random, 32))
+                .ToList();
+
+            using (var s = store.OpenSession())
+            {
+                for (int i = 128; i < 768; i++)
+                {
+                    s.Store(new User
+                    {
+                        Desc = string.Join("-", Enumerable.Range(1, random.Next(1, 64)).Select(xi => rnd[xi]))
+                    }, "users/" + i);
+                }
+
+                for (int i = 0; i < 128; i++)
+                {
+                    s.Store(new User
+                    {
+                        Desc = string.Join("-", Enumerable.Range(1, random.Next(1, 64)).Select(xi => rnd[xi]))
+                    }, "users/" + i + 900);
+                }
+
+                s.SaveChanges();
+            }
+        }
+    }
+}

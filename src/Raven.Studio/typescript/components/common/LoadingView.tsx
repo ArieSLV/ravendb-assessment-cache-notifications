@@ -1,0 +1,11 @@
+﻿import React from "react";
+import Spinner from "react-bootstrap/Spinner";
+
+export function LoadingView() {
+    return (
+        <div className="d-flex justify-content-center align-items-center flex-column gap-3 mt-4" data-testid="loader">
+            <Spinner className="spinner-gradient" />
+            <h3>Loading</h3>
+        </div>
+    );
+}

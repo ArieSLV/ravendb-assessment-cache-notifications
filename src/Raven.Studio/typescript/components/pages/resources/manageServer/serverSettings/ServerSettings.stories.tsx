@@ -1,0 +1,50 @@
+import { Meta, StoryObj } from "@storybook/react-webpack5";
+import { securityClearanceArgType, withBootstrap5, withStorybookContexts } from "test/storybookTestUtils";
+import ServerSettings from "./ServerSettings";
+import { mockStore } from "test/mocks/store/MockStore";
+import { mockServices } from "test/mocks/services/MockServices";
+import { ManageServerStubs } from "test/stubs/ManageServerStubs";
+
+export default {
+    title: "Pages/Manage Server/Server Settings",
+    decorators: [withStorybookContexts, withBootstrap5],
+    parameters: {
+        design: {
+            type: "figma",
+            url: "https://www.figma.com/design/INHXEQ02UfwTbkR1xWr2Cn/Pages---Server-Settings?node-id=0-1&t=QvtWOXALpTc79aQQ-1",
+        },
+    },
+} satisfies Meta;
+
+interface DefaultServerSettingsProps {
+    securityClearance: securityClearance;
+    serverSettings: { Settings: Raven.Server.Config.ConfigurationEntryServerValue[] };
+}
+
+const setupMocks = (securityClearance: securityClearance) => {
+    const { accessManager } = mockStore;
+    const { manageServerService } = mockServices;
+
+    accessManager.with_securityClearance(securityClearance);
+    manageServerService.withServerSettings();
+};
+
+export const ServerSettingsStory: StoryObj<DefaultServerSettingsProps> = {
+    name: "Server Settings",
+    render: (args) => {
+        setupMocks(args.securityClearance);
+
+        return (
+            <div style={{ height: "800px" }}>
+                <ServerSettings />
+            </div>
+        );
+    },
+    argTypes: {
+        securityClearance: securityClearanceArgType,
+    },
+    args: {
+        securityClearance: "ClusterAdmin",
+        serverSettings: ManageServerStubs.serverSettings(),
+    },
+};

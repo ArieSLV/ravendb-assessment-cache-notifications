@@ -1,0 +1,110 @@
+.indexesTerms {
+
+    .field {
+
+        .collapsed {
+            .badge:not(.dynamic-field) {
+                display: none;
+            }
+
+            .icon-arrow-down:before {
+                content: @arrow-right;
+            }
+        }
+
+        .bar {
+            cursor: pointer;
+
+            .badge {
+                position: relative;
+                top: 3px;
+                
+                &.dynamic-field {
+                    top: -1px;
+                }
+            }
+        }
+
+        &:hover {
+        }
+
+        h3 {
+            display: inline;
+            position: relative;
+            margin: 0 0.5em 0.5em 0.5em;
+        }
+
+        .field-terms {
+            background-color: @gray-darker;
+
+            &.no-entries {
+                padding: @grid-gutter-width/2 0;
+            }
+            
+            ul {
+                display: flex;
+                flex-wrap: wrap;
+                list-style: none;
+                padding: 0;
+                margin: 0;
+                padding: @grid-gutter-width/8;
+
+                &:after {
+                    content: '';
+                    flex-grow: 9999;
+                }
+
+                li {
+                    width: 280px;
+                    flex-grow: 1;
+
+                    &.terms-item {
+                        display: flex;
+                        padding: @grid-gutter-width/8;
+                        align-items: stretch;
+
+                        .name {
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                            display: block;
+                            padding: @grid-gutter-width/8 @grid-gutter-width/4;
+                            background-color: @gray-dark;
+                            flex-grow: 1;
+                            overflow: hidden;
+                        }
+
+                        .query, .preview, .copy {
+                            display: none;
+                            margin: 0;
+                            background: @gray-dark;
+                            border: none;
+                            width: 34px;
+
+                            &:hover {
+                                .bg-primary;
+                            }
+                        }
+
+                        &:hover {
+                            .query, .preview, .copy {
+                                display: block;
+                            }
+                        }
+                    }
+                }
+            }
+
+            .loadMore {
+                background-color: @gray-base;
+
+                span::before {
+                    content: 'Load more';
+                }
+
+                .btn-spinner span::before {
+                    content: 'Loading'
+                }
+            }
+        }
+    }
+}

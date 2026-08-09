@@ -1,0 +1,10 @@
+@use "Content/scss/colors";
+
+.connection-strings-panels {
+    .icon-sparkles::before {
+        background: colors.$ai-gradient;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+}

@@ -1,0 +1,126 @@
+﻿using System.Linq;
+using FastTests;
+using Raven.Client;
+using Raven.Client.Documents.Indexes;
+using Raven.Client.Exceptions.Documents.Session;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.MailingList
+{
+    public class LuceneScoreTests : RavenTestBase
+    {
+        public LuceneScoreTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class Book
+        {
+            public string Id { get; set; }
+            public string Text { get; set; }
+            public string Author { get; set; }
+            public string Publisher { get; set; }
+            public string Description { get; set; }
+        }
+
+        private class BookSummary
+        {
+            public string Id { get; set; }
+            public string Author { get; set; }
+            public string Description { get; set; }
+        }
+
+        private class BooksSearch : AbstractIndexCreationTask<Book>
+        {
+            public BooksSearch()
+            {
+                Map = books =>
+                from book in books
+                select new
+                {
+                    book.Text,
+                    book.Author,
+                    book.Publisher,
+                    book.Description,
+                    book.Id
+                };
+
+                Index(x => x.Text, FieldIndexing.Search);
+            }
+        }
+
+
+        [RavenFact(RavenTestCategory.Lucene | RavenTestCategory.Querying)]
+        public void GetLuceneScoreWhileUsingSelect()
+        {
+            using (var store = GetDocumentStore())
+            {
+                new BooksSearch().Execute(store);
+                using (var session = store.OpenSession())
+                {
+                    var newBook = new Book
+                    {
+                        Id = "Book1",
+                        Author = "Verne, Jules",
+                        Description =
+                            "With little more than courage and ingenuity, five Union prisoners escaped the siege of Richmond-by hot-air balloon. They have no idea if they'll ever see civilization again-especially when they're swept off by a raging storm to the shores of an uncharted island",
+                        Publisher = "Sampson Low, Marston, Low, and Searle",
+                        Text = "Definitely don't want this coming across the wire each time because it will be huge."
+                    };
+                    session.Store(newBook);
+                    session.SaveChanges();
+                }
+                using (var session = store.OpenSession())
+                {
+                    var results =
+                        session.Advanced.DocumentQuery<Book, BooksSearch>()
+                            .WhereLucene("Text", "wire each time")
+                            .WaitForNonStaleResults()
+                            .ToList()
+                            .Select(b => new BookSummary()
+                            {
+                                Author = b.Author,
+                                Description = b.Description,
+                                Id = b.Id
+                            })
+                            .ToList();
+
+                    Assert.Throws<NonUniqueObjectException>(() => session.Advanced.GetMetadataFor(results[0]));
+                }
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Lucene | RavenTestCategory.Querying)]
+        public void GetLuceneScoreWhileNotUsingSelect()
+        {
+            using (var store = GetDocumentStore())
+            {
+                new BooksSearch().Execute(store);
+                using (var session = store.OpenSession())
+                {
+                    var newBook = new Book()
+                    {
+                        Id = "Book1",
+                        Author = "Verne, Jules",
+                        Description =
+                            "With little more than courage and ingenuity, five Union prisoners escaped the siege of Richmond-by hot-air balloon. They have no idea if they'll ever see civilization again-especially when they're swept off by a raging storm to the shores of an uncharted island",
+                        Publisher = "Sampson Low, Marston, Low, and Searle",
+                        Text = "Definitely don't want this coming across the wire each time because it will be huge."
+                    };
+                    session.Store(newBook);
+                    session.SaveChanges();
+                }
+                using (var session = store.OpenSession())
+                {
+                    var results =
+                        session.Advanced.DocumentQuery<Book, BooksSearch>().WhereLucene("Text", "wire each time").WaitForNonStaleResults().
+                            ToList();
+                    var scores = from result in results
+                                 select session.Advanced.GetMetadataFor(result).GetLong(Constants.Documents.Metadata.IndexScore);
+                    Assert.True(scores.Single() > 0);
+                }
+            }
+        }
+    }
+}

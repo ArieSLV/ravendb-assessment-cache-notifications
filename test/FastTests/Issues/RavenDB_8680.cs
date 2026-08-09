@@ -1,0 +1,36 @@
+﻿using System;
+using System.Collections.Generic;
+using Raven.Server.Documents.Queries.Parser;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace FastTests.Issues
+{
+    public class RavenDB_8680 : NoDisposalNeeded
+    {
+        public RavenDB_8680(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        public static IEnumerable<object[]> GetTestData()
+        {
+            yield return new object[] {"from Categories where id() = 'categories/8'", $"FROM Categories WHERE id() = 'categories/8'{Environment.NewLine}"};
+            yield return new object[] {"from Categories where id() in ('categories/8')", $"FROM Categories WHERE id() IN ('categories/8'){Environment.NewLine}"};
+        }
+
+        [RavenTheory(RavenTestCategory.Querying)]
+        [MemberData(nameof(GetTestData))]
+        public void CanPrintParsedQuery(string queryText, string expected)
+        {
+            var parser = new QueryParser();
+
+            parser.Init(queryText);
+
+            var query = parser.Parse();
+
+            Assert.Equal(expected, query.ToString());
+        }
+    }
+}
+

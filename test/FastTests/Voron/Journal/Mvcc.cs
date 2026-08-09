@@ -1,0 +1,69 @@
+using Tests.Infrastructure;
+using System.IO;
+using Xunit;
+using Voron;
+using System.Linq;
+using Voron.Global;
+using Xunit.Abstractions;
+
+namespace FastTests.Voron.Journal
+{
+    public class Mvcc : StorageTest
+    {
+        public Mvcc(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        protected override void Configure(StorageEnvironmentOptions options)
+        {
+            options.ManualFlushing = true;
+            options.MaxLogFileSize = 3 * Constants.Storage.PageSize;
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void ShouldNotFlushUntilThereAreActiveOlderTransactions()
+        {
+            var ones = new byte[3000];
+            var nines = new byte[3000];
+
+            for (int i = 0; i < 3000; i++)
+            {
+                ones[i] = 1;
+                nines[i] = 9;
+            }
+
+            using (var tx = Env.WriteTransaction())
+            {
+                var tree = tx.CreateTree("foo");
+                tree.Add("items/1", new MemoryStream(ones));
+                tree.Add("items/2", new MemoryStream(ones));
+                tx.Commit();
+            }
+
+            Env.FlushLogToDataFile(); // make sure that pages where items/1 is contained will be flushed to the data file
+
+            using (var txr = Env.ReadTransaction())
+            {
+                var treeR = txr.CreateTree("foo");
+                using (var txw = Env.WriteTransaction())
+                {
+                    var treeW = txw.CreateTree("foo");
+                    treeW.Add("items/1", new MemoryStream(nines));
+                    txw.Commit();
+                }
+
+                Env.FlushLogToDataFile(); // should not flush pages of items/1 because there is an active read transaction
+
+                Assert.True(treeR.TryRead("items/1", out var reader));
+
+                var bytes = reader.ReadBytes(reader.Length);
+                var readData = bytes.Array.Skip(bytes.Offset).Take(bytes.Count).ToArray();
+
+                for (int i = 0; i < 3000; i++)
+                {
+                    Assert.Equal(1, readData[i]);
+                }
+            }
+        }
+    }
+}

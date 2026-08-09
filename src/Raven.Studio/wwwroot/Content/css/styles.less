@@ -1,0 +1,28 @@
+@import "./bootstrap/variables-header.less";
+@import "./bootstrap/variables-body.less";
+@import "./styles-common-root.less";
+
+@import "external-styles";
+
+// Core variables and mixins
+@import "./bootstrap/mixins.less";
+
+// Reset and dependencies
+@import "./bootstrap/normalize.less";
+
+// Core CSS
+@import "./bootstrap/grid.less";
+
+@import "toastr.less";
+@import "prism.less";
+@import "ace.less";
+@import "virtual-grid.less";
+
+.bs3 {
+    font-size: @font-size-base;
+    
+    @import "styles-common-scoped.less";
+}
+
+@import "./pages/patch-global.less";
+@import "./pages/sharding.less";

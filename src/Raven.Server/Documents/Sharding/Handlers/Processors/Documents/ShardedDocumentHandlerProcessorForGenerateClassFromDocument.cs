@@ -1,0 +1,30 @@
+﻿using System.Threading.Tasks;
+using JetBrains.Annotations;
+using Raven.Server.Documents.Commands;
+using Raven.Server.Documents.Handlers.Processors.Documents;
+using Raven.Server.ServerWide.Context;
+using Raven.Server.Web.Http;
+
+namespace Raven.Server.Documents.Sharding.Handlers.Processors.Documents;
+
+internal sealed class ShardedDocumentHandlerProcessorForGenerateClassFromDocument : AbstractDocumentHandlerProcessorForGenerateClassFromDocument<ShardedDocumentHandler, TransactionOperationContext>
+{
+    public ShardedDocumentHandlerProcessorForGenerateClassFromDocument([NotNull] ShardedDocumentHandler requestHandler) : base(requestHandler)
+    {
+    }
+
+    protected override async ValueTask HandleClassGenerationAsync(string id, string collection, string lang)
+    {
+        var command = new GenerateClassFromDocumentCommand(id, collection, lang);
+
+        int shardNumber;
+        using (ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+            shardNumber = RequestHandler.DatabaseContext.GetShardNumberFor(context, id);
+
+        using (var token = RequestHandler.CreateHttpRequestBoundOperationToken())
+        {
+            var proxyCommand = new ProxyCommand<string>(command, HttpContext);
+            await RequestHandler.ShardExecutor.ExecuteSingleShardAsync(proxyCommand, shardNumber, token.Token);
+        }
+    }
+}

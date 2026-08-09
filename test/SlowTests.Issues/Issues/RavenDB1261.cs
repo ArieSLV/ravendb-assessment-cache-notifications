@@ -1,0 +1,61 @@
+﻿using System.Linq;
+using FastTests;
+using Raven.Client.Documents.Indexes;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Issues
+{
+    public class RavenDB1261 : RavenTestBase
+    {
+        public RavenDB1261(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class Student
+        {
+            public string Email { get; set; }
+        }
+
+        private class StudentIndex : AbstractIndexCreationTask<Student>
+        {
+            public StudentIndex()
+            {
+                Map = students => from s in students
+                                  select new
+                                  {
+                                      s.Email
+                                  };
+            }
+        }
+
+        [RavenFact(RavenTestCategory.Indexes | RavenTestCategory.ClientApi)]
+        public void Run()
+        {
+            using (var store = GetDocumentStore())
+            {
+                new StudentIndex().Execute(store);
+
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new Student { Email = "support@hibernatingrhinos.com" });
+                    session.SaveChanges();
+                }
+
+                Indexes.WaitForIndexing(store);
+
+                using (var session = store.OpenSession())
+                {
+                    var query = session.Query<Student, StudentIndex>();
+
+                    var stream = session.Advanced.Stream(query);
+
+                    stream.MoveNext();
+
+                    Assert.NotNull(stream.Current.Id);
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,34 @@
+@use "Content/scss/bs5variables";
+@use "Content/scss/colors";
+@use "Content/scss/sizes";
+
+.ai-agent-messages {
+    .icon-sparkles::before {
+        background: colors.$ai-gradient;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .accordion-button {
+        border-radius: sizes.$gutter-xxs !important;
+        font-size: sizes.$font-size-sm !important;
+        padding: sizes.$gutter-xxs !important;
+        background-color: colors.$panel-bg-1-var !important;
+    }
+
+    .tool-call-details {
+        .accordion-button {
+            border-radius: sizes.$gutter-xxs !important;
+            font-size: sizes.$font-size-sm !important;
+            padding: sizes.$gutter-xxs !important;
+            background-color: colors.$panel-bg-2-var !important;
+        }
+    }
+
+    .accordion-button::after {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+}

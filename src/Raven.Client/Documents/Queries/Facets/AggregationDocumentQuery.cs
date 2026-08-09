@@ -1,0 +1,41 @@
+﻿using System;
+using Raven.Client.Documents.Session;
+
+namespace Raven.Client.Documents.Queries.Facets
+{
+    internal sealed class AggregationDocumentQuery<T> : AggregationQueryBase, IAggregationDocumentQuery<T>
+    {
+        private readonly AbstractDocumentQuery<T, DocumentQuery<T>> _source;
+
+        public AggregationDocumentQuery(DocumentQuery<T> source) : base((InMemoryDocumentSessionOperations)source.Session)
+        {
+            _source = source;
+        }
+
+        /// <inheritdoc/>
+        public IAggregationDocumentQuery<T> AndAggregateBy(Action<IFacetBuilder<T>> builder = null)
+        {
+            var f = new FacetBuilder<T>(_source.Conventions);
+            builder?.Invoke(f);
+
+            return AndAggregateBy(f.Facet);
+        }
+
+        /// <inheritdoc/>
+        public IAggregationDocumentQuery<T> AndAggregateBy(FacetBase facet)
+        {
+            _source.AggregateBy(facet);
+            return this;
+        }
+
+        protected override IndexQuery GetIndexQuery(bool isAsync, bool updateAfterQueryExecuted = true)
+        {
+            return _source.GetIndexQuery();
+        }
+
+        protected override void InvokeAfterQueryExecuted(QueryResult result)
+        {
+            _source.InvokeAfterQueryExecuted(result);
+        }
+    }
+}

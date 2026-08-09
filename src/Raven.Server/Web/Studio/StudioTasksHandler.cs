@@ -1,0 +1,445 @@
+﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
+using NCrontab.Advanced;
+using Raven.Client.Documents.Operations.AI;
+using Raven.Client.Exceptions;
+using Raven.Client.ServerWide.Operations.Migration;
+using Raven.Client.Util;
+using Raven.Server.Config;
+using Raven.Server.Config.Categories;
+using Raven.Server.Config.Settings;
+using Raven.Server.Documents.AI;
+using Raven.Server.Documents.AI.Settings;
+using Raven.Server.Documents.ETL.Providers.ElasticSearch;
+using Raven.Server.Documents.Indexes;
+using Raven.Server.Documents.Indexes.IndexMerging;
+using Raven.Server.Json;
+using Raven.Server.Routing;
+using Raven.Server.ServerWide;
+using Raven.Server.ServerWide.Context;
+using Raven.Server.Utils;
+using Raven.Server.Web.Studio.Processors;
+using Sparrow.Json;
+using Sparrow.Json.Parsing;
+using Voron.Util.Settings;
+
+namespace Raven.Server.Web.Studio
+{
+    public sealed class StudioTasksHandler : ServerRequestHandler
+    {
+        // return the calculated full data directory for the database before it is created according to the name & path supplied
+        [RavenAction("/admin/studio-tasks/full-data-directory", "GET", AuthorizationStatus.Operator)]
+        public async Task FullDataDirectory()
+        {
+            var path = GetStringQueryString("path", required: false);
+            var name = GetStringQueryString("name", required: false);
+            var requestTimeoutInMs = GetIntValueQueryString("requestTimeoutInMs", required: false) ?? 5 * 1000;
+
+            var baseDataDirectory = ServerStore.Configuration.Core.DataDirectory.FullPath;
+
+            // 1. Used as default when both Name & Path are Not defined
+            var result = baseDataDirectory;
+            string error = null;
+
+            try
+            {
+                // 2. Path defined, Path overrides any given Name
+                if (string.IsNullOrEmpty(path) == false)
+                {
+                    result = new PathSetting(path, baseDataDirectory).FullPath;
+                }
+
+                // 3. Name defined, No path
+                else if (string.IsNullOrEmpty(name) == false)
+                {
+                    // 'Databases' prefix is added...
+                    result = RavenConfiguration.GetDataDirectoryPath(ServerStore.Configuration.Core, name, ResourceType.Database);
+                }
+
+                if (ServerStore.Configuration.Core.EnforceDataDirectoryPath)
+                {
+                    if (PathUtil.IsSubDirectory(result, ServerStore.Configuration.Core.DataDirectory.FullPath) == false)
+                    {
+                        error = $"The administrator has restricted databases to be created only " +
+                                $"under the {RavenConfiguration.GetKey(x => x.Core.DataDirectory)} " +
+                                $"directory: '{ServerStore.Configuration.Core.DataDirectory.FullPath}'.";
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                error = e.Message;
+            }
+
+            var getNodesInfo = GetBoolValueQueryString("getNodesInfo", required: false) ?? false;
+            var info = new DataDirectoryInfo(ServerStore, result, name, isBackup: false, getNodesInfo, requestTimeoutInMs, ResponseBodyStream());
+            await info.UpdateDirectoryResult(databaseName: null, error: error);
+        }
+
+        [RavenAction("/admin/studio-tasks/folder-path-options", "POST", AuthorizationStatus.Operator)]
+        public async Task GetFolderPathOptionsForOperator()
+        {
+            using (var processor = new StudioDatabaseTasksHandlerProcessorForGetFolderPathOptionsForOperator(this))
+                await processor.ExecuteAsync();
+        }
+
+        [RavenAction("/admin/studio-tasks/offline-migration-test", "GET", AuthorizationStatus.Operator)]
+        public async Task OfflineMigrationTest()
+        {
+            var mode = GetStringQueryString("mode");
+            var path = GetStringQueryString("path");
+            using (ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                bool isValid = true;
+                string errorMessage = null;
+
+                try
+                {
+                    switch (mode)
+                    {
+                        case "dataDir":
+                            OfflineMigrationConfiguration.ValidateDataDirectory(path);
+                            break;
+
+                        case "migratorPath":
+                            OfflineMigrationConfiguration.ValidateExporterPath(path);
+                            break;
+
+                        default:
+                            throw new BadRequestException("Unknown mode: " + mode);
+                    }
+                }
+                catch (Exception e)
+                {
+                    isValid = false;
+                    errorMessage = e.Message;
+                }
+
+                await using (var writer = new AsyncBlittableJsonTextWriter(context, ResponseBodyStream()))
+                {
+                    context.Write(writer, new DynamicJsonValue
+                        {
+                        [nameof(OfflineMigrationValidation.IsValid)] = isValid,
+                        [nameof(OfflineMigrationValidation.ErrorMessage)] = errorMessage
+                        });
+                }
+            }
+        }
+
+        public sealed class OfflineMigrationValidation
+        {
+            public bool IsValid { get; set; }
+            public string ErrorMessage { get; set; }
+        }
+
+        [RavenAction("/studio-tasks/periodic-backup/test-credentials", "POST", AuthorizationStatus.ValidUser, EndpointType.Read)]
+        public async Task TestPeriodicBackupCredentials()
+        {
+            using (var processor = new StudioTasksHandlerProcessorForTestPeriodicBackupCredentials(this))
+                await processor.ExecuteAsync();
+        }
+
+        [RavenAction("/studio-tasks/is-valid-name", "GET", AuthorizationStatus.ValidUser, EndpointType.Read)]
+        public async Task IsValidName()
+        {
+            if (Enum.TryParse(GetQueryStringValueAndAssertIfSingleAndNotEmpty("type").Trim(), out ItemType elementType) == false)
+            {
+                throw new ArgumentException($"Type {elementType} is not supported");
+            }
+
+            var name = GetQueryStringValueAndAssertIfSingleAndNotEmpty("name").Trim();
+            var path = GetStringQueryString("dataPath", false);
+
+            using (ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                bool isValid = true;
+                string errorMessage = null;
+
+                switch (elementType)
+                {
+                    case ItemType.Database:
+                        isValid = ResourceNameValidator.IsValidResourceName(name, path, out errorMessage);
+                        break;
+
+                    case ItemType.Index:
+                        isValid = IndexStore.IsValidIndexName(name, isStatic: true, out errorMessage);
+                        break;
+
+                    case ItemType.Script:
+                        isValid = ResourceNameValidator.IsValidFileName(name, out errorMessage);
+                        break;
+
+                    case ItemType.ElasticSearchIndex:
+                        isValid = ElasticSearchIndexValidator.IsValidIndexName(name, out errorMessage);
+                        break;
+                }
+
+                await using (var writer = new AsyncBlittableJsonTextWriter(context, ResponseBodyStream()))
+                {
+                    context.Write(writer, new DynamicJsonValue
+                    {
+                        [nameof(NameValidation.IsValid)] = isValid,
+                        [nameof(NameValidation.ErrorMessage)] = errorMessage
+                    });
+                }
+            }
+        }
+
+        [RavenAction("/studio-tasks/admin/migrator-path", "GET", AuthorizationStatus.Operator)]
+        public async Task HasMigratorPathInConfiguration()
+        {
+            // If the path from the configuration is defined, the Studio will block the option to set the path in the import view
+            using (ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                await using (var writer = new AsyncBlittableJsonTextWriter(context, ResponseBodyStream()))
+                {
+                    context.Write(writer, new DynamicJsonValue
+                    {
+                        [$"Has{nameof(MigrationConfiguration.MigratorPath)}"] = Server.Configuration.Migration.MigratorPath != null
+                    });
+                }
+            }
+        }
+
+        [RavenAction("/studio-tasks/bootstrap", "GET", AuthorizationStatus.ValidUser, EndpointType.Read)]
+        public async Task Bootstrap()
+        {
+            // preload server configuration for studio
+
+            using (ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+            await using (var writer = new AsyncBlittableJsonTextWriter(context, ResponseBodyStream()))
+            {
+                writer.WriteStartObject();
+                writer.WritePropertyName(nameof(StudioBootstrapConfiguration.CertificateExpiringThresholdInDays));
+                writer.WriteInteger(Server.Configuration.Security.CertificateExpiringThreshold.GetValue(TimeUnit.Days));
+                writer.WriteEndObject();
+            }
+        }
+
+        [RavenAction("/studio-tasks/format", "POST", AuthorizationStatus.ValidUser, EndpointType.Read)]
+        public async Task Format()
+        {
+            using (ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                var json = await context.ReadForMemoryAsync(RequestBodyStream(), "studio-tasks/format");
+                if (json == null)
+                    throw new BadRequestException("No JSON was posted.");
+
+                if (json.TryGet(nameof(SourceCodeBeautifier.FormattedExpression.Expression), out string expressionAsString) == false)
+                    throw new BadRequestException("'Expression' property was not found.");
+
+                if (string.IsNullOrWhiteSpace(expressionAsString))
+                {
+                    NoContentStatus();
+                    return;
+                }
+
+                SourceCodeBeautifier.FormattedExpression formattedExpression = SourceCodeBeautifier.FormatIndex(expressionAsString);
+
+                await using (var writer = new AsyncBlittableJsonTextWriter(context, ResponseBodyStream()))
+                {
+                    context.Write(writer, formattedExpression.ToJson());
+                }
+            }
+        }
+
+        [RavenAction("/studio-tasks/next-cron-expression-occurrence", "GET", AuthorizationStatus.ValidUser, EndpointType.Read)]
+        public async Task GetNextCronExpressionOccurrence()
+        {
+            var expression = GetQueryStringValueAndAssertIfSingleAndNotEmpty("expression");
+            CrontabSchedule crontabSchedule;
+            try
+            {
+                // will throw if the cron expression is invalid
+                crontabSchedule = CrontabSchedule.Parse(expression);
+            }
+            catch (Exception e)
+            {
+                using (ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+                await using (var writer = new AsyncBlittableJsonTextWriter(context, ResponseBodyStream()))
+                {
+                    writer.WriteStartObject();
+                    writer.WritePropertyName(nameof(NextCronExpressionOccurrence.IsValid));
+                    writer.WriteBool(false);
+                    writer.WriteComma();
+                    writer.WritePropertyName(nameof(NextCronExpressionOccurrence.ErrorMessage));
+                    writer.WriteString(e.Message);
+                    writer.WriteEndObject();
+                }
+
+                return;
+            }
+
+            const string taskIdQueryParameter = "taskId";
+            var taskId = GetLongQueryString(taskIdQueryParameter, required: false);
+
+            const string databaseNameQueryParameter = "database";
+            var databaseName = GetStringQueryString(databaseNameQueryParameter, required: false);
+
+            const string isFullBackupQueryParameter = "isFull";
+            var isFull = GetBoolValueQueryString(isFullBackupQueryParameter, required: false);
+
+            DateTime baseValue;
+
+            if (taskId == null && databaseName == null && isFull == null)
+            {
+                // if no taskId, databaseName or backupKind is provided, we use the current time as the base value
+                baseValue = SystemTime.UtcNow.ToLocalTime();
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(databaseName))
+                    throw new ArgumentException($"The database name must be provided via the '{databaseNameQueryParameter}' query parameter when either '{taskIdQueryParameter}' or '{isFullBackupQueryParameter}' is specified.");
+
+                if (taskId == null)
+                    throw new ArgumentException($"The task ID must be provided via the '{taskIdQueryParameter}' query parameter when either '{databaseNameQueryParameter}' or '{isFullBackupQueryParameter}' is specified.");
+
+                if (isFull == null)
+                    throw new ArgumentException($"The backup kind must be provided via the '{isFullBackupQueryParameter}' query parameter when either '{taskIdQueryParameter}' or '{databaseNameQueryParameter}' is specified.");
+
+                using (ServerStore.Engine.ContextPool.AllocateOperationContext(out ClusterOperationContext context))
+                using (context.OpenReadTransaction())
+                {
+                    var backupStatus = BackupUtils.GetBackupStatusFromCluster(context, databaseName, taskId.Value);
+                    if (backupStatus == null)
+                    {
+                        baseValue = SystemTime.UtcNow.ToLocalTime();
+                    }
+                    else
+                    {
+                        baseValue = isFull.Value
+                            ? (backupStatus.LastFullBackup ?? SystemTime.UtcNow).ToLocalTime()
+                            : (backupStatus.LastIncrementalBackup ?? SystemTime.UtcNow).ToLocalTime();
+                    }
+                }
+            }
+
+            var nextOccurrence = crontabSchedule.GetNextOccurrence(baseValue);
+
+            using (ServerStore.ContextPool.AllocateOperationContext(out TransactionOperationContext context))
+            await using (var writer = new AsyncBlittableJsonTextWriter(context, ResponseBodyStream()))
+            {
+                writer.WriteStartObject();
+                writer.WritePropertyName(nameof(NextCronExpressionOccurrence.IsValid));
+                writer.WriteBool(true);
+                writer.WriteComma();
+                writer.WritePropertyName(nameof(NextCronExpressionOccurrence.Utc));
+                writer.WriteDateTime(nextOccurrence.ToUniversalTime(), true);
+                writer.WriteComma();
+                writer.WritePropertyName(nameof(NextCronExpressionOccurrence.ServerTime));
+                writer.WriteDateTime(nextOccurrence, false);
+                writer.WriteEndObject();
+            }
+        }
+
+        [RavenAction("/studio-tasks/ai/models", "POST", AuthorizationStatus.ValidUser, EndpointType.Read)]
+        public async Task AiModels()
+        {
+            using (ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                var json = await context.ReadForMemoryAsync(RequestBodyStream(), "studio-tasks/format");
+                if (json == null)
+                    throw new BadRequestException("No JSON was posted.");
+
+                var request = JsonDeserializationServer.AiModelsRequest(json);
+
+                AbstractChatCompletionClientSettings settings = null;
+                switch (request.ConnectorType)
+                {
+                    case AiConnectorType.OpenAi:
+                        settings = new OpenAiChatCompletionClientSettings(request.OpenAiSettings);
+                        break;
+                    case AiConnectorType.AzureOpenAi:
+                        settings = new AzureOpenAiChatCompletionClientSettings(request.AzureOpenAiSettings);
+                        break;
+                    case AiConnectorType.Ollama:
+                        settings = new OllamaChatCompletionClientSettings(request.OllamaSettings);
+                        break;
+                    default:
+                        throw new NotSupportedException($"Unsupported connector type: {request.ConnectorType}");
+                }
+
+                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
+                using (var chat = new ChatCompletionClient(ServerStore.ContextPool, settings))
+                {
+                    await chat.ProxyModelsAsync(HttpContext.Response, cts.Token);
+                }
+            }
+        }
+
+        public sealed class AiModelsRequest
+        {
+            public AiConnectorType ConnectorType { get; set; }
+
+            public OllamaSettings OllamaSettings { get; set; }
+
+            public OpenAiSettings OpenAiSettings { get; set; }
+
+            public AzureOpenAiSettings AzureOpenAiSettings { get; set; }
+        }
+
+        [RavenAction("/studio-tasks/convert-to-json-schema", "POST", AuthorizationStatus.ValidUser, EndpointType.Read)]
+        public async Task GetJsonSchemaFromSampleObject()
+        {
+            using (ServerStore.ContextPool.AllocateOperationContext(out JsonOperationContext context))
+            {
+                var type = GetEnumQueryString<SchemaType>("type", required: false);
+                var sampleObj = await context.ReadForMemoryAsync(RequestBodyStream(), "convert-to-json-schema");
+
+                await using (var writer = new AsyncBlittableJsonTextWriter(context, ResponseBodyStream()))
+                {
+                    string schema;
+                    switch (type)
+                    {
+                        case SchemaType.Default:
+                        case SchemaType.StructureOutput:
+                            schema = ChatCompletionClient.GetSchemaForRequest(schema: null, sampleObj.ToString());
+                            break;
+                        case SchemaType.ToolParameters:
+                            schema = ChatCompletionClient.GetSchemaForTool(schema: null, sampleObj.ToString());
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException($"The type '{type}' is missing");
+                    }
+
+                    writer.WriteStartObject();
+                    writer.WritePropertyName("Result");
+                    writer.WriteString(schema);
+                    writer.WriteEndObject();
+                }
+            }
+        }
+
+        public sealed class StudioBootstrapConfiguration
+        {
+            public int CertificateExpiringThresholdInDays { get; set; }
+        }
+
+        public sealed class NextCronExpressionOccurrence
+        {
+            public bool IsValid { get; set; }
+
+            public string ErrorMessage { get; set; }
+
+            public DateTime Utc { get; set; }
+
+            public DateTime ServerTime { get; set; }
+        }
+
+        public enum ItemType
+        {
+            Index,
+            Database,
+            Script,
+            ElasticSearchIndex
+        }
+
+        public enum SchemaType
+        {
+            Default,
+            StructureOutput,
+            ToolParameters,
+        }
+    }
+}

@@ -1,0 +1,49 @@
+﻿.edit-pull-replication-hub-task {
+    
+    #replicationAccessList {
+        max-height: 800px;
+    }
+
+    .replication-access-list {
+        max-height: 800px;
+    }
+    
+    .replication-access-buttons {
+        top: -25px;
+    }
+    
+    .certificates-actions {
+        align-items: flex-start;
+        
+        & > * + * {
+            margin-left: @grid-gutter-width / 4;
+        }
+    }
+    .certificate-item {
+        .flex-horizontal {
+            flex-wrap: wrap;
+        }
+
+        .thumbprint {
+            font-size: 12px;
+        }
+
+        h3 {
+            margin: 0;
+        }
+
+        .panel-addon {
+            font-size: 13px;
+            // need to override the 'active' parent panel border color for this inner panel
+            border-bottom: 1px solid darken(@panel-bg, 4%);
+            border-right: 1px solid darken(@panel-bg, 4%);
+        }
+
+        .notBefore, .expiration {
+            margin-top: 0;
+            line-height: 18px;
+            margin-right: @grid-gutter-width/2;
+            white-space: nowrap;
+        }
+    }
+}

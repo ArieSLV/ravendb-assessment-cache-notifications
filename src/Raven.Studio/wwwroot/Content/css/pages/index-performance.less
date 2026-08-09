@@ -1,0 +1,234 @@
+﻿#indexingPerformance {
+
+    .tooltip-inner {
+        max-width: 400px;
+        white-space: nowrap;
+    }
+
+    .tooltip-title {
+        color: @text-emphasis;
+    }
+
+    .axis {
+        color: fadeout(@text-color, 30%);
+    }
+
+    .gaps {
+        color: fadeout(@color-5, 50%);
+    }
+
+    .brushChartColor {
+        color: @panel-bg;
+    }
+
+    .brushChartStrokeColor {
+        color: @brand-info;
+    }
+
+    .trackBackground {
+        color: @panel-bg;
+    }
+
+    .trackNameBg {
+        color: @panel-bg-2;
+    }
+
+    .trackNameFg {
+        color: @text-color;
+    }
+
+    .faulty {
+        color: @brand-danger;
+    }
+
+    .itemWithError {
+        color: red; // use strong red color regardless theme
+    }
+
+    .openedTrackArrow {
+        color: @brand-primary;
+    }
+
+    .closedTrackArrow {
+        color: @text-muted;
+    }
+
+    .stripeTextColor {
+        color: @gray-lighter;
+    }
+
+    .progressStripes {
+        color: rgba(255, 255, 255, 0.1);
+    }
+
+    .tracks {
+
+        .aggregationBlittableJson {
+            color: #ec407a;
+        }
+        
+        .concurrentlyRunning {
+            color: rgba(136, 136, 136, 0.2);
+        }
+
+        .references {
+            color: #ac2258;
+        }
+
+        .reduce {
+            color: #98041b;
+        }
+
+        .tree {
+            color: #af1923;
+        }
+
+        .aggregationLeafs {
+            color: #890e4f;
+        }
+
+        .aggregationBranches {
+            color: #ad1457;
+        }
+
+        .storageReduceResults {
+            color: #e65100;
+        }
+
+        .nestedValues {
+            color: #795549;
+        }
+
+        .aggregationNestedValues {
+            color: #d81a60;
+        }
+
+        .storageRemoveMapResult {
+            color: @color-1-3;
+        }
+
+        .storagePutMapResult {
+            color: @color-2;
+        }
+
+        .storageRead {
+            color: @color-2-1;
+        }
+
+        .storageUpdateReferences {
+            color: darken(@color-2-1, 10%);
+        }
+
+        .saveOutputDocuments {
+            color: @color-2-2;
+        }
+
+        .deleteOutputDocuments {
+            color: @color-2-2;
+        }
+
+        .getMapEntries {
+            color: @color-2-3;
+        }
+
+        .getMapEntriesTree {
+            color: @color-3;
+        }
+
+        .storageCommit {
+            color: @color-3-1;
+        }
+
+        .cleanup, .documentsCleanup {
+            color: @color-3-2;
+        }
+
+        .linq {
+            color: @color-3-3;
+        }
+
+        .jint {
+            color: @color-3-3;
+        }
+
+        .loadDocument {
+            color: @color-3-3;
+        }
+
+        .loadAttachment {
+            color: darken(@color-4, 10%);
+        }
+
+        .bloom {
+            color: @color-4;
+        }
+
+        .storageDocumentRead {
+            color: @color-4-1;
+        }
+
+        .collection {
+            color: darken(@color-4, 10%);
+        }
+
+        .createBlittableJson {
+            color: darken(@color-4-1, 15%);
+        }
+
+        .indexing {
+            color: @color-4-2;
+        }
+
+        .map {
+            color: darken(@color-4-2, 10%);
+        }
+
+        .luceneDelete, .coraxDelete {
+            color: lighten(@color-4-3, 15%);
+        }
+
+        .luceneSuggestion {
+            color: lighten(@color-4-3, 5%);
+        }
+
+        .luceneAddDocument, .coraxAddDocument {
+            color: darken(@color-4-3, 15%);
+        }
+
+        .luceneConvert, .coraxConvert {
+            color: @color-4-3;
+        }
+
+        .luceneCommit, .coraxCommit {
+            color: @color-5;
+        }
+
+        .luceneRecreateSearcher, .deletions, .storedValues, .suggestions, .coraxField {
+            color: lighten(@color-5, 10%);
+        }
+        
+        .textualValues, .floatingValues, .integerValues, .vectorValues, .spatialValues {
+            color: lighten(@color-5, 20%);
+        }
+
+        .luceneApplyDeletes {
+            color: @color-2;
+        }
+
+        .luceneMerge {
+            color: @color-3-3;
+        }
+        
+        .loadCompareExchangeValue {
+            color: lighten(@color-5-3, 20%);
+        }
+
+        .unknownOperation {
+            color: @default-operation-color;
+        }
+        
+        .coraxDictionaryTraining {
+            color: darken(@color-5, 10%);
+        }
+    }
+}

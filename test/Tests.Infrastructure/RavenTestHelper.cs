@@ -1,0 +1,330 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Operations.Indexes;
+using Raven.Client.Documents.Queries;
+using Raven.Client.Documents.Session;
+using Raven.Server.Utils;
+using Voron.Platform.Posix;
+using Sparrow.Collections;
+using Sparrow.Platform;
+using Sparrow.Utils;
+using Xunit;
+using System.Text;
+using Raven.Client.Documents.Operations;
+using Raven.Client.ServerWide.Operations;
+using Xunit.Sdk;
+using ExceptionAggregator = Raven.Server.Utils.ExceptionAggregator;
+using System.Runtime.CompilerServices;
+
+namespace Tests.Infrastructure
+{
+    public static class RavenTestHelper
+    {
+        public static readonly bool IsRunningOnCI;
+        public static readonly bool SkipIntegrationTests;
+        public static bool RunTestsWithDocsCompression;
+
+        public const string SkipIntegrationMessage = "Skipping integration tests.";
+
+        public static readonly ParallelOptions DefaultParallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = ProcessorInfo.ProcessorCount * 2
+        };
+
+        static RavenTestHelper()
+        {
+            bool.TryParse(Environment.GetEnvironmentVariable("RAVEN_IS_RUNNING_ON_CI"), out IsRunningOnCI);
+            bool.TryParse(Environment.GetEnvironmentVariable("RAVEN_SKIP_INTEGRATION_TESTS"), out SkipIntegrationTests);
+            bool.TryParse(Environment.GetEnvironmentVariable("RAVEN_DOCS_COMPRESSION_TESTS"), out RunTestsWithDocsCompression);
+        }
+
+        private static int _pathCount;
+
+        public static string NewDataPath(string testName, int serverPort, bool forceCreateDir = false)
+        {
+            testName = testName?.Replace("<", "").Replace(">", "");
+
+            var newDataDir = Path.GetFullPath($".\\Databases\\{testName ?? "TestDatabase"}.{serverPort}-{Interlocked.Increment(ref _pathCount)}");
+
+            if (PlatformDetails.RunningOnPosix)
+                newDataDir = PosixHelper.FixLinuxPath(newDataDir);
+
+            if (forceCreateDir && Directory.Exists(newDataDir) == false)
+                Directory.CreateDirectory(newDataDir);
+
+            return newDataDir;
+        }
+
+        public static void AssertTrue(bool condition, Func<string> messageOnFailure)
+        {
+            string failureMessage = null;
+            if (condition == false)
+            {
+                try
+                {
+                    failureMessage = messageOnFailure();
+                }
+                catch (Exception e)
+                {
+                    failureMessage = e.ToString();
+                }
+            }
+
+            Assert.True(condition, failureMessage);
+        }
+
+        public static void DeletePaths(ConcurrentSet<string> pathsToDelete, ExceptionAggregator exceptionAggregator)
+        {
+            var localPathsToDelete = pathsToDelete.ToArray();
+            foreach (var pathToDelete in localPathsToDelete)
+            {
+                pathsToDelete.TryRemove(pathToDelete);
+
+                FileAttributes pathAttributes;
+                try
+                {
+                    pathAttributes = File.GetAttributes(pathToDelete);
+                }
+                catch (FileNotFoundException)
+                {
+                    continue;
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    continue;
+                }
+
+                if (pathAttributes.HasFlag(FileAttributes.Directory))
+                    exceptionAggregator.Execute(() => ClearDatabaseDirectory(pathToDelete));
+                else
+                    exceptionAggregator.Execute(() => IOExtensions.DeleteFile(pathToDelete));
+            }
+        }
+
+        private static void ClearDatabaseDirectory(string dataDir)
+        {
+            var isRetry = false;
+
+            while (true)
+            {
+                try
+                {
+                    IOExtensions.DeleteDirectory(dataDir);
+                    break;
+                }
+                catch (IOException)
+                {
+                    if (isRetry)
+                        throw;
+
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                    isRetry = true;
+
+                    Thread.Sleep(200);
+                }
+            }
+        }
+
+        public static IndexQuery GetIndexQuery<T>(IQueryable<T> queryable)
+        {
+            var inspector = (IRavenQueryInspector)queryable;
+            return inspector.GetIndexQuery(isAsync: false);
+        }
+
+        public static void AssertNoIndexErrors(IDocumentStore store, string databaseName = null)
+        {
+            databaseName ??= store.Database;
+            var executor = store.Maintenance.ForDatabase(databaseName);
+            var databaseRecord = executor.Server.Send(new GetDatabaseRecordOperation(databaseName));
+
+            if (databaseRecord.IsSharded)
+            {
+                foreach (var shardNumber in databaseRecord.Sharding.Shards.Keys)
+                {
+                    var shardExecutor = executor.ForShard(shardNumber);
+                    AssertNoIndexErrorsInternal(shardExecutor);
+                }
+
+                return;
+            }
+
+            AssertNoIndexErrorsInternal(executor);
+
+            static void AssertNoIndexErrorsInternal(MaintenanceOperationExecutor executor)
+            {
+                var errors = executor.Send(new GetIndexErrorsOperation());
+                StringBuilder sb = null;
+                foreach (var indexErrors in errors)
+                {
+                    if (indexErrors?.Errors == null || indexErrors.Errors.Length == 0)
+                        continue;
+
+                    sb ??= new StringBuilder();
+
+                    sb.AppendLine($"Index Errors for '{indexErrors.Name}' ({indexErrors.Errors.Length})");
+                    foreach (var indexError in indexErrors.Errors)
+                    {
+                        sb.AppendLine($"- {indexError}");
+                    }
+                    sb.AppendLine();
+                }
+
+                if (sb == null)
+                    return;
+
+                throw new InvalidOperationException(sb.ToString());
+            }
+        }
+
+        public static void AssertEqualRespectingNewLines(string expected, string actual)
+        {
+            var convertedExpected = ConvertRespectingNewLines(expected);
+            var convertedActual = ConvertRespectingNewLines(actual);
+            Assert.Equal(convertedExpected, convertedActual);
+        }
+
+        public static void AssertStartsWithRespectingNewLines(string expected, string actual)
+        {
+            var convertedExpected = ConvertRespectingNewLines(expected);
+            var convertedActual = ConvertRespectingNewLines(actual);
+            Assert.StartsWith(convertedExpected, convertedActual);
+        }
+
+        public static void AssertContainsRespectingNewLines(string expected, string actual)
+        {
+            var convertedExpected = ConvertRespectingNewLines(expected);
+            var convertedActual = ConvertRespectingNewLines(actual);
+
+            Assert.Contains(convertedExpected, convertedActual);
+        }
+
+        public static void AreEquivalent<T>(IEnumerable<T> expected, IEnumerable<T> actual)
+        {
+            var forMonitor = actual.ToList();
+            Assert.All(expected, e =>
+            {
+                Assert.Contains(e, forMonitor);
+                forMonitor.Remove(e);
+            });
+            Assert.Empty(forMonitor);
+        }
+
+        public static void AssertAll(Func<string> massageFactory, params Action[] asserts)
+        {
+            try
+            {
+                Assert.All(asserts, assert => assert());
+            }
+            catch (Exception e)
+            {
+                throw new XunitException(massageFactory() + Environment.NewLine + e.Message);
+            }
+        }
+
+        public static void AssertAll(params Action[] asserts)
+        {
+            Assert.All(asserts, assert => assert());
+        }
+        public static async Task AssertAllAsync(Func<Task<string>> massageFactory, params Action[] asserts)
+        {
+            try
+            {
+                Assert.All(asserts, assert => assert());
+            }
+            catch (Exception e)
+            {
+                throw new XunitException(await massageFactory() + Environment.NewLine + e.Message);
+            }
+        }
+
+        private static string ConvertRespectingNewLines(string toConvert)
+        {
+            if (string.IsNullOrEmpty(toConvert))
+                return toConvert;
+
+            var regex = new Regex("\r*\n");
+            return regex.Replace(toConvert, Environment.NewLine);
+        }
+
+        public static DateTime UtcToday
+        {
+            get
+            {
+                return DateTime.UtcNow.Date;
+            }
+        }
+
+        public class DateTimeComparer : IEqualityComparer<DateTime>
+        {
+            public static readonly DateTimeComparer Instance = new DateTimeComparer();
+            public bool Equals(DateTime x, DateTime y)
+            {
+                if (x.Kind == DateTimeKind.Local)
+                    x = x.ToUniversalTime();
+
+                if (y.Kind == DateTimeKind.Local)
+                    y = y.ToUniversalTime();
+
+                return x == y;
+            }
+
+            public int GetHashCode(DateTime obj)
+            {
+                return obj.GetHashCode();
+            }
+        }
+
+        public static void AssertNotRunningOnCi([CallerMemberName] string caller = null)
+        {
+            if (IsRunningOnCI)
+                throw new InvalidOperationException($"Operation '{caller}' is forbidden, because tests are running on CI.");
+        }
+
+        internal static HashSet<(string Method, string Path)> ServerEndpointsToIgnore = 
+        [
+            ("POST", "/admin/replication/conflicts/solver"),                          // access handled internally
+            ("POST", "/setup/dns-n-cert"),                                            // only available in setup mode
+            ("POST", "/setup/user-domains"),                                          // only available in setup mode
+            ("POST", "/setup/populate-ips"),                                          // only available in setup mode
+            ("GET", "/setup/parameters"),                                             // only available in setup mode
+            ("GET", "/setup/ips"),                                                    // only available in setup mode
+            ("POST", "/setup/hosts"),                                                 // only available in setup mode
+            ("POST", "/setup/unsecured"),                                             // only available in setup mode
+            ("POST", "/setup/unsecured/package"),                                     // only available in setup mode
+            ("POST", "/setup/continue/unsecured"),                                    // only available in setup mode
+            ("POST", "/setup/secured"),                                               // only available in setup mode
+            ("GET", "/setup/letsencrypt/agreement"),                                  // only available in setup mode
+            ("POST", "/setup/letsencrypt"),                                           // only available in setup mode
+            ("POST", "/setup/continue/extract"),                                      // only available in setup mode
+            ("POST", "/setup/continue"),                                              // only available in setup mode
+            ("POST", "/setup/finish"),                                                // only available in setup mode
+            ("POST", "/server/notification-center/dismiss"),                          // access handled internally
+            ("POST", "/server/notification-center/postpone"),                         // access handled internally
+            ("GET", "/admin/debug/cluster-info-package"),                             // heavy
+            ("GET", "/admin/debug/remote-cluster-info-package"),                      // heavy
+            ("GET", "/admin/debug/info-package"),                                     // heavy
+            ("GET", "/admin/debug/threads/contention"),                               // heavy
+            ("GET", "/admin/debug/gcdump"),                                           // heavy
+            ("GET", "/admin/debug/threads/stack-trace"),                              // heavy
+            ("GET", "/admin/debug/memory/gc-events"),                                 // heavy
+            ("GET", "/admin/debug/memory/allocations"),                               // heavy
+            ("GET", "/license/support"),                                              // heavy 
+            ("GET", "/admin/debug/threads/runaway"),                                  // heavy
+            ("POST", "/license/free/send-verification-code"),                         // only available in setup mode
+            ("POST", "/license/free/download"),                                       // only available in setup mode
+         ];
+
+        internal static HashSet<(string Method, string Path)> DatabaseEndpointsToIgnore = 
+        [
+            ("POST", "/databases/*/admin/pull-replication/generate-certificate"),     // heavy
+            ("POST", "/databases/*/studio/sample-data")                               // heavy
+        ];
+    }
+}

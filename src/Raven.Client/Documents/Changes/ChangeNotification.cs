@@ -1,0 +1,532 @@
+﻿using System;
+using System.Diagnostics;
+using Raven.Client.Documents.Queries.Timings;
+using Raven.Client.ServerWide.Tcp;
+using Sparrow.Json;
+using Sparrow.Json.Parsing;
+
+namespace Raven.Client.Documents.Changes
+{
+    public sealed class TopologyChange : DatabaseChange
+    {
+        public string Url;
+        public string Database;
+
+        public DynamicJsonValue ToJson()
+        {
+            Debug.Assert(string.IsNullOrEmpty(Url) == false, "string.IsNullOrEmpty(Url) == false");
+            Debug.Assert(string.IsNullOrEmpty(Database) == false, "string.IsNullOrEmpty(Database) == false");
+
+            return new DynamicJsonValue
+            {
+                [nameof(Url)] = Url,
+                [nameof(Database)] = Database
+            };
+        }
+
+        internal static TopologyChange FromJson(BlittableJsonReaderObject value)
+        {
+            value.TryGet(nameof(Url), out string url);
+            value.TryGet(nameof(Database), out string database);
+
+            Debug.Assert(string.IsNullOrEmpty(url) == false, "string.IsNullOrEmpty(url) == false");
+            Debug.Assert(string.IsNullOrEmpty(database) == false, "string.IsNullOrEmpty(database) == false");
+
+            return new TopologyChange
+            {
+                Url = url,
+                Database = database
+            };
+        }
+    }
+
+    internal sealed class CacheInvalidationChange : DatabaseChange
+    {
+        internal const string NotificationType = "CacheInvalidation";
+        internal const string ReasonFieldName = "Reason";
+        internal const string GenerationFieldName = "Generation";
+
+        public string Reason { get; set; }
+
+        public long Generation { get; set; }
+
+        internal static bool ShouldInvalidateCache(DocumentChange change)
+        {
+            return change.Type is DocumentChangeTypes.Put or DocumentChangeTypes.Delete;
+        }
+
+        internal static bool ShouldInvalidateCache(IndexChange change)
+        {
+            return change.Type is IndexChangeTypes.BatchCompleted or IndexChangeTypes.IndexRemoved;
+        }
+
+        internal static bool TryRead(BlittableJsonReaderObject value, out CacheInvalidationChange change, out string rejectionReason)
+        {
+            change = null;
+
+            if (value == null)
+            {
+                rejectionReason = "Missing cache invalidation payload.";
+                return false;
+            }
+
+            bool hasGeneration = value.TryGet(GenerationFieldName, out long generation);
+
+            if (value.TryGet(ReasonFieldName, out string reason) == false || string.IsNullOrEmpty(reason))
+            {
+                rejectionReason = hasGeneration
+                    ? $"Missing or empty '{ReasonFieldName}'. Generation: {generation}."
+                    : $"Missing or empty '{ReasonFieldName}'.";
+                return false;
+            }
+
+            if (hasGeneration == false || generation <= 0)
+            {
+                rejectionReason = $"Missing or invalid '{GenerationFieldName}'.";
+                return false;
+            }
+
+            change = new CacheInvalidationChange
+            {
+                Reason = reason,
+                Generation = generation
+            };
+            rejectionReason = null;
+            return true;
+        }
+    }
+
+    public sealed class DocumentChange : DatabaseChange
+    {
+        /// <summary>
+        /// Type of change that occurred on document.
+        /// </summary>
+        public DocumentChangeTypes Type { get; set; }
+
+        /// <summary>
+        /// Identifier of document for which notification was created.
+        /// </summary>
+        public string Id { get; set; }
+
+        /// <summary>
+        /// Document collection name.
+        /// </summary>
+        public string CollectionName { get; set; }
+
+        /// <summary>
+        /// Document change vector
+        /// </summary>
+        public string ChangeVector { get; set; }
+
+        internal bool TriggeredByReplicationThread;
+
+        public override string ToString()
+        {
+            return $"{Type} on {Id}";
+        }
+
+        public DynamicJsonValue ToJson()
+        {
+            return new DynamicJsonValue
+            {
+                [nameof(Type)] = Type.ToString(),
+                [nameof(Id)] = Id,
+                [nameof(CollectionName)] = CollectionName,
+                [nameof(ChangeVector)] = ChangeVector
+            };
+        }
+
+        internal static DocumentChange FromJson(BlittableJsonReaderObject value)
+        {
+            value.TryGet(nameof(CollectionName), out string collectionName);
+            value.TryGet(nameof(ChangeVector), out string changeVector);
+            value.TryGet(nameof(Id), out string id);
+            value.TryGet(nameof(Type), out string type);
+
+            return new DocumentChange
+            {
+                CollectionName = collectionName,
+                ChangeVector = changeVector,
+                Id = id,
+                Type = (DocumentChangeTypes)Enum.Parse(typeof(DocumentChangeTypes), type, ignoreCase: true)
+            };
+        }
+    }
+
+    [Flags]
+    public enum DocumentChangeTypes
+    {
+        None = 0,
+
+        Put = 1,
+        Delete = 2,
+        BulkInsertStarted = 4,
+        BulkInsertEnded = 8,
+        BulkInsertError = 16,
+        DeleteOnTombstoneReplication = 32,
+        Conflict = 64,
+
+        Common = Put | Delete
+    }
+
+    [Flags]
+    public enum IndexChangeTypes
+    {
+        None = 0,
+
+        BatchCompleted = 1,
+
+        IndexAdded = 1 << 3,
+        IndexRemoved = 1 << 4,
+
+        IndexDemotedToIdle = 1 << 5,
+        IndexPromotedFromIdle = 1 << 6,
+
+        IndexDemotedToDisabled = 1 << 8,
+
+        IndexMarkedAsErrored = 1 << 9,
+
+        SideBySideReplace = 1 << 10,
+
+        Renamed = 1 << 11,
+        IndexPaused = 1 << 12,
+        LockModeChanged = 1 << 13,
+        PriorityChanged = 1 << 14,
+
+        RollingIndexChanged = 1 << 16
+    }
+
+    [Flags]
+    public enum CounterChangeTypes
+    {
+        None = 0,
+        Put = 1,
+        Delete = 2,
+        Increment = 4
+    }
+
+    public sealed class CounterChange : DatabaseChange
+    {
+        /// <summary>
+        /// Counter name.
+        /// </summary>
+        public string Name { get; set; }
+
+        /// <summary>
+        /// Counter value.
+        /// </summary>
+        public long Value { get; set; }
+
+        /// <summary>
+        /// Counter document identifier.
+        /// </summary>
+        public string DocumentId { get; set; }
+
+        /// <summary>
+        /// Document collection name.
+        /// </summary>
+        public string CollectionName { get; set; }
+
+        /// <summary>
+        /// Counter change vector.
+        /// </summary>
+        public string ChangeVector { get; set; }
+
+        /// <summary>
+        /// Type of change that occurred on counter.
+        /// </summary>
+        public CounterChangeTypes Type { get; set; }
+
+        internal bool TriggeredByReplicationThread;
+
+        public DynamicJsonValue ToJson()
+        {
+            return new DynamicJsonValue
+            {
+                [nameof(Name)] = Name,
+                [nameof(Value)] = Value,
+                [nameof(DocumentId)] = DocumentId,
+                [nameof(CollectionName)] = CollectionName,
+                [nameof(ChangeVector)] = ChangeVector,
+                [nameof(Type)] = Type.ToString()
+            };
+        }
+
+        internal static CounterChange FromJson(BlittableJsonReaderObject value)
+        {
+            value.TryGet(nameof(Name), out string name);
+            value.TryGet(nameof(Value), out long val);
+            value.TryGet(nameof(DocumentId), out string documentId);
+            value.TryGet(nameof(CollectionName), out string collectionName);
+            value.TryGet(nameof(ChangeVector), out string changeVector);
+            value.TryGet(nameof(Type), out string type);
+
+            return new CounterChange
+            {
+                Name = name,
+                Value = val,
+                DocumentId = documentId,
+                ChangeVector = changeVector,
+                CollectionName = collectionName,
+                Type = (CounterChangeTypes)Enum.Parse(typeof(CounterChangeTypes), type, ignoreCase: true)
+            };
+        }
+    }
+
+    [Flags]
+    public enum TimeSeriesChangeTypes
+    {
+        None = 0,
+        Put = 1,
+        Delete = 2,
+        Mixed = 3
+    }
+
+    public sealed class TimeSeriesChange : DatabaseChange
+    {
+        /// <summary>
+        /// Time Series name.
+        /// </summary>
+        public string Name { get; set; }
+
+        /// <summary>
+        /// Apply values of time series from date.
+        /// </summary>
+        public DateTime From { get; set; }
+
+        /// <summary>
+        /// Apply values of time series to date.
+        /// </summary>
+        public DateTime To { get; set; }
+
+        /// <summary>
+        /// Time series document identifier.
+        /// </summary>
+        public string DocumentId { get; set; }
+
+        /// <summary>
+        /// Time series change vector.
+        /// </summary>
+        public string ChangeVector { get; set; }
+
+        /// <summary>
+        /// Type of change that occurred on time series.
+        /// </summary>
+        public TimeSeriesChangeTypes Type { get; set; }
+
+        internal bool TriggeredByReplicationThread;
+
+        /// <summary>
+        /// Time series document collection name.
+        /// </summary>
+        public string CollectionName { get; set; }
+
+        public DynamicJsonValue ToJson()
+        {
+            DateTime? from = null, to = null;
+
+            if (From != DateTime.MinValue)
+                from = From;
+
+            if (To != DateTime.MaxValue)
+                to = To;
+
+            return new DynamicJsonValue
+            {
+                [nameof(Name)] = Name,
+                [nameof(From)] = from,
+                [nameof(To)] = to,
+                [nameof(DocumentId)] = DocumentId,
+                [nameof(ChangeVector)] = ChangeVector,
+                [nameof(Type)] = Type.ToString(),
+                [nameof(CollectionName)] = CollectionName
+            };
+        }
+
+        internal static TimeSeriesChange FromJson(BlittableJsonReaderObject value)
+        {
+            value.TryGet(nameof(Name), out string name);
+            value.TryGet(nameof(From), out DateTime? from);
+            value.TryGet(nameof(To), out DateTime? to);
+            value.TryGet(nameof(DocumentId), out string documentId);
+            value.TryGet(nameof(ChangeVector), out string changeVector);
+            value.TryGet(nameof(Type), out string type);
+            value.TryGet(nameof(CollectionName), out string collectionName);
+
+            return new TimeSeriesChange
+            {
+                Name = name,
+                From = from ?? DateTime.MinValue,
+                To = to ?? DateTime.MaxValue,
+                DocumentId = documentId,
+                ChangeVector = changeVector,
+                Type = (TimeSeriesChangeTypes)Enum.Parse(typeof(TimeSeriesChangeTypes), type, ignoreCase: true),
+                CollectionName = collectionName
+            };
+        }
+    }
+
+    public class IndexChange : DatabaseChange
+    {
+        /// <summary>
+        /// Type of change that occurred on index.
+        /// </summary>
+        public IndexChangeTypes Type { get; set; }
+
+        /// <summary>
+        /// Name of index for which notification was created
+        /// </summary>
+        public string Name { get; set; }
+
+        public override string ToString()
+        {
+            return string.Format("{0} on {1}", Type, Name);
+        }
+
+        public DynamicJsonValue ToJson()
+        {
+            return new DynamicJsonValue
+            {
+                [nameof(Name)] = Name,
+                [nameof(Type)] = Type.ToString()
+            };
+        }
+
+        internal static IndexChange FromJson(BlittableJsonReaderObject value)
+        {
+            value.TryGet(nameof(Name), out string name);
+            value.TryGet(nameof(Type), out string type);
+
+            return new IndexChange
+            {
+                Type = (IndexChangeTypes)Enum.Parse(typeof(IndexChangeTypes), type, ignoreCase: true),
+                Name = name
+            };
+        }
+    }
+
+    public sealed class IndexRenameChange : IndexChange
+    {
+        /// <summary>
+        /// The old index name
+        /// </summary>
+        public string OldIndexName { get; set; }
+    }
+    internal abstract class TrafficWatchChangeBase : DatabaseChange, IDynamicJson
+    {
+        public abstract TrafficWatchType TrafficWatchType { get; }
+        public DateTime TimeStamp { get; set; }
+        public string DatabaseName { get; set; }
+        public string CustomInfo { get; set; }
+        public string ClientIP { get; set; }
+        public string CertificateThumbprint { get; set; }
+
+        public virtual DynamicJsonValue ToJson()
+        {
+            var json = new DynamicJsonValue
+            {
+                [nameof(TrafficWatchType)] = TrafficWatchType,
+                [nameof(TimeStamp)] = TimeStamp,
+                [nameof(DatabaseName)] = DatabaseName,
+                [nameof(CustomInfo)] = CustomInfo,
+                [nameof(ClientIP)] = ClientIP,
+                [nameof(CertificateThumbprint)] = CertificateThumbprint
+            };
+
+            return json;
+        }
+    }
+
+    public enum TrafficWatchType
+    {
+        Http,
+        Tcp,
+        Postgres
+    }
+
+    internal sealed class TrafficWatchHttpChange : TrafficWatchChangeBase
+    {
+        public override TrafficWatchType TrafficWatchType => TrafficWatchType.Http;
+        public long RequestId { get; set; }
+        public string HttpMethod { get; set; }
+        public long ElapsedMilliseconds { get; set; }
+        public int ResponseStatusCode { get; set; }
+        public string RequestUri { get; set; }
+        public string AbsoluteUri { get; set; }
+        public long RequestSizeInBytes { get; set; }
+        public long ResponseSizeInBytes { get; set; }
+        public TrafficWatchChangeType Type { get; set; }
+        public QueryTimings QueryTimings { get; set; }
+
+        public override DynamicJsonValue ToJson()
+        {
+            var json = base.ToJson();
+            json[nameof(RequestId)] = RequestId;
+            json[nameof(HttpMethod)] = HttpMethod;
+            json[nameof(ElapsedMilliseconds)] = ElapsedMilliseconds;
+            json[nameof(ResponseStatusCode)] = ResponseStatusCode;
+            json[nameof(RequestUri)] = RequestUri;
+            json[nameof(AbsoluteUri)] = AbsoluteUri;
+            json[nameof(RequestSizeInBytes)] = RequestSizeInBytes;
+            json[nameof(ResponseSizeInBytes)] = ResponseSizeInBytes;
+            json[nameof(Type)] = Type;
+            
+            if(QueryTimings != null)
+                json[nameof(QueryTimings)] = QueryTimings;
+
+            return json;
+        }
+    }
+
+    internal sealed class TrafficWatchTcpChange : TrafficWatchChangeBase
+    {
+        public override TrafficWatchType TrafficWatchType => TrafficWatchType.Tcp;
+        public string Source { get; set; }
+        public TcpConnectionHeaderMessage.OperationTypes Operation { get; set; }
+        public int OperationVersion { get; set; }
+
+        public override DynamicJsonValue ToJson()
+        {
+            var json = base.ToJson();
+            json[nameof(Source)] = Source;
+            json[nameof(Operation)] = Operation;
+            json[nameof(OperationVersion)] = OperationVersion;
+            return json;
+        }
+    }
+    
+    internal sealed class TrafficWatchPostgresChange : TrafficWatchChangeBase
+    {
+        public override TrafficWatchType TrafficWatchType => TrafficWatchType.Postgres;
+        public string Source { get; set; }
+        public string Username { get; set; }
+        public string Query { get; set; }
+        public override DynamicJsonValue ToJson()
+        {
+            var json = base.ToJson();
+            json[nameof(Source)] = Source;
+            json[nameof(Username)] = Username;
+            json[nameof(Query)] = Query;
+            return json;
+        }
+    }
+    
+
+    public enum TrafficWatchChangeType
+    {
+        None,
+        Queries,
+        Operations,
+        MultiGet,
+        BulkDocs,
+        Index,
+        Counters,
+        Hilo,
+        Subscriptions,
+        Streams,
+        Documents,
+        TimeSeries,
+        Notifications,
+        ClusterCommands
+    }
+}

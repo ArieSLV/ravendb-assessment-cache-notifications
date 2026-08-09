@@ -1,0 +1,374 @@
+<div id="notification-center" class="flex-vertical" data-bind="css: { 'show-notifications': notificationCenter.showNotifications() }, with: notificationCenter">
+    <div class="notification-actions flex-horizontal flex-stretch-items" data-bind="if: includeInDom">
+        <div class="flex-horizontal flex-stretch-items">
+            <button data-bind="click: _.partial(filterBySeverity, null), css: { active: !severityFilter() }"
+                    title="Show all notifications" class="notification-type-toggle active">
+                All
+            </button>
+            <button data-bind="click: _.partial(filterBySeverity, 'Success'), css: { active: severityFilter() === 'Success' }, text: successItemsCount"
+                    title="Filter by severity: Success" class="notification-type-toggle type-success"></button>
+            <button data-bind="click: _.partial(filterBySeverity, 'Info'), css: { active: severityFilter() === 'Info' }, text: infoItemsCount"
+                    title="Filter by severity: Info" class="notification-type-toggle type-info"></button>
+            <button data-bind="click: _.partial(filterBySeverity, 'Warning'), css: { active: severityFilter() === 'Warning' }, text: warningItemsCount"
+                    title="Filter by severity: Warning" class="notification-type-toggle type-warning"></button>
+            <button data-bind="click: _.partial(filterBySeverity, 'Error'), css: { active: severityFilter() === 'Error' }, text: errorItemsCount"
+                    title="Filter by severity: Error" class="notification-type-toggle type-danger"></button>
+        </div>
+        <button data-bind="click: dismissAll" class="dismiss"><i class="icon-dismiss-all"></i> Dismiss all</button>
+        <div class="flex-grow"></div>
+        <button data-bind="{ click: pinNotifications.toggle.bind(pinNotifications), css: { 'pinned': pinNotifications() } }" class="notifications-pin-toggle"><i class="icon-pin"></i><i class="icon-pinned"></i></button>
+    </div>
+    <div class="padding" data-bind="visible: noNewNotifications">
+        <i class="icon-xl icon-empty-set text-muted"></i>
+        <h2 class="text-center text-muted">No new notifications</h2>
+    </div>
+    <div class="notification-list scroll" data-bind="if: includeInDom">
+        <div data-bind="foreach: notificationsToShow">
+            <div data-bind="template: { name: type + '-template' }"></div>
+        </div>
+        <div class="text-center" data-bind="visible: visibleNotifications().length > constructor.numberOfNotificationsToShow && !isShowingAllNotifications()">
+            <button class="btn btn-danger margin-top-xs" data-bind="click: showAllNotifications">
+                Show all notifications
+            </button>
+        </div>
+    </div>
+</div>
+
+<script type="text/html" id="OperationChanged-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <div data-bind="if: isCompleted()">
+                <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data), enable: !_.includes($parent.spinners.dismiss(), id), css: { 'btn-spinner': _.includes($parent.spinners.dismiss(), id) }">
+                    <i class="icon-cancel"></i>
+                </button>
+                <div class="notification-header">
+                    <i data-bind="attr: { 'class': headerIconClass() + ' ' +  headerIconAddonClass() } "></i>
+                    <h3 data-bind="text: title" class="margin-right-sm"></h3>
+                </div>
+                <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+                <p data-bind="html: message"></p>
+                <p data-bind="visible: isCanceled" class="text-warning">The operation was cancelled.</p>
+
+                <div class="flex-horizontal">
+                    <button data-bind="visible: hasDetails(), click: _.partial($parent.openDetails, $data)"
+                            class="btn btn-default btn-sm">
+                        <i class="icon-details"></i>
+                        <span>Details</span>
+                    </button>
+                </div>
+            </div>
+            <div data-bind="if: !isCompleted()">
+                <div class="notification-header">
+                    <h3 class="margin-right-sm">
+                        <span data-bind="text: title"></span>
+                        <span class="global-spinner spinner-xs"></span>
+                    </h3>
+                </div>
+                <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+                <p data-bind="html: message"></p>
+                <div class="progress" data-bind="visible: isPercentageProgress(), if: isPercentageProgress()">
+                    <div class="progress-bar" role="progressbar"
+                         data-bind="style: {  width: percentageProgress() + '%' }, attr: { 'aria-valuenow': progress().Processed, 'aria-valuemax': progress().Total }" aria-valuemin="0">
+                        <span class="sr-only" data-bind="text: percentageProgress() + '%'"></span>
+                    </div>
+                </div>
+                <div class="flex-horizontal">
+                    <button data-bind="visible: hasDetails(), click: _.partial($parent.openDetails, $data)"
+                            class="btn btn-default btn-sm">
+                        <i class="icon-details"></i>
+                        <span>Details</span>
+                    </button>
+                    <div class="flex-separator"></div>
+                    <button class="btn btn-sm btn-danger" data-bind="click: _.partial($parent.killOperation, $data), visible: killable(), enable: !_.includes($parent.spinners.kill(), id), css: { 'btn-spinner': _.includes($parent.spinners.kill(), id) }">
+                        <i class="icon-cancel"></i>
+                        <span>Abort</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="AlertRaised-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data), enable: !_.includes($parent.spinners.dismiss(), id), css: { 'btn-spinner': _.includes($parent.spinners.dismiss(), id) }">
+                <i class="icon-cancel"></i>
+            </button>
+            <div class="notification-header">
+                <i data-bind="attr: { class: headerIconClass() + ' icon-addon-warning' }"></i>
+                <h3 data-bind="text: title" class="margin-right-sm"></h3>
+            </div>
+            <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+            <p data-bind="html: message"></p>
+            <div class="flex-horizontal">
+                <button data-bind="visible: hasDetails(), click: _.partial($parent.openDetails, $data)"
+                        class="btn btn-default btn-sm">
+                    <i class="icon-details"></i>
+                    <span>Details</span>
+                </button>
+                <div class="flex-separator"></div>
+                <div class="dropdown dropdown-right" data-bind="visible: canBePostponed">
+                    <button class="btn btn-sm btn-info dropdown-toggle" data-toggle="dropdown" data-bind="enable: !_.includes($parent.spinners.postpone(), id), css: { 'btn-spinner': _.includes($parent.spinners.postpone(), id) }">
+                        <i class="icon-clock"></i><span>Postpone</span>
+                        <span class="caret"></span>
+                    </button>
+                    <ul class="dropdown-menu" data-bind="foreach: $parent.constructor.postponeOptions">
+                        <li><a href="#" data-bind="text: label, click: _.partial($parents[1].postpone, $parent, value)"></a></li>
+                    </ul>
+                </div>
+            </div>
+            <div data-bind="if: customControl">
+                <div data-bind="compose: { model: customControl }"></div>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="RecentError-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data)">
+                <i class="icon-cancel"></i>
+            </button>
+            <div class="notification-header">
+                <i data-bind="attr: { class: headerIconClass() + ' icon-addon-danger' }"></i>
+                <h3 data-bind="text: title" class="margin-right-sm"></h3>
+            </div>
+            <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+            <p data-bind="html: shortMessage"></p>
+            <div class="flex-horizontal">
+                <button data-bind="visible: hasDetails(), click: _.partial($parent.openDetails, $data)"
+                        class="btn btn-default btn-sm">
+                    Details
+                </button>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="PerformanceHint-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data)">
+                <i class="icon-cancel"></i>
+            </button>
+            <div class="notification-header">
+                <i data-bind="attr: { class: headerIconClass() + ' icon-addon-rocket' }"></i>
+                <h3 data-bind="text: title" class="margin-right-sm"></h3>
+            </div>
+            <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+            <p data-bind="html: message"></p>
+            <div class="flex-horizontal">
+                <button data-bind="visible: hasDetails(), click: _.partial($parent.openDetails, $data)"
+                        class="btn btn-default btn-sm">
+                    <i class="icon-details"></i>
+                    <span>Details</span>
+                </button>
+                <div class="flex-separator"></div>
+                <div class="dropdown dropdown-right" data-bind="visible: canBePostponed">
+                    <button class="btn btn-sm btn-info dropdown-toggle" data-toggle="dropdown"
+                            data-bind="enable: !_.includes($parent.spinners.postpone(), id), css: { 'btn-spinner': _.includes($parent.spinners.postpone(), id) }">
+                        <i class="icon-clock"></i><span>Postpone</span>
+                        <span class="caret"></span>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <!-- ko foreach: $parent.constructor.postponeOptions -->
+                        <li>
+                            <a href="#"
+                               data-bind="text: label, click: _.partial($parents[1].postpone, $parent, value)"></a>
+                        </li>
+                        <!-- /ko -->
+                        <li>
+                            <a href="#"
+                               data-bind="text: 'Don\'t show again', click: _.partial($parent.postpone, $data, 0)"></a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="CumulativeBulkInsertFailures-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data), enable: !_.includes($parent.spinners.dismiss(), id), css: { 'btn-spinner': _.includes($parent.spinners.dismiss(), id) }">
+                <i class="icon-cancel"></i>
+            </button>
+            <div class="notification-header">
+                <i class="icon-database-cutout icon-addon-tick"></i>
+                <h3 data-bind="text: title" class="margin-right-sm"></h3>
+            </div>
+            <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+            <p data-bind="text: message"></p>
+            <div class="flex-horizontal">
+                <button data-bind="click: _.partial($parent.openDetails, $data)"
+                        class="btn btn-default btn-sm">
+                    <i class="icon-details"></i>
+                    <span>Details</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</script>
+
+
+<script type="text/html" id="CumulativeBulkInsert-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data), enable: !_.includes($parent.spinners.dismiss(), id), css: { 'btn-spinner': _.includes($parent.spinners.dismiss(), id) }">
+                <i class="icon-cancel"></i>
+            </button>
+            <div class="notification-header">
+                <i class="icon-database-cutout icon-addon-tick"></i>
+                <h3 data-bind="text: title" class="margin-right-sm"></h3>
+            </div>
+            <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+            <p data-bind="text: message"></p>
+            <div class="flex-horizontal">
+                <button data-bind="click: _.partial($parent.openDetails, $data)"
+                        class="btn btn-default btn-sm">
+                    <i class="icon-details"></i>
+                    <span>Details</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="CumulativeUpdateByQueryFailures-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data), enable: !_.includes($parent.spinners.dismiss(), id), css: { 'btn-spinner': _.includes($parent.spinners.dismiss(), id) }">
+                <i class="icon-cancel"></i>
+            </button>
+            <div class="notification-header">
+                <i class="icon-database-cutout icon-addon-tick"></i>
+                <h3 data-bind="text: title" class="margin-right-sm"></h3>
+            </div>
+            <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+            <p data-bind="text: message"></p>
+            <div class="flex-horizontal">
+                <button data-bind="click: _.partial($parent.openDetails, $data)"
+                        class="btn btn-default btn-sm">
+                    <i class="icon-details"></i>
+                    <span>Details</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="CumulativeUpdateByQuery-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data), enable: !_.includes($parent.spinners.dismiss(), id), css: { 'btn-spinner': _.includes($parent.spinners.dismiss(), id) }">
+                <i class="icon-cancel"></i>
+            </button>
+            <div class="notification-header">
+                <i class="icon-database-cutout icon-addon-tick"></i>
+                <h3 data-bind="text: title" class="margin-right-sm"></h3>
+            </div>
+            <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+            <p data-bind="text: message"></p>
+            <div class="flex-horizontal">
+                <button data-bind="click: _.partial($parent.openDetails, $data)"
+                        class="btn btn-default btn-sm">
+                    <i class="icon-details"></i>
+                    <span>Details</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="CumulativeDeleteByQueryFailures-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data), enable: !_.includes($parent.spinners.dismiss(), id), css: { 'btn-spinner': _.includes($parent.spinners.dismiss(), id) }">
+                <i class="icon-cancel"></i>
+            </button>
+            <div class="notification-header">
+                <i class="icon-database-cutout icon-addon-tick"></i>
+                <h3 data-bind="text: title" class="margin-right-sm"></h3>
+            </div>
+            <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+            <p data-bind="html: message"></p>
+            <div class="flex-horizontal">
+                <button data-bind="click: _.partial($parent.openDetails, $data)"
+                        class="btn btn-default btn-sm">
+                    <i class="icon-details"></i>
+                    <span>Details</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="CumulativeDeleteByQuery-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data), enable: !_.includes($parent.spinners.dismiss(), id), css: { 'btn-spinner': _.includes($parent.spinners.dismiss(), id) }">
+                <i class="icon-cancel"></i>
+            </button>
+            <div class="notification-header">
+                <i class="icon-database-cutout icon-addon-tick"></i>
+                <h3 data-bind="text: title" class="margin-right-sm"></h3>
+            </div>
+            <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+            <p data-bind="html: message"></p>
+            <div class="flex-horizontal">
+                <button data-bind="click: _.partial($parent.openDetails, $data)"
+                        class="btn btn-default btn-sm">
+                    <i class="icon-details"></i>
+                    <span>Details</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="AttachmentUpload-template">
+    <div data-bind="attr: { class: 'notification-item ' + cssClass() }">
+        <div class="padding">
+            <div data-bind="if: isCompleted()">
+                <button class="close" data-bind="visible: canBeDismissed, click: _.partial($parent.dismiss, $data), enable: !_.includes($parent.spinners.dismiss(), id)">
+                    <i class="icon-cancel"></i>
+                </button>
+                <div class="notification-header">
+                    <i class="icon-database-cutout icon-addon-tick"></i>
+                    <h3 data-bind="text: title" class="margin-right-sm"></h3>
+                </div>
+                <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+                <p data-bind="html: message"></p>
+                <p data-bind="visible: isCanceled" class="text-warning">The operation was cancelled.</p>
+            </div>
+            <div data-bind="if: !isCompleted()">
+                <div class="notification-header">
+                    <h3 class="margin-right-sm">
+                        <span data-bind="text: title"></span>
+                        <span class="global-spinner spinner-xs"></span>
+                    </h3>
+                </div>
+                <div class="notification-time" data-bind="text: displayDate().format('LLL')"></div>
+                <p data-bind="html: message"></p>
+
+                <div class="progress" data-bind="visible: isPercentageProgress(), if: isPercentageProgress()">
+                    <div class="progress-bar" role="progressbar"
+                         data-bind="style: {  width: percentageProgress() + '%' }, attr: { 'aria-valuenow': loaded, 'aria-valuemax': total }" aria-valuemin="0">
+                        <span class="sr-only" data-bind="text: percentageProgress() + '%'"></span>
+                    </div>
+                </div>
+                <div class="flex-horizontal">
+                    <small class="text-progress" data-bind="text: textualProgress, visible: !isCompleted()"></small>
+                    <div class="flex-separator"></div>
+                    <button class="btn btn-sm btn-danger" data-bind="click: _.partial($parent.killAttachmentUpload, $data), visible: killable()">
+                        <i class="icon-cancel"></i>
+                        <span>Abort</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>

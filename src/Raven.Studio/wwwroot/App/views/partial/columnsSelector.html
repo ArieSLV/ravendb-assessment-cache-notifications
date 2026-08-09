@@ -1,0 +1,76 @@
+<div class="columns-list-container flex-vertical">
+    <div class="flex-header">
+        <div class="checkbox">
+            <input type="checkbox" id="select_all" class="styled" data-bind="checkboxTriple: selectionState, event: { change: toggleSelectAll }">
+            <label for="select_all">
+                Select All
+            </label>
+        </div>
+    </div>
+    <div class="flex-grow">
+        <ul class="column-list scroll" data-bind="foreach: columnLayout">
+            <li data-bind="visible: visibleInSelector, css: { editable: editable() }">
+                <div class="column-name">
+                    <div class="checkbox">
+                        <input class="styled" type="checkbox" data-bind="checked: visible">
+                        <label data-bind="html: virtualColumn().headerAsText"></label>
+                    </div>
+                </div>
+                <div data-bind="visible: editable()">
+                    <a href="#" class="column-edit" data-bind="click: $parent.editColumn.bind($parent, $data)"><i class="icon-edit"></i></a>
+                    <a href="#" class="column-remove" data-bind="click: $parent.removeColumn.bind($parent, $data)"><i class="icon-trash"></i></a>
+                    <a href="javascript:void(0)" class="column-rearrange"><i class="icon-menu"></i></a>
+                </div>
+                <div data-bind="visible: !editable()">
+                    <a href="javascript:void(0)" class="column-rearrange"><i class="icon-menu"></i></a>
+                </div>
+            </li>
+        </ul>
+    </div>
+    <div class="flex-footer">
+        <div class="error-message bg-danger padding padding-sm margin margin-bottom margin-bottom-sm" data-bind="visible: allVisibleColumns().length && !hasAtLeastOneColumn()">
+            Please select at least one column
+        </div>
+        
+        <div class="column-add-new active" data-bind="visible: customColumnForm.formVisible, validationOptions: { insertMessages: false }">
+            <div class="error-message bg-danger padding padding-sm" data-bind="visible: customColumnForm.parseError">
+                Binding parse error:<br />
+                <strong data-bind="text: customColumnForm.parseError"></strong>
+            </div>
+
+            <div class="form">
+                <div class="binding" data-bind="validationOptions: { errorsAsTitle: false, insertMessages: false }">
+                    <input class="form-control input-sm" id="custom_column_binding" data-toggle="tooltip" title="Enter binding expression. Ex. this.ShipTo.City" 
+                           data-bind="textInput: customColumnForm.expression, hasFocus: customColumnForm.expressionHasFocus"  placeholder="Binding" />
+                </div>
+                <div class="alias">
+                    <input class="form-control input-sm" data-bind="textInput: customColumnForm.header" placeholder="Alias" />
+                </div>
+                <div>
+                    <button class="btn btn-success btn-sm" data-bind="click: addCustomColumn">
+                        <i class="icon-check"></i>
+                    </button>
+                    <button class="btn btn-default btn-sm" data-bind="click: cancelEditMode">
+                        <i class="icon-cancel"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <hr />
+        </div>
+
+        <div class="clearfix">
+            <div class="pull-left">
+                <button class="btn btn-primary btn-sm" data-bind="click: showAddCustomColumnForm"><i class="icon-plus"></i> <span>Add a custom column</span></button>
+                <button class="btn btn-sm close-panel" title="Reset visible columns and its order to default" data-bind="click: useDefaults">
+                    <i class="icon-reset"></i>
+                    <span>Reset to default</span>
+                </button>
+            </div>
+            <div class="pull-right">
+                <button class="btn btn-sm close-panel">Close</button>
+                <button class="btn btn-success btn-sm close-panel" data-bind="click: applyColumns, enable: hasAtLeastOneColumn"><i class="icon-save"></i> <span>Apply</span></button>
+            </div>
+        </div>
+    </div>
+</div>

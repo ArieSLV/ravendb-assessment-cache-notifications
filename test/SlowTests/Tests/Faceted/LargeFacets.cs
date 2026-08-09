@@ -1,0 +1,92 @@
+﻿using System.Linq;
+using FastTests;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Indexes;
+using Raven.Client.Documents.Queries.Facets;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Tests.Faceted
+{
+    public class LargeFacets : RavenTestBase
+    {
+        public LargeFacets(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class Item
+        {
+            public string Category;
+            public bool Active;
+            public int Age;
+        }
+
+        private class Index : AbstractIndexCreationTask<Item>
+        {
+            public Index()
+            {
+                Map = items =>
+                    from item in items
+                    select new { item.Active, item.Category, item.Age };
+
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Facets | RavenTestCategory.Indexes)]
+        [RavenData(SearchEngineMode = RavenSearchEngineMode.Lucene, DatabaseMode = RavenDatabaseMode.All)]
+        [RavenData(SearchEngineMode = RavenSearchEngineMode.Corax, DatabaseMode = RavenDatabaseMode.All, Skip = "RavenDB-17966")]
+        public void CanGetSameResult(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                new Index().Execute(store);
+
+                using (var s = store.OpenSession())
+                {
+                    for (int i = 0; i < 10; i++)
+                    {
+                        s.Store(new Item
+                        {
+                            Active = i % 2 == 0,
+                            Age = i,
+                            Category = "cat/" + (i + 1)
+                        });
+                    }
+                    s.SaveChanges();
+                }
+
+                Indexes.WaitForIndexing(store);
+
+                using (var s = store.OpenSession())
+                {
+                    var facetResultsA = s.Query<Item, Index>()
+                        .Where(x => x.Active)
+                        .AggregateBy(x => x.ByField(y => y.Category))
+                        .Execute();
+
+                    var facet = new RangeFacet()
+                    {
+                        Ranges = Enumerable.Range(0, 2048).Select(x => $"Age >= {x} AND Age <= {x + 1}").ToList()
+                    };
+
+                    var facetResultsB = s.Query<Item, Index>()
+                        .Where(x => x.Active)
+                        .AggregateBy(x => x.ByField(y => y.Category))
+                        .AndAggregateBy(facet)
+                        .Execute();
+
+                    Assert.Equal(facetResultsA["Category"].Values.Count, facetResultsB["Category"].Values.Count);
+
+                    var facetResultsC = s.Query<Item, Index>()
+                        .Where(x => x.Active)
+                        .AggregateBy(x => x.ByField(y => y.Category))
+                        .AndAggregateBy(facet)
+                        .ExecuteLazy().Value;
+
+                    Assert.Equal(facetResultsA["Category"].Values.Count, facetResultsC["Category"].Values.Count);
+                }
+            }
+        }
+    }
+}

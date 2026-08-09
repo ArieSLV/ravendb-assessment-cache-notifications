@@ -1,0 +1,336 @@
+import React, { useEffect } from "react";
+import {
+    AzureQueueStorageConnection,
+    ConnectionFormData,
+    EditConnectionStringFormProps,
+} from "../connectionStringsTypes";
+import { SelectOption } from "components/common/select/Select";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
+import { yupObjectSchema } from "components/utils/yupUtils";
+import { Control, SubmitHandler, useForm, useWatch } from "react-hook-form";
+import { useAppUrls } from "components/hooks/useAppUrls";
+import { FormInput, FormLabel, FormSelect } from "components/common/Form";
+import Badge from "react-bootstrap/Badge";
+import Form from "react-bootstrap/Form";
+import { useAsyncCallback } from "react-async-hook";
+import ButtonWithSpinner from "components/common/ButtonWithSpinner";
+import ConnectionStringUsedByTasks from "components/pages/database/settings/connectionStrings/editForms/shared/ConnectionStringUsedByTasks";
+import { useServices } from "components/hooks/useServices";
+import ConnectionTestResult from "components/common/connectionTests/ConnectionTestResult";
+import { useAppSelector } from "components/store";
+import { databaseSelectors } from "components/common/shell/databaseSliceSelectors";
+import { mapAzureQueueStorageConnectionStringSettingsToDto } from "components/pages/database/settings/connectionStrings/store/connectionStringsMapsToDto";
+import assertUnreachable from "components/utils/assertUnreachable";
+import { Icon } from "components/common/Icon";
+import PopoverWithHoverWrapper from "components/common/PopoverWithHoverWrapper";
+import { connectionStringSelectors } from "../store/connectionStringsSlice";
+import { ConnectionStringsNameContext, connectionStringsUtils } from "../connectionStringsUtils";
+
+type FormData = ConnectionFormData<AzureQueueStorageConnection>;
+
+export interface AzureQueueStorageConnectionStringProps extends EditConnectionStringFormProps {
+    initialConnection: AzureQueueStorageConnection;
+}
+
+export default function AzureQueueStorageConnectionString({
+    initialConnection,
+    isForNewConnection,
+    onSave,
+}: AzureQueueStorageConnectionStringProps) {
+    const usedNames = useAppSelector(connectionStringSelectors.connections)["AzureQueueStorage"].map((x) => x.name);
+
+    const { control, handleSubmit, trigger } = useForm<FormData>({
+        mode: "all",
+        defaultValues: getDefaultValues(initialConnection, isForNewConnection),
+        resolver: (data, _, options) =>
+            yupResolver(schema)(
+                data,
+                {
+                    authType: data.authType,
+                    isForNewConnection,
+                    usedNames,
+                } satisfies ConnectionStringsNameContext & { authType: FormData["authType"] },
+                options
+            ),
+    });
+
+    const formValues = useWatch({ control });
+    const { forCurrentDatabase } = useAppUrls();
+    const { tasksService } = useServices();
+    const databaseName = useAppSelector(databaseSelectors.activeDatabaseName);
+
+    const asyncTest = useAsyncCallback(async () => {
+        const isValid = await trigger(`settings.${formValues.authType}`);
+        if (!isValid) {
+            return;
+        }
+
+        return tasksService.testAzureQueueStorageServerConnection(
+            databaseName,
+            mapAzureQueueStorageConnectionStringSettingsToDto(formValues)
+        );
+    });
+
+    // Clear test result after changing auth type
+    useEffect(() => {
+        asyncTest.set(null);
+    }, [formValues.authType]);
+
+    const handleSave: SubmitHandler<FormData> = (formData: FormData) => {
+        onSave({
+            type: "AzureQueueStorage",
+            ...formData,
+        } satisfies AzureQueueStorageConnection);
+    };
+
+    return (
+        <Form id="connection-string-form" onSubmit={handleSubmit(handleSave)} className="vstack gap-3">
+            <div className="mb-2">
+                <FormLabel>Name</FormLabel>
+                <FormInput
+                    control={control}
+                    name="name"
+                    type="text"
+                    placeholder="Enter a name for the connection string"
+                    disabled={!isForNewConnection}
+                    autoComplete="off"
+                />
+            </div>
+            <div className="mb-2">
+                <FormLabel className="d-flex align-items-center gap-1">
+                    Authentication{" "}
+                    {asyncTest.result?.Success ? (
+                        <Badge bg="success" pill>
+                            <Icon icon="check" />
+                            Successfully connected
+                        </Badge>
+                    ) : asyncTest.result?.Error ? (
+                        <Badge bg="danger" pill>
+                            <Icon icon="warning" />
+                            Failed connection
+                        </Badge>
+                    ) : null}
+                </FormLabel>
+                <FormSelect
+                    name="authType"
+                    control={control}
+                    placeholder="Select an authentication option"
+                    options={authenticationOptions}
+                    isSearchable={false}
+                />
+            </div>
+            <SelectedAuthFields control={control} authMethod={formValues.authType} />
+
+            <div className="mb-2">
+                <ButtonWithSpinner
+                    variant="secondary"
+                    icon="rocket"
+                    title="Test connection"
+                    className="mb-2"
+                    onClick={asyncTest.execute}
+                    isSpinning={asyncTest.loading}
+                    disabled={asyncTest.loading}
+                >
+                    Test connection
+                </ButtonWithSpinner>
+            </div>
+            {asyncTest.result?.Error && (
+                <div className="mb-2">
+                    <ConnectionTestResult testResult={asyncTest.result} />
+                </div>
+            )}
+
+            <ConnectionStringUsedByTasks
+                tasks={initialConnection.usedByTasks}
+                urlProvider={forCurrentDatabase.editAzureQueueStorageEtl}
+            />
+        </Form>
+    );
+}
+
+interface SelectedAuthFieldsProps {
+    control: Control<FormData>;
+    authMethod: AzureQueueStorageAuthenticationType;
+}
+
+function SelectedAuthFields({ control, authMethod }: SelectedAuthFieldsProps) {
+    if (authMethod === "connectionString") {
+        return (
+            <div className="mb-2">
+                <div className="d-flex flex-grow align-items-baseline justify-content-between">
+                    <FormLabel>Connection string</FormLabel>
+                    <PopoverWithHoverWrapper
+                        message={
+                            <>
+                                Example: <code>{exampleConnectionString}</code>
+                            </>
+                        }
+                    >
+                        <small className="text-primary">
+                            Syntax <Icon icon="help" margin="m-0" />
+                        </small>
+                    </PopoverWithHoverWrapper>
+                </div>
+                <FormInput
+                    control={control}
+                    name="settings.connectionString.connectionStringValue"
+                    type="textarea"
+                    as="textarea"
+                    placeholder="Enter a connection string"
+                    rows={5}
+                />
+            </div>
+        );
+    }
+
+    if (authMethod === "entraId") {
+        return (
+            <div className="vstack gap-3">
+                <div className="mb-2">
+                    <FormLabel>Client ID</FormLabel>
+                    <FormInput
+                        control={control}
+                        name="settings.entraId.clientId"
+                        type="text"
+                        placeholder="Enter a Client ID"
+                    />
+                </div>
+                <div className="mb-2">
+                    <FormLabel>Client Secret</FormLabel>
+                    <FormInput
+                        control={control}
+                        name="settings.entraId.clientSecret"
+                        type="password"
+                        placeholder="Enter a Client Secret"
+                        passwordPreview
+                    />
+                </div>
+                <div className="mb-2">
+                    <FormLabel>Storage Account Name</FormLabel>
+                    <FormInput
+                        control={control}
+                        name="settings.entraId.storageAccountName"
+                        type="text"
+                        placeholder="Enter a Storage Account Name"
+                    />
+                </div>
+                <div className="mb-2">
+                    <FormLabel>Tenant ID</FormLabel>
+                    <FormInput
+                        control={control}
+                        name="settings.entraId.tenantId"
+                        type="text"
+                        placeholder="Enter a Tenant ID"
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    if (authMethod === "passwordless") {
+        return (
+            <div className="mb-2">
+                <FormLabel>Storage Account Name</FormLabel>
+                <FormInput
+                    control={control}
+                    name="settings.passwordless.storageAccountName"
+                    type="text"
+                    placeholder="Enter a Storage Account Name"
+                />
+            </div>
+        );
+    }
+
+    assertUnreachable(authMethod);
+}
+
+const authenticationOptions: SelectOption<AzureQueueStorageAuthenticationType>[] = [
+    {
+        value: "connectionString",
+        label: "Connection String",
+    },
+    {
+        value: "entraId",
+        label: "Entra ID",
+    },
+    {
+        value: "passwordless",
+        label: "Passwordless",
+    },
+];
+
+function getStringRequiredSchema(authType: AzureQueueStorageAuthenticationType) {
+    return yup
+        .string()
+        .nullable()
+        .when("$authType", {
+            is: authType,
+            then: (schema) => schema.required(),
+        });
+}
+
+const schema = yupObjectSchema<FormData>({
+    name: connectionStringsUtils.nameSchema,
+    authType: yup.string<AzureQueueStorageAuthenticationType>(),
+    settings: yupObjectSchema<FormData["settings"]>({
+        connectionString: yupObjectSchema<FormData["settings"]["connectionString"]>({
+            connectionStringValue: yup
+                .string()
+                .nullable()
+                .when("$authType", {
+                    is: "connectionString",
+                    then: (schema) =>
+                        schema
+                            .required()
+                            .test(
+                                "connectionString",
+                                "Please define all required fields: DefaultEndpointsProtocol, AccountName and AccountKey",
+                                (value) => {
+                                    return (
+                                        value.includes("DefaultEndpointsProtocol") &&
+                                        value.includes("AccountName") &&
+                                        value.includes("AccountKey")
+                                    );
+                                }
+                            ),
+                }),
+        }),
+        entraId: yupObjectSchema<FormData["settings"]["entraId"]>({
+            clientId: getStringRequiredSchema("entraId"),
+            clientSecret: getStringRequiredSchema("entraId"),
+            storageAccountName: getStringRequiredSchema("entraId"),
+            tenantId: getStringRequiredSchema("entraId"),
+        }),
+        passwordless: yupObjectSchema<FormData["settings"]["passwordless"]>({
+            storageAccountName: getStringRequiredSchema("passwordless"),
+        }),
+    }),
+});
+
+function getDefaultValues(initialConnection: AzureQueueStorageConnection, isForNewConnection: boolean): FormData {
+    if (isForNewConnection) {
+        return {
+            authType: "connectionString",
+            settings: {
+                connectionString: {
+                    connectionStringValue: null,
+                },
+                entraId: {
+                    clientId: null,
+                    clientSecret: null,
+                    storageAccountName: null,
+                    tenantId: null,
+                },
+                passwordless: {
+                    storageAccountName: null,
+                },
+            },
+        };
+    }
+
+    return _.omit(initialConnection, "type", "usedByTasks");
+}
+
+const exampleConnectionString =
+    "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;";

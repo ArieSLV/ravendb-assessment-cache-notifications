@@ -1,0 +1,119 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Raven.Client.Extensions;
+
+namespace Raven.Client.Documents.Session.Loaders
+{
+    /// <summary>
+    /// Fluent implementation for specifying include paths for loading documents
+    /// </summary>
+    public sealed class AsyncMultiLoaderWithInclude<T> : IAsyncLoaderWithInclude<T>
+    {
+        private readonly IAsyncDocumentSessionImpl _session;
+        private readonly List<string> _includes = new List<string>();
+
+        /// <inheritdoc />
+        public AsyncMultiLoaderWithInclude<T> Include(string path)
+        {
+            _includes.Add(path);
+            return this;
+        }
+
+        /// <inheritdoc />
+        public AsyncMultiLoaderWithInclude<T> Include(Expression<Func<T, string>> path)
+        {
+            return Include(path.ToPropertyPath(_session.Conventions));
+        }
+
+        /// <inheritdoc />
+        public AsyncMultiLoaderWithInclude<T> Include<TInclude>(Expression<Func<T, string>> path)
+        {
+            return Include(IncludesUtil.GetPrefixedIncludePath<TInclude>(path.ToPropertyPath(_session.Conventions), _session.Conventions));
+        }
+
+        /// <inheritdoc />
+        public AsyncMultiLoaderWithInclude<T> Include(Expression<Func<T, IEnumerable<string>>> path)
+        {
+            return Include(path.ToPropertyPath(_session.Conventions));
+        }
+
+        /// <inheritdoc />
+        public AsyncMultiLoaderWithInclude<T> Include<TInclude>(Expression<Func<T, IEnumerable<string>>> path)
+        {
+            return Include(IncludesUtil.GetPrefixedIncludePath<TInclude>(path.ToPropertyPath(_session.Conventions), _session.Conventions));
+        }
+
+        /// <summary>
+        /// Begins the async multi-load operation
+        /// </summary>
+        /// <param name="ids">The ids.</param>
+        /// <returns></returns>
+        public Task<Dictionary<string, T>> LoadAsync(params string[] ids)
+        {
+            return _session.LoadAsyncInternal<T>(ids, _includes.ToArray());
+        }
+
+        /// <summary>
+        /// Begins the async multi-load operation
+        /// </summary>
+        /// <param name="ids">The ids.</param>
+        /// <returns></returns>
+        public Task<Dictionary<string, T>> LoadAsync(IEnumerable<string> ids, CancellationToken token = default)
+        {
+            return _session.LoadAsyncInternal<T>(ids.ToArray(), _includes.ToArray(), token: token);
+        }
+
+        /// <summary>
+        /// Begins the async load operation
+        /// </summary>
+        /// <param name="id">The id.</param>
+        /// <returns></returns>
+        public Task<T> LoadAsync(string id, CancellationToken token = default)
+        {
+            return _session.LoadAsyncInternal<T>(new[] { id }, _includes.ToArray(), token: token).ContinueWith(x => x.Result.Values.FirstOrDefault(), token);
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AsyncMultiLoaderWithInclude{T}"/> class.
+        /// </summary>
+        /// <param name="session">The session.</param>
+        internal AsyncMultiLoaderWithInclude(IAsyncDocumentSessionImpl session)
+        {
+            _session = session;
+        }
+
+        /// <summary>
+        /// Begins the async multi-load operation
+        /// </summary>
+        /// <param name="ids">The ids.</param>
+        /// <returns></returns>
+        public Task<Dictionary<string, TResult>> LoadAsync<TResult>(params string[] ids)
+        {
+            return _session.LoadAsyncInternal<TResult>(ids, _includes.ToArray());
+        }
+
+        /// <summary>
+        /// Begins the async multi-load operation
+        /// </summary>
+        /// <param name="ids">The ids.</param>
+        /// <returns></returns>
+        public Task<Dictionary<string, TResult>> LoadAsync<TResult>(IEnumerable<string> ids, CancellationToken token = default)
+        {
+            return _session.LoadAsyncInternal<TResult>(ids.ToArray(), _includes.ToArray(), token: token);
+        }
+
+        /// <summary>
+        /// Loads the specified id.
+        /// </summary>
+        /// <typeparam name="TResult"></typeparam>
+        /// <param name="id">The id.</param>
+        public Task<TResult> LoadAsync<TResult>(string id, CancellationToken token = default)
+        {
+            return LoadAsync<TResult>(new[] { id }).ContinueWith(x => x.Result.Values.FirstOrDefault(), token);
+        }
+    }
+}

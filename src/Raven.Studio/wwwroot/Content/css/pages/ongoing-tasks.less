@@ -1,0 +1,202 @@
+﻿.createOngoingTaskDialog {
+    .has-disable-reason {
+        opacity: 0.25;
+        cursor: not-allowed;
+        filter: grayscale(100%);
+    }
+}
+
+.manage-ongoing-tasks {
+    position: relative !important;
+
+    .database-group-topology {
+        @media (min-width: 1600px) {
+            position: sticky;
+            top: @gutter;
+        }
+    }
+
+    ul.properties {
+        li {
+            & > span:first-of-type {
+                width: 180px;
+            }
+        }
+    }
+
+    .align-checkboxes {
+        margin-left: 37px;
+    }
+
+    .actions {
+        white-space: nowrap;
+    }
+
+    .text-details {
+        color: @text-emphasis;
+        width: 250px;
+    }
+
+    .panel-name {
+        &, & > * {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    }
+
+    .node {
+        white-space: nowrap;
+
+        i + span {
+            margin-left: 0;
+            font-weight: bold;
+            font-size: 18px;
+            position: relative;
+            top: 1px;
+        }
+    }
+
+    .state {
+        &:before {
+            font-weight: 700;
+            text-align: center;
+            line-height: 12px;
+            width: 65px;
+        }
+    }
+
+    .backup-now {
+        pointer-events: all;
+    }
+
+    .subscription {
+        .list-properties .property-item .property-name {
+            min-width: 230px;
+        }
+    }
+    
+    .etl-progress-container {
+        margin-top: @gutter-sm;
+        padding-top: @gutter-sm;
+        border-top: 1px solid @hr-border;
+    }
+
+    .etl-progress {
+        
+        display: flex;
+
+        .overall-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .etl-progress-details {
+            margin-left: @gutter-sm;
+            display: grid;
+            grid-template-columns: 120px 120px;
+            grid-gap: @gutter-xxs 0;
+            flex-shrink: 0;
+            align-self: flex-end;
+
+
+
+            .etl-progress-item {
+                background-color: @panel-bg-2;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-end;
+                padding: 2px @gutter-xs 0;
+
+                .etl-label {
+                    font-size: 12px;
+                    line-height: 13px;
+                    display: flex;
+                    align-items: flex-end;
+
+                    .name {
+                        flex-grow: 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+.tasks-list-item {
+
+    &.external-replication {
+        color: @external-replication-color;
+    }
+
+    &.pull-replication-hub {
+        color: @pull-replication-hub-color;
+    }
+    
+    &.pull-replication-sink {
+        color: @pull-replication-sink-color;
+    }
+    
+    &.sql-etl {
+        color: @sql-etl-color;
+    }
+    &.snowflake-etl {
+        color: @snowflake-etl-color;
+    }
+    &.olap-etl {
+        color: @olap-etl-color;
+    }
+
+    &.elastic-etl {
+        color: @elastic-etl-color;
+    }
+
+    &.kafka-etl {
+        color: @kafka-etl-color;
+    }
+
+    &.rabbitmq-etl {
+        color: @rabbitmq-etl-color;
+    }
+
+    &.azure-queue-storage-etl {
+        color: @azure-queue-storage-etl-color;
+    }
+
+    &.amazon-sqs-etl {
+        color: @amazon-sqs-etl-color;
+    }
+    
+    &.ai-etl {
+        color: @ai-etl-color;
+    }
+
+    &.genai {
+        color: @genai-color;
+    }
+
+    &.subscription {
+        color: @subscription-color;
+    }
+
+    &.ravendb-etl {
+        color: @ravendb-etl-color;
+    }
+
+    &.periodic-backup {
+        color: @backup-color;
+    }
+}
+
+.edit-ongoing-task {
+    
+    .icon-pinned {
+        color: @brand-primary;
+        top: -1px;
+    }
+
+    .icon-pin {
+        top: -1px;
+    }
+}

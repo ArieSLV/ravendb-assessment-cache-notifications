@@ -1,0 +1,32 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Raven.Client.Documents.Session
+{
+    public sealed class ResponseTimeInformation
+    {
+        public ResponseTimeInformation()
+        {
+            DurationBreakdown = new List<ResponseTimeItem>();
+            TotalServerDuration = new TimeSpan();
+            TotalClientDuration = new TimeSpan();
+        }
+
+        public TimeSpan TotalServerDuration { get; set; }
+        public TimeSpan TotalClientDuration { get; set; }
+
+        public List<ResponseTimeItem> DurationBreakdown { get; set; }
+
+        internal void ComputeServerTotal()
+        {
+            TotalServerDuration = new TimeSpan(DurationBreakdown.Sum(x => x.Duration.Ticks));
+        }
+    }
+
+    public sealed class ResponseTimeItem
+    {
+        public string Url { get; set; }
+        public TimeSpan Duration { get; set; }
+    }
+}

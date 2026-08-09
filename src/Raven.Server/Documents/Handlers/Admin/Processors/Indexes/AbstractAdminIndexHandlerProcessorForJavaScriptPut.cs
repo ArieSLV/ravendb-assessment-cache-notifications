@@ -1,0 +1,40 @@
+﻿using System.Threading.Tasks;
+using JetBrains.Annotations;
+using Microsoft.AspNetCore.Http.Features.Authentication;
+using Raven.Client.Exceptions.Security;
+using Raven.Server.Config;
+using Sparrow.Json;
+
+namespace Raven.Server.Documents.Handlers.Admin.Processors.Indexes;
+
+internal abstract class AbstractAdminIndexHandlerProcessorForJavaScriptPut<TRequestHandler, TOperationContext> : AbstractAdminIndexHandlerProcessorForPut<TRequestHandler, TOperationContext>
+    where TOperationContext : JsonOperationContext 
+    where TRequestHandler : AbstractDatabaseRequestHandler<TOperationContext>
+{
+    protected AbstractAdminIndexHandlerProcessorForJavaScriptPut([NotNull] TRequestHandler requestHandler)
+        : base(requestHandler, validatedAsAdmin: false)
+    {
+    }
+
+    protected abstract RavenConfiguration GetDatabaseConfiguration();
+
+    protected abstract ValueTask HandleIndexesFromLegacyReplicationAsync();
+
+    public override async ValueTask ExecuteAsync()
+    {
+        var isReplicated = RequestHandler.GetBoolValueQueryString("is-replicated", required: false) ?? false;
+        if (isReplicated)
+        {
+            await HandleIndexesFromLegacyReplicationAsync();
+            return;
+        }
+
+        if (HttpContext.Features.Get<IHttpAuthenticationFeature>() is RavenServer.AuthenticateConnection feature && GetDatabaseConfiguration().Indexing.RequireAdminToDeployJavaScriptIndexes)
+        {
+            if (feature.CanAccess(RequestHandler.DatabaseName, requireAdmin: true, requireWrite: true) == false)
+                throw new AuthorizationException("Deployments of JavaScript indexes has been restricted to admin users only");
+        }
+
+        await base.ExecuteAsync();
+    }
+}

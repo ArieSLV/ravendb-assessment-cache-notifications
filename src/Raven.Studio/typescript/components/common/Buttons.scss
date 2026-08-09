@@ -1,0 +1,27 @@
+﻿.btn-xs {
+    @include button-size($btn-padding-y-xs, $btn-padding-x-xs, $btn-font-size-xs, $btn-border-radius-sm);
+}
+
+.btn-outline-secondary {
+    @include button-outline-variant($secondary-outline); //fix outline button contrast
+}
+
+.btn-outline-node {
+    @include button-outline-variant($node-color);
+}
+
+.btn-outline-shard {
+    @include button-outline-variant($shard-color);
+}
+
+.rounded-group {
+    & > .btn {
+        border-radius: $border-radius-lg;
+        &:first-child {
+            padding-left: $gutter-xs;
+        }
+        &:last-child {
+            padding-right: $gutter-xs;
+        }
+    }
+}

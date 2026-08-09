@@ -1,0 +1,71 @@
+﻿using System.Linq;
+using FastTests;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Indexes;
+using Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace SlowTests.Issues
+{
+    public class RavenDB820 : RavenTestBase
+    {
+        public RavenDB820(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        private class Foo
+        {
+            public string First { get; set; }
+        }
+
+        private class TestIndex : AbstractIndexCreationTask<Foo, TestIndex.QueryResult>
+        {
+            public class QueryResult
+            {
+                public string Query { get; set; }
+            }
+
+            public class ActualResult
+            {
+                public string[] Query { get; set; }
+            }
+
+            public TestIndex()
+            {
+                Map = docs => docs.Select(doc => new
+                {
+                    Query = new object[]
+                    {
+                        doc.First
+                    },
+                });
+                Index(org => org.Query, FieldIndexing.Search);
+                Store(org => org.Query, FieldStorage.Yes);
+            }
+        }
+
+        [RavenTheory(RavenTestCategory.Indexes | RavenTestCategory.Querying)]
+        [RavenData(SearchEngineMode = RavenSearchEngineMode.All, DatabaseMode = RavenDatabaseMode.All)]
+        public void CanGetProjectionOfMixedContent(Options options)
+        {
+            using (var store = GetDocumentStore(options))
+            {
+                store.ExecuteIndex(new TestIndex());
+                using (var session = store.OpenSession())
+                {
+                    session.Store(new Foo { First = "foo" });
+                    session.Store(new Foo { First = "foo2" });
+                    session.SaveChanges();
+
+                    var a = session.Query<TestIndex.QueryResult, TestIndex>()
+                                   .Customize(c => c.WaitForNonStaleResults())
+                                   .Where(r => r.Query.StartsWith("foo"))
+                                   .ProjectInto<TestIndex.ActualResult>()
+                                   .ToList();
+                    Assert.NotEmpty(a);
+                }
+            }
+        }
+    }
+}

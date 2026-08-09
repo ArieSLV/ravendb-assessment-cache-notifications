@@ -1,0 +1,379 @@
+<div class="padding-nr align-items-center justify-content-between d-flex gap-2">
+    <div class="flex-horizontal gap-2">
+        <i class="icon-timeseries-settings"></i>
+        <h2 class="mb-0">Time Series</h2>
+    </div>
+    <div class="flex-end margin-right-xs" data-bind="react: $root.infoHubView"></div>
+</div>
+<form role="form" class="time-series-config flex-vertical content-margin flex-form" data-bind="submit: saveChanges" novalidate>
+    <div class="row flex-row flex-grow flex-stretch-items">
+        <div class="col-sm-12 col-lg-6">
+            <div class="flex-header flex-horizontal">
+                <div class="form-inline" data-bind="requiredAccess: 'DatabaseAdmin'">
+                    <div class="checkbox checkbox-primary checkbox-inline align-checkboxes" title="Select all or none">
+                        <input type="checkbox" class="styled" data-bind="checkboxTriple: selectionState, event: { change: toggleSelectAll }" />
+                        <label></label>
+                    </div>
+                    <div class="toolbar-actions">
+                        <div class="btn-group btn-group-label" data-label="Selection" data-bind="css: { active: selectedItems().length }">
+                            <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" data-bind="enable: selectedItems().length">
+                                <i class="icon-play"></i><span class="margin-right margin-right-sm">Set status</span>
+                                <span class="caret"></span>
+                                <span class="sr-only">Toggle Dropdown</span>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a href="#" data-bind="click: enableSelected" title="Enable time series configuration for this collection">
+                                        <i class="icon-play"></i><span>Enable</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#" data-bind="click: disableSelected" title="Disable time series configuration for this collection">
+                                        <i class="icon-stop"></i><span>Disable</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        <button type="submit" class="btn btn-primary" title="Save Changes" data-bind="enable: isSaveEnabled, css: { 'btn-spinner': spinners.save() }">
+                            <i class="icon-save"></i> <span>Save</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-separator"></div>
+            </div>
+            <div class="scroll flex-grow">
+                <div class="panel">
+                    <div class="padding padding-sm">
+                        <div class="flex-horizontal" data-bind="validationElement: policyCheckFrequency">
+                            <label class="control-label margin-left margin-right">Policy Check Frequency</label>
+                            <div class="flex-grow" data-bind="visible: $root.isAdminAccessOrAbove">
+                                <input type="text" class="form-control" data-bind="durationPicker: policyCheckFrequency, durationPickerOptions: { showDays: false, showSeconds: true }" />
+                            </div>
+                            <div class="flex-grow" data-bind="visible: !$root.isAdminAccessOrAbove()">
+                                <input type="text" class="form-control" data-bind="durationPicker: policyCheckFrequency, durationPickerOptions: { showDays: false, showSeconds: true }" disabled />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div data-bind="foreach: perCollectionConfigurations">
+                    <div data-bind="template: { name: 'time-series-config-item-template' }">
+                    </div>
+                </div>
+                <div class="row" data-bind="visible: perCollectionConfigurations().length === 0">
+                    <div class="col-sm-8 col-sm-offset-2 col-lg-6 col-lg-offset-3">
+                        <i class="icon-xl icon-empty-set text-muted"></i>
+                        <h2 class="text-center text-muted">No collection specific configuration has been created.</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-12 col-lg-6" data-bind="requiredAccess: 'DatabaseAdmin'">
+            <div class="flex-header">
+                <button class="btn btn-default" data-bind="click: addCollectionSpecificConfiguration">
+                    <i class="icon-plus"></i>
+                    <span>Add a collection specific configuration</span>
+                </button>
+            </div>
+            <div class="pick-item-to-edit" data-bind="visible: !currentlyEditedItem()">
+                <div class="padding absolute-center">
+                    <h2 class="text-center text-muted">Add new <br />or edit existing one</h2>
+                </div>
+            </div>
+            <div data-bind="with: currentlyEditedItem">
+                <div class="panel padding edit-panel">
+                    <div class="hr-title margin-top margin-top-sm">
+                        <h5>Raw Data</h5>
+                        <hr>
+                    </div>
+                    <div class="form-group">
+                        <label class="control-label">Collection</label>
+                        <div class="dropdown btn-group flex-grow" data-bind="validationElement: collection">
+                            <input class="form-control dropdown-toggle" placeholder="Select collection" data-toggle="dropdown" autocomplete="off" 
+                                   data-bind="textInput: collection, attr: { id: 'collectionNameInput' }" />
+                            <span class="caret dropdown-toggle" data-toggle="dropdown"></span>
+                            <ul class="dropdown-menu" role="menu" style="display: none;" data-bind="autoComplete: '#' + 'collectionNameInput', foreach: $root.createCollectionNameAutocompleter($data)">
+                                <li role="presentation" data-bind="click: $parent.collection.bind($parent, $data)">
+                                    <a role="menuitem" tabindex="-1" href="#">
+                                        <span data-bind="text: $data"></span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div data-bind="with: rawPolicy" class="margin-bottom margin-bottom-sm">
+                        <div class="form-group">
+                            <label class="control-label">&nbsp;</label>
+                            <div class="toggle" data-bind="css: { 'pe-none item-disabled': !$root.hasTimeSeriesRollupsAndRetention }">
+                                <input id="rawHasRetention" class="styled" type="checkbox" data-bind="checked: hasRetention">
+                                <label for="rawHasRetention">
+                                    Enable Retention
+                                    <span class="badge license-restricted-badge professional margin-left-xxs" data-bind="if: !$root.hasTimeSeriesRollupsAndRetention">Professional +</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div data-bind="collapse: hasRetention, template: { 'name': 'time-series-retention-item-template' }">
+                        </div>
+                    </div>
+                    <div class="hr-title">
+                        <h5>Rollup Policies</h5>
+                        <span class="badge license-restricted-badge professional margin-left-xxs margin-right-xxs" data-bind="if: !$root.hasTimeSeriesRollupsAndRetention">Professional +</span>
+                        <hr>
+                        <a class="aggregation-info margin-left margin-left-sm" data-toggle="tooltip">
+                            <i class="icon-info text-info"></i>
+                        </a>
+                    </div>
+                    <div class="margin-bottom margin-bottom-lg">
+                        <div data-bind="foreach: policies">
+                            <div class="form-group" data-bind="validationElement: name">
+                                <label class="control-label">Policy Name</label>
+                                <div class="flex-grow margin-right margin-right-sm">
+                                    <input class="form-control" placeholder="Enter policy name" data-bind="textInput: name" />
+                                </div>
+                                <button class="btn btn-danger" title="Delete this policy" data-bind="click: $parent.removePolicy">
+                                    <i class="icon-trash"> </i>
+                                </button>
+                            </div>
+                            <div class="form-group" data-bind="validationElement: aggregation">
+                                <label class="control-label">Aggregation Time</label>
+                                <div class="flex-grow" data-bind="with: aggregation">
+                                    <div class="flex-horizontal flex-stretch-items" data-bind="visible: unit() === 'custom'">
+                                        <div>
+                                            <input type="text" class="form-control" data-bind="durationPicker: customSeconds, durationPickerOptions: { showDays: true, showSeconds: true }" />
+                                        </div>
+                                        <div>
+                                            <button class="btn btn-default dropdown-toggle input-group-addon" data-toggle="dropdown">
+                                                <span data-bind="text: $parent.aggregationLabel"></span> <i class="caret"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li data-bind="foreach: $parent.constructor.allTimeUnits">
+                                                    <a href="#" data-bind="text: label, click: _.partial($parent.changeUnit, value)"></a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="input-group" data-bind="visible: unit() !== 'custom', validationOptions: { insertMessages: false }">
+                                        <span class="input-group-addon"><span class="small-label text-muted">Group every:</span></span>
+                                        <input type="number" min="1" class="form-control small" data-bind="numericInput: amount" />
+                                        <button class="btn btn-default dropdown-toggle input-group-addon" data-toggle="dropdown">
+                                            <span data-bind="text: $parent.aggregationLabel"></span> <i class="caret"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li data-bind="foreach: $parent.constructor.allTimeUnits">
+                                                <a href="#" data-bind="text: label, click: _.partial($parent.changeUnit, value)"></a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div data-bind="validationOptions: { errorsAsTitle: false }, validationElement: $parent.aggregation">
+                                        <div class="help-block" data-bind="validationMessage: $parent.aggregation"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label">&nbsp;</label>
+                                <div class="toggle">
+                                    <input class="styled" type="checkbox" data-bind="checked: hasRetention, attr: { id: 'policyHasRetention' + $index() }">
+                                    <label data-bind="attr: { for: 'policyHasRetention' + $index() }, css: { 'pe-none item-disabled': !$root.hasTimeSeriesRollupsAndRetention }">
+                                        Enable Retention
+                                        <span class="badge license-restricted-badge professional margin-left-xxs margin-right-xxs" data-bind="if: !$root.hasTimeSeriesRollupsAndRetention">Professional +</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="collapse-margin-fix">
+                                <div data-bind="collapse: hasRetention, template: { 'name': 'time-series-retention-item-template' }"></div>
+                            </div>
+                            <div class="hr-title">
+                                <hr><i class="icon-arrow-filled-down margin-left margin-right" data-bind="visible: $index() < $parent.policies().length - 1"></i><hr>
+                            </div>
+                        </div>
+                        <div class="margin-left margin-left-lg" data-bind="css: { 'pe-none item-disabled': !$root.hasTimeSeriesRollupsAndRetention }">
+                            <button class="btn btn-default" data-bind="click: addPolicy">
+                                <i class="icon-plus"></i>
+                                <span>Add Policy</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="hr-title">
+                        <h5>Named Values</h5>
+                        <hr>
+                        <a class="named-values-info margin-left margin-left-sm" data-toggle="tooltip">
+                            <i class="icon-info text-info"></i>
+                        </a>
+                    </div>
+                    <div class="margin-left margin-left-lg margin-bottom">
+                        <!-- ko foreach: namedValues -->
+                        <div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    Time Series Name
+                                </div>
+                                <div class="col-md-6">
+                                    Values Names
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <div class="flex-grow margin-right margin-right-sm" data-bind="validationElement: timeSeriesName">
+                                            <input class="form-control" placeholder="Enter time series name" data-bind="textInput: timeSeriesName, hasFocus: hasFocus" />
+                                        </div>
+                                        <button class="btn btn-danger" title="Delete this entry" data-bind="click: _.partial($parent.removeNamedValues, $data)">
+                                            <i class="icon-trash"> </i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="margin-right margin-right-lg named-values-inputs">
+                                        <!-- ko foreach: namedValues -->
+                                        <div class="form-group item">
+                                            <span class="input-group-addon"><span class="text-muted counter"></span></span>
+                                            <div class="flex-grow margin-right margin-right-sm" data-bind="validationElement: name">
+                                                <input class="form-control" placeholder="Enter name" data-bind="textInput: name, hasFocus: hasFocus" />
+                                            </div>
+                                            <button class="btn btn-danger" title="Delete this entry" data-bind="click: _.partial($parent.removeMapping, $data)">
+                                                <i class="icon-trash"> </i>
+                                            </button>
+                                        </div>
+                                        <!-- /ko -->
+                                    </div>
+                                    <div data-bind="validationOptions: { errorsAsTitle: false }, validationElement: namedValues">
+                                        <div class="help-block margin-bottom" data-bind="validationMessage: namedValues"></div>
+                                    </div>
+                                    <button class="btn btn-default" data-bind="click: addMapping, disable: namedValues().length > 31">
+                                        <i class="icon-plus"> </i><span>Add Name</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <hr />
+                        </div>
+                        <!-- /ko -->
+                        <button class="btn btn-default" data-bind="click: addNamedValues">
+                            <i class="icon-plus"></i>
+                            <span>Add Named Values</span>
+                        </button>
+                    </div>
+                    <div data-bind="validationOptions: { errorsAsTitle: false }, validationElement: namedValues">
+                        <div class="help-block" data-bind="validationMessage: namedValues"></div>
+                    </div>
+                    <div class="text-right margin-top">
+                        <button class="btn btn-success" data-bind="click: $root.applyChanges">
+                            <i class="icon-check"></i><span data-bind="text: !$root.currentBackingItem() ? 'Add' : 'Update'"></span>
+                        </button>
+                        <button class="btn btn-default" data-bind="click: $root.exitEditMode"><i class="icon-cancel"></i><span>Cancel</span></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script type="text/html" id="time-series-config-item-template">
+    <div class="panel panel-state configuration-item" data-bind="css: { active: $data === $root.currentBackingItem() }">
+        <div class="state" data-bind="attr: { 'data-state-text': hasPoliciesOrRetentionConfig() && disabled() ? 'disabled' : 'enabled' }, 
+                                      css: { 'state-success': !hasPoliciesOrRetentionConfig() || !disabled(), 'state-warning': hasPoliciesOrRetentionConfig() && disabled() }"></div>
+        <div class="padding padding-sm flex-horizontal">
+            <div class="checkbox" data-bind="visible: hasPoliciesOrRetentionConfig, requiredAccess: 'DatabaseAdmin'">
+                <input type="checkbox" class="styled" data-bind="checked: $root.selectedItems, checkedValue: $data">
+                <label></label>
+            </div>
+            <div class="name">
+                <h3 data-bind="text: collection"></h3>
+            </div>
+            <div class="flex-grow">
+            </div>
+            <div class="actions-container" data-bind="requiredAccess: 'DatabaseAdmin'">
+                <div class="actions">
+                    <button class="btn btn-default" data-bind="visible: hasPoliciesOrRetentionConfig() && !disabled(), click: $root.disableConfiguration">
+                        <i class="icon-stop"></i><span>Disable</span>
+                    </button>
+                    <button class="btn btn-success" data-bind="visible: hasPoliciesOrRetentionConfig() && disabled(), click: $root.enableConfiguration">
+                        <i class="icon-play"></i><span>Enable</span>
+                    </button>
+                    <button class="btn btn-default" data-bind="click: $root.editItem" title="Edit configuration"><i class="icon-edit"></i></button>
+                    <button class="btn btn-danger" data-bind="click: $root.deleteItem" title="Delete configuration"><i class="icon-trash"></i></button>
+                </div>
+            </div>
+        </div>
+        <div class="panel-addon padding-xxs">
+            <div class="aggregation-flow" data-bind="if: hasPoliciesOrRetentionConfig">
+                <div class="item">
+                    <div class="item-content">
+                        <div class="small-label item-name"><strong>Raw Data</strong></div>
+                        <div class="aggregation"><i class="icon-circle"></i> &hyphen;</div>
+                        <div class="retention">
+                            <span class="flex-grow"><i class="icon-clock"></i> Retention:</span>
+                            <strong data-bind="text: rawPolicy().retentionFormatted, visible: rawPolicy().hasRetention"></strong>
+                            <strong data-bind="visible: !rawPolicy().hasRetention()">Keep forever</strong>
+                        </div>
+                    </div>
+                    <div class="arrow" data-bind="visible: policies().length"></div>
+                </div>
+                <!-- ko foreach: policies -->
+                <div class="item">
+                    <div class="item-content">
+                        <div class="small-label item-name" data-bind="text: name"></div>
+                        <div class="aggregation">
+                            <span class="flex-grow"><i class="icon-circle-filled"></i> Aggregation:</span>
+                            <strong data-bind="text: aggregationFormatted"></strong>
+                        </div>
+                        <div class="retention">
+                            <span class="flex-grow"><i class="icon-clock"></i> Retention:</span>
+                            <strong data-bind="text: retentionFormatted, visible: hasRetention"></strong>
+                            <strong data-bind="visible: !hasRetention()">Keep forever</strong>
+                        </div>
+                    </div>
+                    <div class="arrow" data-bind="visible: $index() < $parent.policies().length - 1"></div>
+                </div>
+                <!-- /ko -->
+            </div>
+            <div class="named-values" data-bind="if: namedValues().length, visible: namedValues().length">
+                <h4>Named Values:</h4>
+                <!-- ko foreach: namedValues -->
+                <div class="item">
+                    <div class="time-series-name"><i class="icon-etag"></i> <span data-bind="text: timeSeriesName"></span></div>
+                    <div class="time-series-values" data-bind="foreach: namedValues">
+                        <div class="value" data-bind="text: name"></div>
+                    </div>
+                </div>
+                <!-- /ko -->
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" id="time-series-retention-item-template">
+    <div class="form-group margin-bottom" data-bind="with: retention">
+        <label class="control-label">Retention Time</label>
+        <div class="flex-grow" data-bind="validationElement: $parent.retention">
+            <div class="flex-horizontal flex-stretch-items" data-bind="visible: unit() === 'custom'">
+                <div>
+                    <input type="text" class="form-control" data-bind="durationPicker: customSeconds, durationPickerOptions: { showDays: true, showSeconds: true }" />
+                </div>
+                <div>
+                    <button class="btn btn-default dropdown-toggle input-group-addon" data-toggle="dropdown">
+                        <span data-bind="text: $parent.retentionLabel"></span> <i class="caret"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li data-bind="foreach: $parent.constructor.allTimeUnits">
+                            <a href="#" data-bind="text: label, click: _.partial($parent.changeUnit, value)"></a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="input-group" data-bind="visible: unit() !== 'custom', validationOptions: { insertMessages: false }">
+                <span class="input-group-addon"><span class="small-label text-muted">keep data for:</span></span>
+                <input type="number" min="1" class="form-control small" data-bind="numericInput: amount" />
+                <button class="btn btn-default dropdown-toggle input-group-addon" data-toggle="dropdown">
+                    <span data-bind="text: $parent.retentionLabel"></span> <i class="caret"></i>
+                </button>
+                <ul class="dropdown-menu">
+                    <li data-bind="foreach: $parent.constructor.allTimeUnits">
+                        <a href="#" data-bind="text: label, click: _.partial($parent.changeUnit, value)"></a>
+                    </li>
+                </ul>
+            </div>
+            <div data-bind="validationOptions: { errorsAsTitle: false }, validationElement: $parent.retention">
+                <div class="help-block" data-bind="validationMessage: $parent.retention"></div>
+            </div>
+        </div>
+    </div>
+</script>

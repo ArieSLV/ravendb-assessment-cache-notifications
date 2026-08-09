@@ -1,0 +1,404 @@
+import app = require("durandal/app");
+import appUrl = require("common/appUrl");
+import router = require("plugins/router");
+import database = require("models/resources/database");
+import getOngoingTaskInfoCommand = require("commands/database/tasks/getOngoingTaskInfoCommand");
+import getConnectionStringsCommand = require("commands/database/settings/getConnectionStringsCommand");
+import saveEtlTaskCommand = require("commands/database/tasks/saveEtlTaskCommand");
+import collectionsTracker = require("common/helpers/database/collectionsTracker");
+import transformationScriptSyntax = require("viewmodels/database/tasks/transformationScriptSyntax");
+import aceEditorBindingHandler = require("common/bindingHelpers/aceEditorBindingHandler");
+import jsonUtil = require("common/jsonUtil");
+import shardViewModelBase = require("viewmodels/shardViewModelBase");
+import EditEmbeddingsGenerationInfoHub = require("viewmodels/database/tasks/EditEmbeddingsGenerationInfoHub");
+import typeUtils = require("common/typeUtils");
+import ongoingTaskEmbeddingsGenerationEditModel = require("models/database/tasks/ongoingTaskEmbeddingsGenerationEditModel");
+import EditConnectionStrings = require("components/pages/database/settings/connectionStrings/EditConnectionStrings");
+import connectionStringsSlice = require("components/pages/database/settings/connectionStrings/store/connectionStringsSlice");
+import storeCompat = require("components/storeCompat");
+import getExpirationConfigurationCommand = require("commands/database/documents/getExpirationConfigurationCommand");
+import saveExpirationConfigurationCommand = require("commands/database/documents/saveExpirationConfigurationCommand");
+import DocumentExpiration = require("components/pages/database/settings/documentExpiration/DocumentExpiration");
+import activeDatabaseTracker = require("common/shell/activeDatabaseTracker");
+import licenseModel = require("models/auth/licenseModel");
+import TimeInSeconds = require("common/constants/timeInSeconds");
+import popoverUtils = require("common/popoverUtils");
+import testAiConnectionStringCommand = require("commands/database/cluster/testAiConnectionStringCommand");
+import aiConnectionStringUtils = require("components/pages/database/settings/connectionStrings/editForms/aiConnectionStringUtils");
+import eventsCollector = require("common/eventsCollector");
+import generalUtils = require("common/generalUtils");
+
+const minimumCommunityDeleteFrequencyInSec = TimeInSeconds.TimeInSeconds.Day * 36;
+
+const {
+    aiConnectionStringUtils: { getConnectorType, mapAiConnectionStringToSettingsDto },
+} = aiConnectionStringUtils;
+
+class editEmbeddingsGenerationTask extends shardViewModelBase {
+    
+    view = require("views/database/tasks/editEmbeddingsGenerationTask.html");
+    taskResponsibleNodeSectionView = require("views/partial/taskResponsibleNodeSection.html");
+    pinResponsibleNodeTextScriptView = require("views/partial/pinResponsibleNodeTextScript.html");
+
+    editedEmbeddingsGeneration = ko.observable<ongoingTaskEmbeddingsGenerationEditModel>();
+    isAddingNewEtlTask = ko.observable<boolean>(true);
+
+    possibleMentors = ko.observableArray<string>([]);
+    connectionStringsNames = ko.observableArray<string>([]);
+    aiConnectionStrings = ko.observableArray<Raven.Client.Documents.Operations.AI.AiConnectionString>([]);
+
+    spinners = {
+        save: ko.observable<boolean>(false),
+        testConnection: ko.observable<boolean>(false),
+    };
+
+    collections = collectionsTracker.default.collections;
+    
+    fullErrorDetailsVisible = ko.observable<boolean>(false);
+    shortErrorText: KnockoutObservable<string>;
+    
+    collectionNames: KnockoutComputed<string[]>;
+
+    showEditTransformationArea: KnockoutComputed<boolean>;
+   
+    infoHubView: ReactInKnockout<typeof EditEmbeddingsGenerationInfoHub.EditEmbeddingsGenerationInfoHub>;
+
+    isNewConnectionStringOpen = ko.observable<boolean>(false);
+    newConnectionStringView: ReactInKnockout<typeof EditConnectionStrings.default>;
+
+    sourceView = ko.observable<EditAiTaskSourceView>();
+
+    isDocumentExpirationEnabled = ko.observable<boolean>(false);
+    enableDocumentExpiration = ko.observable<boolean>(false);
+    isCommunityLicense = licenseModel.getStatusValue("Type") === "Community";
+
+    testConnectionResult = ko.observable<Raven.Server.Web.System.NodeConnectionTestResult>();
+
+    constructor(db: database) {
+        super(db);
+        this.bindToCurrentInstance(
+            "useConnectionString",
+            "syntaxHelp",
+            "toggleIsNewConnectionStringOpen",
+            "setState",
+            "getIsDocumentExpirationEnabled",
+            "testConnection",
+        );
+        
+        aceEditorBindingHandler.install();
+
+        this.infoHubView = ko.pureComputed(() => ({
+            component: EditEmbeddingsGenerationInfoHub.EditEmbeddingsGenerationInfoHub
+        }));
+
+        this.newConnectionStringView = ko.pureComputed(() => ({
+            component: EditConnectionStrings.default,
+            props: {
+                initialConnection: {
+                    type: "Ai",
+                    modelType: "TextEmbeddings"
+                },
+                afterSave: async (name: string) => {
+                    await this.getAllConnectionStrings();
+                    this.editedEmbeddingsGeneration().connectionStringName(name)
+                    this.toggleIsNewConnectionStringOpen();
+                },
+                afterClose: () => {
+                    this.toggleIsNewConnectionStringOpen();
+                }
+            }
+        }))
+    }
+
+    activate(args: { taskId?: number, sourceView: EditAiTaskSourceView }) {
+        super.activate(args);
+        const deferred = $.Deferred<void>();
+
+        storeCompat.globalDispatch(connectionStringsSlice.connectionStringsActions.viewContextSet("aiTask"));
+        this.sourceView(args.sourceView);
+        
+        this.loadPossibleMentors();
+
+        if (args.taskId) {
+            // 1. Editing an Existing task
+            this.isAddingNewEtlTask(false);
+
+            getOngoingTaskInfoCommand.forEmbeddingsGeneration(this.db, args.taskId)
+                .execute()
+                .done((result) => {
+                    this.editedEmbeddingsGeneration(new ongoingTaskEmbeddingsGenerationEditModel(result, this.aiConnectionStrings));
+
+                    this.editedEmbeddingsGeneration().collectionInput.subscribe(() => this.editedEmbeddingsGeneration().setResetScriptIfEdit());
+                    this.editedEmbeddingsGeneration().embeddingsSource.subscribe(() => this.editedEmbeddingsGeneration().setResetScriptIfEdit());
+                    this.editedEmbeddingsGeneration().script.subscribe(() => this.editedEmbeddingsGeneration().setResetScriptIfEdit());
+                    this.editedEmbeddingsGeneration().embeddingPathConfigurations.subscribe(() => this.editedEmbeddingsGeneration().setResetScriptIfEdit());
+                    this.editedEmbeddingsGeneration().quantizationType.subscribe(() => this.editedEmbeddingsGeneration().setResetScriptIfEdit());
+                    this.editedEmbeddingsGeneration().transformationChunkingMethod.subscribe(() => this.editedEmbeddingsGeneration().setResetScriptIfEdit());
+                    this.editedEmbeddingsGeneration().transformationMaxTokensPerChunk.subscribe(() => this.editedEmbeddingsGeneration().setResetScriptIfEdit());
+
+                    deferred.resolve();
+                })
+                .fail(() => {
+                    deferred.reject();
+                    router.navigate(appUrl.forOngoingTasks(this.db));
+                });
+        } else {
+            // 2. Creating a New task
+            this.isAddingNewEtlTask(true);
+            this.editedEmbeddingsGeneration(ongoingTaskEmbeddingsGenerationEditModel.empty(this.aiConnectionStrings));
+
+            deferred.resolve();
+        }
+        
+        return $.when<any>(this.getAllConnectionStrings(), this.getIsDocumentExpirationEnabled(), deferred)
+            .done(() => {
+                this.initObservables();
+            });
+    }
+
+    private loadPossibleMentors() {
+        const members = this.db.nodes()
+            .filter(x => x.type === "Member")
+            .map(x => x.tag);
+
+        this.possibleMentors(members);
+    }
+    
+    compositionComplete() {
+        super.compositionComplete();
+
+        document.getElementById('taskName').focus();
+
+        $('.edit-ai-etl-task [data-toggle="tooltip"]').tooltip();
+
+        popoverUtils.longWithHover($(".task-identifier"),
+            {
+                content: `<small class="margin-top-xs no-padding-left">
+                              A unique identifier used in document paths.<br/>
+                              If not specified, it will be auto-generated from the task name.
+                          </small>`
+            });
+
+        popoverUtils.longWithHover($(".quantization"),
+            {
+                content: `<small class="margin-top-xs no-padding-left">
+                              Choose the format for storing the embedding vectors that will be generated by the AI model:
+                              <ul>
+                                  <li><code>Single</code> - No quantization.<br/>
+                                      A 32-bit floating-point value per dimension.<br/>
+                                      Provides the most accurate vector representation.
+                                  </li>
+                                  <li><code>Int8</code> - An 8-bit integer value per dimension.<br/>
+                                      Reduces storage size by ~4x.<br />
+                                      Offers good performance with moderate accuracy loss.
+                                  </li>
+                                  <li><code>Binary</code> - 1-bit per dimension.<br />
+                                      Minimizes storage usage and enables very fast search, 
+                                      but with very high accuracy loss. Suitable when coarse similarity is acceptable.
+                                  </li>
+                              </ul>
+                          </small>`,
+            });
+
+        popoverUtils.longWithHover($(".chunking-method"),
+            {
+                content: `<small class="margin-top-xs no-padding-left">
+                              The selected chunking method will be used as the default when no specific method is used in the script.
+                          </small>`
+            });
+
+        popoverUtils.longWithHover($(".max-tokens-per-chunk"),
+            {
+                content: `<small class="margin-top-xs no-padding-left">
+                              This value will be used as the default when no specific value is set in the script.
+                          </small>`
+            });
+
+        popoverUtils.longWithHover($(".embeddings-cache-expiration"),
+            {
+                content: `<small class="margin-top-xs no-padding-left">
+                              Set how long the generated embeddings will be retained in the database.
+                          </small>`
+            });
+
+        popoverUtils.longWithHover($(".querying"),
+            {
+                content: `<small class="margin-top-xs no-padding-left">
+                              When making a vector search query, embeddings are also generated from the provided <strong>search term</strong> to compare against stored vectors.<br/>
+                              The options below apply to the search term used in the query.
+                          </small>`
+            });
+
+        popoverUtils.longWithHover($(".overlap-tokens"),
+            {
+                content: `<small class="margin-top-xs no-padding-left">
+                              <ul class="padding-left-sm">
+                                  <li>This value will be used as the default when no specific value is set in the script.</li>
+                                  <li>Only applicable when the chunking method is<br/><em>"Plain Text: Split Paragraphs"</em> or <em>"Markdown: Split Paragraphs"</em>.</li>
+                              </ul>
+                          </small>`
+            });
+    }
+
+    toggleIsNewConnectionStringOpen() {
+        this.isNewConnectionStringOpen(!this.isNewConnectionStringOpen())
+    }
+
+    private getAllConnectionStrings() {
+        return new getConnectionStringsCommand(this.db)
+            .execute()
+            .done((result: Raven.Client.Documents.Operations.ConnectionStrings.GetConnectionStringsResult) => {
+                this.aiConnectionStrings(Object.values(result.AiConnectionStrings).filter(x => x.ModelType === "TextEmbeddings"));
+
+                const connectionStringsNames = Object.keys(result.AiConnectionStrings).filter(key =>
+                    result.AiConnectionStrings[key].ModelType === "TextEmbeddings",
+                );
+                this.connectionStringsNames(typeUtils.sortBy(connectionStringsNames, x => x.toUpperCase()));
+            });
+    }
+
+    private initObservables() {
+        const model = this.editedEmbeddingsGeneration();
+
+        this.collectionNames = ko.pureComputed(() => {
+            return collectionsTracker.default.getCollectionNames();
+        });
+
+        model.connectionStringName.subscribe(() => this.testConnectionResult(null));
+
+        this.shortErrorText = ko.pureComputed(() => {
+            const result = this.testConnectionResult();
+            if (!result || result.Success) {
+                return "";
+            }
+            return generalUtils.trimMessage(result.Error);
+        });
+
+        const connectionStringName = this.editedEmbeddingsGeneration().connectionStringName();
+        const connectionStringIsMissing = connectionStringName && !this.connectionStringsNames()
+            .find(x => x.toLocaleLowerCase() === connectionStringName.toLocaleLowerCase());
+
+        if (connectionStringIsMissing) {
+            // looks like user imported data w/o connection strings, prefill form with desired name
+            this.editedEmbeddingsGeneration().connectionStringName(null);
+        }
+
+        this.initDirtyFlag();
+    }
+    
+    private initDirtyFlag() {
+        const innerDirtyFlag = ko.pureComputed(() => this.editedEmbeddingsGeneration().dirtyFlag().isDirty());
+
+        this.dirtyFlag = new ko.DirtyFlag([
+            innerDirtyFlag,
+        ], false, jsonUtil.newLineNormalizingHashFunction);
+    }
+    
+    useConnectionString(connectionStringToUse: string) {
+        this.editedEmbeddingsGeneration().connectionStringName(connectionStringToUse);
+    }
+
+    async getIsDocumentExpirationEnabled() {
+        const result = await new getExpirationConfigurationCommand(this.db).execute();
+
+        if (!result) {
+            this.enableDocumentExpiration(true);
+            return this.isDocumentExpirationEnabled(false);
+        }
+
+        this.enableDocumentExpiration(result.Disabled);
+        return this.isDocumentExpirationEnabled(!result.Disabled);
+    }
+
+    async saveEtl() {
+        let hasAnyErrors = false;
+        this.spinners.save(true);
+
+        if (this.editedEmbeddingsGeneration().embeddingsSource() === "paths" && this.editedEmbeddingsGeneration().pathConfigurationPath()) {
+            this.editedEmbeddingsGeneration().addEmbeddingsPathConfiguration();
+        }
+
+        if (!this.isValid(this.editedEmbeddingsGeneration().validationGroup)) {
+            hasAnyErrors = true;
+        }
+        
+        if (hasAnyErrors) {
+            this.spinners.save(false);
+            return false;
+        }
+        
+        const scriptsToReset = this.editedEmbeddingsGeneration().resetScript() ? this.editedEmbeddingsGeneration().transforms().map(x => x.Name) : [];
+                
+        try {
+            if (this.enableDocumentExpiration()) {
+                await new saveExpirationConfigurationCommand(this.db, {
+                    Disabled: false,
+                    DeleteFrequencyInSec: this.isCommunityLicense ? minimumCommunityDeleteFrequencyInSec : null,
+                    MaxItemsToProcess: DocumentExpiration.defaultItemsToProcess
+                }).execute();
+
+                activeDatabaseTracker.default.database().hasExpirationConfiguration(true);
+            }
+
+            const dto = this.editedEmbeddingsGeneration().toDto();
+            await saveEtlTaskCommand.forEmbeddingsGeneration(this.db, dto, scriptsToReset).execute();
+
+            this.dirtyFlag().reset();
+            this.goToOngoingTasksView();
+        } finally {
+            this.spinners.save(false)
+        }
+    }
+
+    cancelOperation() {
+        this.goToOngoingTasksView();
+    }
+
+    private goToOngoingTasksView() {
+        if (this.sourceView() === "AiTasks") {
+            router.navigate(appUrl.forAiTasks(this.db));
+        } else {
+            router.navigate(appUrl.forOngoingTasks(this.db));
+        }
+    }
+
+    testConnection() {
+        eventsCollector.default.reportEvent("embeddings-generation-etl-connection-string", "test-connection");
+        if (!this.editedEmbeddingsGeneration().connectionStringName()) {
+            return;
+        }
+
+        this.spinners.testConnection(true);
+
+        const connectionString = this.aiConnectionStrings().find(x =>
+            x.Name === this.editedEmbeddingsGeneration().connectionStringName());
+
+        if (!connectionString) {
+            app.showBootstrapMessage("Connection string not found", "Warning");
+            this.spinners.testConnection(false);
+            return;
+        }
+
+        new testAiConnectionStringCommand(this.db, getConnectorType(connectionString), "TextEmbeddings", mapAiConnectionStringToSettingsDto(connectionString))
+            .execute()
+            .done((testResult) => this.testConnectionResult(testResult))
+            .always(() => this.spinners.testConnection(false));
+    }
+
+    syntaxHelp() {
+        const viewmodel = new transformationScriptSyntax("EmbeddingsGeneration");
+        app.showBootstrapDialog(viewmodel);
+    }
+
+    setState(state: Raven.Client.Documents.Operations.OngoingTasks.OngoingTaskState): void {
+        this.editedEmbeddingsGeneration().taskState(state);
+    }
+
+    createCollectionNameAutoCompleter() {
+        return ko.pureComputed(() => {
+            return this.collections().filter(x => !x.isAllDocuments).map(x => x.name);
+        });
+    }
+}
+
+export = editEmbeddingsGenerationTask;

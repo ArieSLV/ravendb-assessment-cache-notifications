@@ -1,0 +1,143 @@
+import React, { JSX, useState } from "react";
+import {
+    act,
+    fireEvent,
+    getQueriesForElement,
+    queries,
+    render,
+    RenderOptions,
+    screen,
+    cleanup,
+    waitForElementToBeRemoved,
+} from "@testing-library/react";
+import { mockServices } from "./mocks/services/MockServices";
+import { Screen } from "@testing-library/dom/types/screen";
+import { configureMockServices, ServiceProvider } from "components/hooks/useServices";
+import * as byNameQueries from "./byNameQueries";
+import * as byClassNameQueries from "./byClassNameQueries";
+import { ChangesProvider } from "hooks/useChanges";
+import { mockHooks } from "test/mocks/hooks/MockHooks";
+import { createStoreConfiguration } from "components/store";
+import { Provider as ReduxProvider } from "react-redux";
+import { setEffectiveTestStore } from "components/storeCompat";
+import { DirtyFlagProvider } from "components/hooks/useDirtyFlag";
+import { ConfirmDialogProvider } from "components/common/ConfirmDialog";
+import { userEvent } from "storybook/internal/test";
+import { DialogProvider } from "components/common/Dialog";
+import { SplitViewProvider } from "components/common/splitView/SplitView";
+
+let needsTestMock = true;
+
+if (needsTestMock) {
+    configureMockServices(mockServices.context);
+    needsTestMock = false;
+}
+
+function genericRtlRender(
+    providers: () => (props: { children: any }) => JSX.Element,
+    ui: React.ReactElement,
+    options?: { disableWrappers?: boolean } & Omit<RenderOptions, "queries">
+) {
+    const { disableWrappers, ...restOptions } = options || {};
+    const allQueries = { ...queries, ...byNameQueries, ...byClassNameQueries };
+    const container = render(ui, {
+        wrapper: disableWrappers ? undefined : providers(),
+        queries: allQueries,
+        ...restOptions,
+    });
+
+    const getQueriesForElementFunc = (element: any) =>
+        getQueriesForElement(element, { ...queries, ...byNameQueries, ...byClassNameQueries });
+    const localScreen = getQueriesForElementFunc(document.body) as Screen<typeof allQueries>;
+    localScreen.logTestingPlaygroundURL = screen.logTestingPlaygroundURL;
+
+    const waitForLoad = () => waitForElementToBeRemoved(localScreen.getAllByTestId("loader"));
+
+    return {
+        ...container,
+        screen: localScreen,
+        user: userEvent.setup(),
+        fillInput,
+        fireClick,
+        waitForLoad,
+        cleanup,
+        getQueriesForElement: getQueriesForElementFunc,
+    };
+}
+
+async function fireClick(element: HTMLElement) {
+    expect(element).toBeTruthy();
+    return await act(async () => {
+        fireEvent.click(element);
+    });
+}
+
+async function fillInput(element: HTMLElement, value: string) {
+    return await act(async () => {
+        await fireEvent.change(element, { target: { value } });
+    });
+}
+
+const AllProviders = () => MockProviders;
+
+interface MockProvidersProps {
+    children: React.ReactNode;
+    isSplitViewDisabled?: boolean;
+}
+
+export function MockProviders({ children, isSplitViewDisabled }: MockProvidersProps) {
+    const [store] = useState(() => createStoreConfiguration());
+
+    setEffectiveTestStore(store);
+
+    return (
+        <ReduxProvider store={store}>
+            <DirtyFlagProvider setIsDirty={mockHooks.useDirtyFlag.mock}>
+                <ConfirmDialogProvider>
+                    <DialogProvider>
+                        <ServiceProvider services={mockServices.context}>
+                            <ChangesProvider changes={mockHooks.useChanges.mock}>
+                                {isSplitViewDisabled ? (
+                                    <>{children}</>
+                                ) : (
+                                    <SplitViewProvider>{children}</SplitViewProvider>
+                                )}
+                            </ChangesProvider>
+                        </ServiceProvider>
+                    </DialogProvider>
+                </ConfirmDialogProvider>
+            </DirtyFlagProvider>
+        </ReduxProvider>
+    );
+}
+
+export function rtlRender(
+    ui: React.ReactElement,
+    options?: { disableWrappers?: boolean; initialUrl?: string } & Omit<RenderOptions, "queries">
+) {
+    // If ui is a story then it already contains all providers
+    if (typeof ui.type === "function" && ui.type.name === "storyFn") {
+        if (options) {
+            options.disableWrappers = true;
+        } else {
+            options = { disableWrappers: true };
+        }
+    }
+
+    return genericRtlRender(AllProviders, ui, options);
+}
+
+export async function rtlRender_WithWaitForLoad(...args: Parameters<typeof rtlRender>) {
+    const renderResult = rtlRender(...args);
+    await renderResult.waitForLoad();
+
+    return renderResult;
+}
+
+export * from "@testing-library/react";
+
+export const commonSelectors = {
+    loadingError: "Error loading data",
+};
+
+export type RtlScreen = ReturnType<typeof rtlRender>["screen"];

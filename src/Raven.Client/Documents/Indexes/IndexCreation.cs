@@ -1,0 +1,97 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+using Raven.Client.Documents.Conventions;
+using Raven.Client.Logging;
+using Raven.Client.Util;
+using Sparrow.Logging;
+
+namespace Raven.Client.Documents.Indexes
+{
+    /// <summary>
+    /// Helper class for creating indexes from implementations of <see cref="AbstractIndexCreationTask"/>.
+    /// </summary>
+    public static class IndexCreation
+    {
+        private static readonly IRavenLogger Logger = RavenLogManager.Instance.GetLoggerForClient(typeof(IndexCreation));
+
+        /// <summary>
+        /// Creates the indexes found in the specified assembly.
+        /// </summary>
+        public static void CreateIndexes(Assembly assemblyToScan, IDocumentStore store, DocumentConventions conventions = null, string database = null)
+        {
+            AsyncHelpers.RunSync(() => CreateIndexesAsync(assemblyToScan, store, conventions, database));
+        }
+
+        /// <summary>
+        /// Creates the indexes found in the specified assembly.
+        /// </summary>
+        public static Task CreateIndexesAsync(Assembly assemblyToScan, IDocumentStore store, DocumentConventions conventions = null, string database = null, CancellationToken token = default)
+        {
+            var indexes = GetAllInstancesOfType<IAbstractIndexCreationTask>(assemblyToScan);
+
+            return CreateIndexesAsync(indexes, store, conventions, database, token);
+        }
+
+        public static void CreateIndexes(IEnumerable<IAbstractIndexCreationTask> indexes, IDocumentStore store, DocumentConventions conventions = null, string database = null)
+        {
+            AsyncHelpers.RunSync(() => CreateIndexesAsync(indexes, store, conventions, database));
+        }
+
+        public static Task CreateIndexesAsync(IEnumerable<IAbstractIndexCreationTask> indexes, IDocumentStore store, DocumentConventions conventions = null, string database = null, CancellationToken token = default)
+        {
+            var indexesList = indexes?.ToList() ?? new List<IAbstractIndexCreationTask>();
+            
+            return store.ExecuteIndexesAsync(indexesList, conventions, database, token);
+        }
+
+        internal static IndexDefinition[] CreateIndexesToAdd(IEnumerable<IAbstractIndexCreationTask> indexCreationTasks, DocumentConventions conventions)
+        {
+            var indexesToAdd = indexCreationTasks
+                .Select(x =>
+                {
+                    var oldConventions = x.Conventions;
+
+                    try
+                    {
+                        x.Conventions = conventions;
+                        var definition = x.CreateIndexDefinition();
+                        definition.Name = x.IndexName;
+                        definition.Priority = x.Priority ?? IndexPriority.Normal;
+                        definition.State = x.State ?? IndexState.Normal;
+
+                        if (x.SearchEngineType.HasValue) 
+                            definition.Configuration[Constants.Configuration.Indexes.IndexingStaticSearchEngineType] = x.SearchEngineType.Value.ToString();
+
+                        return definition;
+                    }
+                    finally
+                    {
+                        x.Conventions = oldConventions;
+                    }
+                })
+                .ToArray();
+
+            return indexesToAdd;
+        }
+
+        private static IEnumerable<TType> GetAllInstancesOfType<TType>(Assembly assembly)
+        {
+            foreach (var type in assembly.GetTypes()
+                .Where(x => x.IsClass && x.IsAbstract == false))
+            {
+                var interfaces = type.GetInterfaces();
+                if (interfaces == null)
+                    continue;
+
+                if (interfaces.Contains(typeof(TType)) == false)
+                    continue;
+
+                yield return (TType)Activator.CreateInstance(type);
+            }
+        }
+    }
+}

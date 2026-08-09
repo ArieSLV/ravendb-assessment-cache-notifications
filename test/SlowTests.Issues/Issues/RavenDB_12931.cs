@@ -1,0 +1,52 @@
+using FastTests.Voron.Tables;
+using Xunit;
+using Xunit.Abstractions;
+using Tests.Infrastructure;
+
+namespace SlowTests.Issues
+{
+    public class RavenDB_12931 : TableStorageTest
+    {
+        public RavenDB_12931(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        [RavenFact(RavenTestCategory.Voron)]
+        public void CanDeleteTable()
+        {
+            using (var tx = Env.WriteTransaction())
+            {
+                DocsSchema.Create(tx, "docs", 16);
+
+                tx.Commit();
+            }
+
+            for (int j = 0; j < 10; j++)
+            {
+                using (var tx = Env.WriteTransaction())
+                {
+                    var docs = tx.OpenTable(DocsSchema, "docs");
+
+                    for (int i = 0; i < 1000; i++)
+                    {
+                        SetHelper(docs, "users/" + i, "Users", 1L + i, "{'Name': 'Oren'}");
+                    }
+
+                    tx.Commit();
+                }
+            }
+
+            using (var tx = Env.WriteTransaction())
+            {
+                tx.DeleteTable("docs");
+
+                tx.Commit();
+            }
+
+            using (var tx = Env.WriteTransaction())
+            {
+                Assert.False(tx.LowLevelTransaction.RootObjects.TryRead("docs", out _));
+            }
+        }
+    }
+}
