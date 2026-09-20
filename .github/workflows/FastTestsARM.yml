@@ -2,9 +2,6 @@ name: tests/fastARM
 
 on:
   workflow_dispatch:
-  
-  schedule:
-    - cron: '30 6 * * *'
 
 env:
   DOTNET_INSTALL_DIR: "./.dotnet"
@@ -17,10 +14,10 @@ jobs:
           os: [ ubuntu-24.04-arm, macos-latest]
         fail-fast: false
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         global-json-file: global.json
 
@@ -41,10 +38,10 @@ jobs:
           os: [ ubuntu-24.04-arm, macos-latest]
         fail-fast: false
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         global-json-file: global.json
 
